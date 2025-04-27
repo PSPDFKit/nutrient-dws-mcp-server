@@ -1,0 +1,22 @@
+{
+  "annotations": [
+    {
+      "type": "text",
+      "pageIndex": 0,
+      "rect": [100, 100, 200, 150],
+      "contents": "This is a sample annotation",
+      "author": "Test User",
+      "creationDate": "2023-01-01T12:00:00Z",
+      "color": "#FF0000"
+    }
+  ],
+  "formFields": [
+    {
+      "type": "text",
+      "pageIndex": 0,
+      "rect": [300, 300, 400, 350],
+      "name": "TextField1",
+      "value": "Sample text field value"
+    }
+  ]
+}

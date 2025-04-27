@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xfdf xmlns="http://ns.adobe.com/xfdf/" xml:space="preserve">
+  <annots>
+    <text page="0" rect="72,72,144,144" color="#FFFF00" flags="hidden,print,nozoom,norotate" name="Test Annotation" title="Test User" subject="Test Subject" date="D:20230101120000" contents="This is a test annotation." icon="Comment" state="Accepted" state-model="Review"/>
+  </annots>
+</xfdf>

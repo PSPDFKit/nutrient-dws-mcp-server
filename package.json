@@ -1,0 +1,56 @@
+{
+  "name": "@nutrient-sdk/dws-mcp-server",
+  "version": "0.0.1",
+  "description": "MCP server for Nutrient DWS Processor API",
+  "license": "MIT",
+  "author": "Nutrient (https://www.nutrient.io)",
+  "homepage": "https://www.nutrient.io/api",
+  "bugs": "https://github.com/PSPDFKit/nutrient-dws-mcp-server/issues",
+  "bin": {
+    "nutrient-dws-mcp-server": "dist/index.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/PSPDFKit/nutrient-dws-mcp-server.git"
+  },
+  "keywords": [
+    "mcp",
+    "nutrient",
+    "dws"
+  ],
+  "engines": {
+    "node": ">=18.0.0",
+    "pnpm": ">=9.10.0"
+  },
+  "type": "module",
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc && chmod +x dist/index.js",
+    "format": "prettier --write .",
+    "lint": "eslint .",
+    "pretest": "tsc --project tsconfig.test.json --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.11.2",
+    "axios": "^1.9.0",
+    "form-data": "^4.0.2",
+    "zod": "^3.24.3"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.26.0",
+    "@types/node": "^22.15.2",
+    "dotenv": "^16.4.5",
+    "eslint": "^9.26.0",
+    "prettier": "^3.5.3",
+    "typescript": "^5.8.3",
+    "typescript-eslint": "^8.32.0",
+    "vitest": "^3.1.2"
+  }
+}
