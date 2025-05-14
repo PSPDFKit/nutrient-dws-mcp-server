@@ -13,9 +13,6 @@ This server allows AI assistants to access the tools provided by Nutrient DWS Pr
   - [Getting Started with Claude Desktop](#getting-started-with-claude-desktop--nutrient-dws-mcp-server)
   - [Compatibility](#compatibility)
   - [Further Configuration](#further-configuration)
-- [Development](#development)
-  - [MCP Tools Exposed](#mcp-tools-exposed)
-  - [Testing](#testing)
 - [Contributions](#contributions)
 
 ### Features overview
@@ -37,7 +34,8 @@ This server allows AI assistants to access the tools provided by Nutrient DWS Pr
 
 1. **Get a Nutrient DWS API key:** Sign up at [nutrient.io/api](https://dashboard.nutrient.io/sign_up/).
 2. **Download Claude Desktop:** If you haven’t already, [download Claude Desktop](https://claude.ai) and sign in.
-3. **Configure Claude:** Add your API key and set the directory you’d like to use as a sandbox in `claude_desktop_config.json` (`~/Library/Application\ Support/Claude/claude_desktop_config.json` on macOS).
+3. **Install Node.js**: Install Node.js with a package manager like brew on the command line. (`brew install node`)
+4. **Configure Claude:** Add your API key and set the directory you’d like to use as a sandbox in `claude_desktop_config.json` (`~/Library/Application\ Support/Claude/claude_desktop_config.json` on macOS).
 
 ```json
 {
@@ -53,9 +51,9 @@ This server allows AI assistants to access the tools provided by Nutrient DWS Pr
 }
 ```
 
-4. **Restart Claude Desktop.**
-5. **Add documents for processing:** Use any file manager to copy the documents into the sandbox directory set in the `claude_desktop_config.json` file above.
-6. **Process documents:** Instruct Claude Sonnet 3.7 (e.g. “redact all PII from secret.pdf”, “sign the document contract.pdf”, “merge secret.pdf and contract.pdf together”, etc.).
+5. **Restart Claude Desktop.**
+6. **Add documents for processing:** Use any file manager to copy the documents into the sandbox directory set in the `claude_desktop_config.json` file above.
+7. **Process documents:** Instruct Claude Sonnet 3.7 (e.g. “redact all PII from secret.pdf”, “sign the document contract.pdf”, “merge secret.pdf and contract.pdf together”, etc.).
 
 > **Note:** All operations involve reading from and writing to files on disk. We strongly recommend using the sandboxed directory feature to enhance security and prevent data loss.
 
