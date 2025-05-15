@@ -22,8 +22,14 @@ export function setSandboxDirectory(directory: string | null = null) {
 
 function resolveFilePath(filePath: string): string {
   if (sandboxDirectory) {
-    // Always treat paths as relative to sandbox if sandbox is enabled, even if they're absolute
-    const absolutePath = path.resolve(path.join(sandboxDirectory, filePath))
+    // If the path is absolute and already starts with the sandbox directory, use it as is
+    // Otherwise, treat paths as relative to sandbox if sandbox is enabled
+    const isAbsolutePath = path.isAbsolute(filePath)
+    const absolutePath =
+      isAbsolutePath && filePath.startsWith(sandboxDirectory)
+        ? path.resolve(filePath)
+        : path.resolve(path.join(sandboxDirectory, filePath))
+
     if (!absolutePath.startsWith(sandboxDirectory)) {
       throw new Error(
         `Invalid Path: ${filePath}. You may only access files within the sandbox directory, please use relative paths.`,

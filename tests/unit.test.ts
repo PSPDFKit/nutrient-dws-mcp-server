@@ -500,6 +500,15 @@ describe('API Functions', () => {
           'Invalid Path: ../output.pdf. You may only access files within the sandbox directory, please use relative paths.',
         )
       })
+
+      it('should accept absolute paths that already start with the sandbox directory', () => {
+        sandbox.setSandboxDirectory('/sandbox')
+
+        const absolutePathInSandbox = '/sandbox/test.pdf'
+
+        // The path should be accepted as is, without appending the sandbox path again
+        expect(sandbox.resolveSandboxFilePath(absolutePathInSandbox)).toBe('/sandbox/test.pdf')
+      })
     })
 
     describe('resolveOutputFilePath', () => {
@@ -543,6 +552,15 @@ describe('API Functions', () => {
         expect(() => sandbox.resolveOutputFilePath(relativePath)).toThrowError(
           'Invalid Path: ../output.pdf. You may only access files within the sandbox directory, please use relative paths.',
         )
+      })
+
+      it('should accept absolute paths that already start with the sandbox directory', () => {
+        sandbox.setSandboxDirectory('/sandbox')
+
+        const absolutePathInSandbox = '/sandbox/output.pdf'
+
+        // The path should be accepted as is, without appending the sandbox path again
+        expect(sandbox.resolveOutputFilePath(absolutePathInSandbox)).toBe('/sandbox/output.pdf')
       })
     })
   })
