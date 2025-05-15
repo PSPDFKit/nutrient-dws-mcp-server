@@ -19,7 +19,7 @@ import { getVersion } from './version.js'
 const server = new McpServer(
   {
     name: 'nutrient-dws-mcp-server',
-    version: '0.0.1',
+    version: getVersion(),
   },
   {
     capabilities: {
@@ -29,7 +29,7 @@ const server = new McpServer(
   },
 )
 
-function addToolsToSever(server: McpServer, sandboxEnabled: boolean = false) {
+function addToolsToServer(server: McpServer, sandboxEnabled: boolean = false) {
   server.tool(
     'document_processor',
     `Processes documents using Nutrient DWS Processor API. Reads from and writes to file system or sandbox (if enabled).
@@ -136,7 +136,7 @@ export async function runServer() {
     )
   }
 
-  addToolsToSever(server, sandboxDir !== null)
+  addToolsToServer(server, sandboxDir !== null)
 
   const transport = new StdioServerTransport()
   await server.connect(transport)
