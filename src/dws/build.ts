@@ -15,7 +15,7 @@ import { callNutrientApi } from './api.js'
  */
 export async function performBuildCall(
   instructions: Instructions,
-  relativeOutputFilePath: string,
+  relativeOutputFilePath: string, // TODO: Should we rename this to outputFilePath
 ): Promise<CallToolResult> {
   const { instructions: adjustedInstructions, fileReferences } = processInstructions(instructions)
 

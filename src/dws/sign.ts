@@ -12,7 +12,7 @@ import { callNutrientApi } from './api.js'
  */
 export async function performSignCall(
   filePath: string,
-  relativeOutputFilePath: string,
+  relativeOutputFilePath: string, // TODO: Should we rename this to outputFilePath
   signatureOptions: SignatureOptions = { signatureType: 'cms', flatten: false },
   watermarkImagePath?: string,
   graphicImagePath?: string,

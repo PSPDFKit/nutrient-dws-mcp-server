@@ -63,7 +63,7 @@ This server allows AI assistants to access the tools provided by Nutrient DWS Pr
 
 Nutrient DWS MCP Server has been tested with Claude Desktop (Claude 3.7 Sonnet). Other MCP clients may work, but results may vary.
 
-Nutrient DWS MCP Server only supports macOS for now. Feel free to open an issue if you’re interested in Windows/Linux support.
+Nutrient DWS MCP Server supports macOS and Windows for now. Feel free to open an issue if you’re interested in Linux support.
 
 ### Further configuration
 
