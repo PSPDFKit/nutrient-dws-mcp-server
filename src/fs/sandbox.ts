@@ -20,26 +20,34 @@ export function setSandboxDirectory(directory: string | null = null) {
   sandboxDirectory = path.resolve(directory)
 }
 
+function isInsideSandboxDirectory(filePath: string) {
+  if (!sandboxDirectory) {
+    throw new Error('Sandbox directory not set')
+  }
+  const relativePath = path.relative(sandboxDirectory, filePath)
+  return !relativePath.startsWith('..') && !path.isAbsolute(relativePath)
+}
+
 function resolveFilePath(filePath: string): string {
   if (sandboxDirectory) {
     // If the path is absolute and already starts with the sandbox directory, use it as is
     // Otherwise, treat paths as relative to sandbox if sandbox is enabled
     const isAbsolutePath = path.isAbsolute(filePath)
     const absolutePath =
-      isAbsolutePath && filePath.startsWith(sandboxDirectory)
+      isAbsolutePath && isInsideSandboxDirectory(filePath)
         ? path.resolve(filePath)
         : path.resolve(path.join(sandboxDirectory, filePath))
 
-    if (!absolutePath.startsWith(sandboxDirectory)) {
+    if (!isInsideSandboxDirectory(absolutePath)) {
       throw new Error(
         `Invalid Path: ${filePath}. You may only access files within the sandbox directory, please use relative paths.`,
       )
     }
     return absolutePath
   } else {
-    if (!filePath.startsWith('/')) {
+    if (!path.isAbsolute(filePath)) {
       throw new Error(
-        `Invalid Path: ${filePath}. Absolute paths are required when sandbox is not enabled. Use / to start from the root directory.`,
+        `Invalid Path: ${filePath}. Absolute paths are required when sandbox is not enabled. Use / (MacOS/Linux) or C:\\ (Windows) to start from the root directory.`,
       )
     }
     return path.resolve(filePath)
