@@ -61,7 +61,7 @@ This server allows AI assistants to access the tools provided by Nutrient DWS Pr
 ```
 
 6. **Restart Claude Desktop.**
-    > On Windows you might need to go to the Task Manager and kill any processes named Claude to reset the application. On a macOS it will be the Activity Monitor 
+   > On Windows you might need to go to the Task Manager and kill any processes named Claude to reset the application. On a macOS it will be the Activity Monitor
 7. **Add documents for processing:** Use any file manager to copy the documents into the sandbox directory set in the `claude_desktop_config.json` file above.
 8. **Process documents:** Instruct Claude Sonnet 3.7 (e.g. “redact all PII from secret.pdf”, “sign the document contract.pdf”, “merge secret.pdf and contract.pdf together”, etc.).
 

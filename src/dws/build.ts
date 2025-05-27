@@ -13,10 +13,7 @@ import { callNutrientApi } from './api.js'
 /**
  * Performs a build call to the Nutrient DWS Processor API
  */
-export async function performBuildCall(
-  instructions: Instructions,
-  outputFilePath: string,
-): Promise<CallToolResult> {
+export async function performBuildCall(instructions: Instructions, outputFilePath: string): Promise<CallToolResult> {
   const { instructions: adjustedInstructions, fileReferences } = processInstructions(instructions)
 
   if (fileReferences.size === 0) {
