@@ -1,6 +1,6 @@
 {
   "name": "@nutrient-sdk/dws-mcp-server",
-  "version": "0.0.2",
+  "version": "0.0.3-windows.0",
   "description": "MCP server for Nutrient DWS Processor API",
   "license": "MIT",
   "author": "Nutrient (https://www.nutrient.io)",
