@@ -15,7 +15,7 @@ import { callNutrientApi } from './api.js'
  */
 export async function performBuildCall(
   instructions: Instructions,
-  relativeOutputFilePath: string, // TODO: Should we rename this to outputFilePath
+  outputFilePath: string,
 ): Promise<CallToolResult> {
   const { instructions: adjustedInstructions, fileReferences } = processInstructions(instructions)
 
@@ -29,7 +29,7 @@ export async function performBuildCall(
     if (adjustedInstructions.output?.type === 'json-content') {
       return handleJsonContentResponse(response)
     } else {
-      return handleFileResponse(response, relativeOutputFilePath, 'File processed successfully using build API')
+      return handleFileResponse(response, outputFilePath, 'File processed successfully using build API')
     }
   } catch (e: unknown) {
     return handleApiError(e)
