@@ -46,12 +46,15 @@ This server allows AI assistants to access the tools provided by Nutrient DWS Pr
    1. **macOS users**: The `claude_desktop_config.json` is inside the directory `~/Library/Application\ Support/Claude`.
    2. **Windows users**: The `claude_desktop_config.json` is inside the directory `%APPDATA%\Claude`
 
+> **NOTE**: For the `--sandbox`, you can put in the path in either the Unix-style (separated using forward slash `/`) or the Windows-style
+> (separated using the backward slash `/`). **And** for the Windows path, you must escape the backward slash (i.e. `\\` instead of `\`)
+
 ```json lines
 {
   "mcpServers": {
     "nutrient-dws": {
       "command": "npx",
-      "args": ["-y", "@nutrient-sdk/dws-mcp-server", "--sandbox", "/your/sandbox/directory"],
+      "args": ["-y", "@nutrient-sdk/dws-mcp-server", "--sandbox", "/your/sandbox/directory"], // "C:\\your\\sandbox\\directory" for Windows
       "env": {
         "NUTRIENT_DWS_API_KEY": "YOUR_API_KEY_HERE"
       }
