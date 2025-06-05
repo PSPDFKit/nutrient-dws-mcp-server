@@ -12,7 +12,7 @@ import { callNutrientApi } from './api.js'
  */
 export async function performSignCall(
   filePath: string,
-  relativeOutputFilePath: string,
+  outputFilePath: string,
   signatureOptions: SignatureOptions = { signatureType: 'cms', flatten: false },
   watermarkImagePath?: string,
   graphicImagePath?: string,
@@ -39,7 +39,7 @@ export async function performSignCall(
     }
 
     const response = await callNutrientApi('sign', formData)
-    return handleFileResponse(response, relativeOutputFilePath, 'File signed successfully')
+    return handleFileResponse(response, outputFilePath, 'File signed successfully')
   } catch (e: unknown) {
     return handleApiError(e)
   }

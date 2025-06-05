@@ -29,13 +29,13 @@
     "LICENSE"
   ],
   "scripts": {
-    "build": "tsc && chmod +x dist/index.js",
+    "build": "tsc && shx chmod +x dist/index.js",
     "format": "prettier --write .",
     "lint": "eslint .",
     "pretest": "tsc --project tsconfig.test.json --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "clean": "rm -rf dist"
+    "clean": "shx rm -rf dist"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.11.2",
@@ -49,6 +49,7 @@
     "dotenv": "^16.4.5",
     "eslint": "^9.26.0",
     "prettier": "^3.5.3",
+    "shx": "^0.4.0",
     "typescript": "^5.8.3",
     "typescript-eslint": "^8.32.0",
     "vitest": "^3.1.2"

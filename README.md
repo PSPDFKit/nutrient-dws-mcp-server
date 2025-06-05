@@ -35,16 +35,26 @@ This server allows AI assistants to access the tools provided by Nutrient DWS Pr
 ### Getting Started with Claude Desktop + Nutrient DWS MCP Server
 
 1. **Get a Nutrient DWS API key:** Sign up at [nutrient.io/api](https://dashboard.nutrient.io/sign_up/).
-2. **Download Claude Desktop:** If you haven’t already, [download Claude Desktop](https://claude.ai) and sign in.
-3. **Install Node.js**: Install Node.js with a package manager like brew on the command line. (`brew install node`)
-4. **Configure Claude:** Add your API key and set the directory you’d like to use as a sandbox in `claude_desktop_config.json` (`~/Library/Application\ Support/Claude/claude_desktop_config.json` on macOS).
+2. **Install Node.js**:
+   1. **macOS users**: Install Node.js with a package manager like brew on the command line. (`brew install node`)
+   2. **Windows users**: Download the Node Installer by visiting [Node.js Download Site](https://nodejs.org/en/download) and run the installer
+3. **Download Claude Desktop:** If you haven’t already, [download Claude Desktop](https://claude.ai/download) and sign in.
+4. **Create the `claude_desktop_config.json`**:
+   1. **macOS users**: Click on "Claude" next to the Apple icon on top of your mac screen. Go to Settings > Developer and click on Edit Config.
+   2. **Windows user**: Click on the hamburger menu on the top left of the Claude Desktop window. Go to File > Settings > Developer and click on Edit Config.
+5. **Configure Claude:**: Add `nutrient-dws` to the `claude_desktop_config.json` (example below). Make sure to add your API key and set the sandbox directory:
+   1. **macOS users**: The `claude_desktop_config.json` is inside the directory `~/Library/Application\ Support/Claude`.
+   2. **Windows users**: The `claude_desktop_config.json` is inside the directory `%APPDATA%\Claude`
 
-```json
+> **NOTE**: For the `--sandbox`, you can put in the path in either the Unix-style (separated using forward slash `/`) or the Windows-style
+> (separated using the backward slash `/`). **And** for the Windows path, you must escape the backward slash (i.e. `\\` instead of `\`)
+
+```json lines
 {
   "mcpServers": {
     "nutrient-dws": {
       "command": "npx",
-      "args": ["-y", "@nutrient-sdk/dws-mcp-server", "--sandbox", "/your/sandbox/directory"],
+      "args": ["-y", "@nutrient-sdk/dws-mcp-server", "--sandbox", "/your/sandbox/directory"], // "C:\\your\\sandbox\\directory" for Windows
       "env": {
         "NUTRIENT_DWS_API_KEY": "YOUR_API_KEY_HERE"
       }
@@ -53,9 +63,10 @@ This server allows AI assistants to access the tools provided by Nutrient DWS Pr
 }
 ```
 
-5. **Restart Claude Desktop.**
-6. **Add documents for processing:** Use any file manager to copy the documents into the sandbox directory set in the `claude_desktop_config.json` file above.
-7. **Process documents:** Instruct Claude Sonnet 3.7 (e.g. “redact all PII from secret.pdf”, “sign the document contract.pdf”, “merge secret.pdf and contract.pdf together”, etc.).
+6. **Restart Claude Desktop.**
+   > On Windows you might need to go to the Task Manager and kill any processes named Claude to reset the application. On a macOS it will be the Activity Monitor
+7. **Add documents for processing:** Use any file manager to copy the documents into the sandbox directory set in the `claude_desktop_config.json` file above.
+8. **Process documents:** Instruct Claude Sonnet 3.7 (e.g. “redact all PII from secret.pdf”, “sign the document contract.pdf”, “merge secret.pdf and contract.pdf together”, etc.).
 
 > **Note:** All operations involve reading from and writing to files on disk. We strongly recommend using the sandboxed directory feature to enhance security and prevent data loss.
 
@@ -63,7 +74,7 @@ This server allows AI assistants to access the tools provided by Nutrient DWS Pr
 
 Nutrient DWS MCP Server has been tested with Claude Desktop (Claude 3.7 Sonnet). Other MCP clients may work, but results may vary.
 
-Nutrient DWS MCP Server only supports macOS for now. Feel free to open an issue if you’re interested in Windows/Linux support.
+Nutrient DWS MCP Server supports macOS and Windows for now. Feel free to open an issue if you’re interested in Linux support.
 
 ### Further configuration
 

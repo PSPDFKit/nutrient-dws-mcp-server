@@ -9,6 +9,7 @@ import { performDirectoryTreeCall } from '../src/fs/directoryTree.js'
 import * as sandbox from '../src/fs/sandbox.js'
 import * as api from '../src/dws/api.js'
 import axios, { AxiosError, InternalAxiosRequestConfig } from 'axios'
+import path from 'path'
 
 dotenvConfig()
 
@@ -62,7 +63,11 @@ describe('API Functions', () => {
 
       const buildCall = performBuildCall({ parts: [{ file: '/test.pdf' }] }, 'test_processed.pdf')
 
-      await expect(buildCall).rejects.toThrowError('Error with referenced file /test.pdf: Path not found: /test.pdf')
+      const resolvedPath = path.resolve('/test.pdf')
+
+      await expect(buildCall).rejects.toThrowError(
+        `Error with referenced file /test.pdf: Path not found: ${resolvedPath}`,
+      )
     })
 
     it('should throw an error if API key is not set', async () => {
@@ -214,7 +219,11 @@ describe('API Functions', () => {
 
       const buildCall = performBuildCall({ parts: [{ file: '/test.pdf' }] }, '/test_processed.pdf')
 
-      await expect(buildCall).rejects.toThrowError('Error with referenced file /test.pdf: Path not found: /test.pdf')
+      const resolvedPath = path.resolve('/test.pdf')
+
+      await expect(buildCall).rejects.toThrowError(
+        `Error with referenced file /test.pdf: Path not found: ${resolvedPath}`,
+      )
     })
 
     it('should throw an error if API key is not set', async () => {
@@ -273,7 +282,7 @@ describe('API Functions', () => {
         '/watermark.png',
       )
 
-      expect(fs.readFileSync).toHaveBeenCalledWith('/watermark.png')
+      expect(fs.readFileSync).toHaveBeenCalledWith(path.resolve('/watermark.png'))
     })
 
     it('should include graphic image if provided', async () => {
@@ -294,7 +303,7 @@ describe('API Functions', () => {
         '/graphic.png',
       )
 
-      expect(fs.readFileSync).toHaveBeenCalledWith('/graphic.png')
+      expect(fs.readFileSync).toHaveBeenCalledWith(path.resolve('/graphic.png'))
     })
 
     it('should save the result to disk', async () => {
@@ -397,8 +406,10 @@ describe('API Functions', () => {
 
       const result = await performDirectoryTreeCall('/nonexistent/dir')
 
+      const resolvedDirectory = path.resolve('/nonexistent/dir')
+
       expect(result.isError).toBe(true)
-      expect(result.content[0].text).toContain('Error: Path is not a directory: /nonexistent/dir')
+      expect(result.content[0].text).toContain(`Error: Path is not a directory: ${resolvedDirectory}`)
     })
 
     it('should return an error if the path is not a directory', async () => {
@@ -464,8 +475,10 @@ describe('API Functions', () => {
 
         const absolutePathOutsideSandbox = '/outside/test.pdf'
 
+        const resolvedAbsolutePathOutsideSandbox = path.resolve('/sandbox/outside/test.pdf')
+
         // Paths should resolve inside the sandbox.
-        expect(sandbox.resolveSandboxFilePath(absolutePathOutsideSandbox)).toBe('/sandbox/outside/test.pdf')
+        expect(sandbox.resolveSandboxFilePath(absolutePathOutsideSandbox)).toBe(resolvedAbsolutePathOutsideSandbox)
       })
 
       it('should resolve relative paths to the sandbox directory when sandbox mode is enabled', () => {
@@ -473,21 +486,25 @@ describe('API Functions', () => {
 
         const relativePath = 'test.pdf'
 
+        const resolvedRelativePath = path.resolve('/sandbox/test.pdf')
+
         // Paths should resolve inside the sandbox.
-        expect(sandbox.resolveSandboxFilePath(relativePath)).toBe('/sandbox/test.pdf')
+        expect(sandbox.resolveSandboxFilePath(relativePath)).toBe(resolvedRelativePath)
       })
 
       it('should resolve absolute paths when sandbox is not enabled', () => {
         const absolutePath = '/test.pdf'
 
-        expect(sandbox.resolveSandboxFilePath(absolutePath)).toBe('/test.pdf')
+        const resolvedAbsolutePath = path.resolve('/test.pdf')
+
+        expect(sandbox.resolveSandboxFilePath(absolutePath)).toBe(resolvedAbsolutePath)
       })
 
       it('should reject relative paths when sandbox is not enabled', () => {
         const relativePath = 'test.pdf'
 
         expect(() => sandbox.resolveSandboxFilePath(relativePath)).toThrowError(
-          'Invalid Path: test.pdf. Absolute paths are required when sandbox is not enabled. Use / to start from the root directory.',
+          'Invalid Path: test.pdf. Absolute paths are required when sandbox is not enabled. Use / (MacOS/Linux) or C:\\ (Windows) to start from the root directory.',
         )
       })
 
@@ -506,8 +523,10 @@ describe('API Functions', () => {
 
         const absolutePathInSandbox = '/sandbox/test.pdf'
 
+        const resolvedAbsolutePathInSandbox = path.resolve('/sandbox/test.pdf')
+
         // The path should be accepted as is, without appending the sandbox path again
-        expect(sandbox.resolveSandboxFilePath(absolutePathInSandbox)).toBe('/sandbox/test.pdf')
+        expect(sandbox.resolveSandboxFilePath(absolutePathInSandbox)).toBe(resolvedAbsolutePathInSandbox)
       })
     })
 
@@ -517,8 +536,10 @@ describe('API Functions', () => {
 
         const absolutePathInSandbox = '/output.pdf'
 
+        const resolvedPathInSandbox = path.resolve('/sandbox/output.pdf')
+
         // The resolved path should be the same as the input
-        expect(sandbox.resolveOutputFilePath(absolutePathInSandbox)).toBe('/sandbox/output.pdf')
+        expect(sandbox.resolveOutputFilePath(absolutePathInSandbox)).toBe(resolvedPathInSandbox)
       })
 
       it('should resolve relative paths to the sandbox directory when sandbox mode is enabled', () => {
@@ -526,21 +547,25 @@ describe('API Functions', () => {
 
         const relativePath = 'output.pdf'
 
+        const resolvedRelativePath = path.resolve('/sandbox/output.pdf')
+
         // Relative paths should resolve to the sandbox directory.
-        expect(sandbox.resolveOutputFilePath(relativePath)).toBe('/sandbox/output.pdf')
+        expect(sandbox.resolveOutputFilePath(relativePath)).toBe(resolvedRelativePath)
       })
 
       it('should resolve absolute paths when sandbox is not enabled', () => {
         const absolutePath = '/output.pdf'
 
-        expect(sandbox.resolveOutputFilePath(absolutePath)).toBe('/output.pdf')
+        const resolvedAbsolutePath = path.resolve('/output.pdf')
+
+        expect(sandbox.resolveOutputFilePath(absolutePath)).toBe(resolvedAbsolutePath)
       })
 
       it('should reject relative paths when sandbox is not enabled', () => {
         const relativePath = 'output.pdf'
 
         expect(() => sandbox.resolveOutputFilePath(relativePath)).toThrowError(
-          'Invalid Path: output.pdf. Absolute paths are required when sandbox is not enabled. Use / to start from the root directory.',
+          'Invalid Path: output.pdf. Absolute paths are required when sandbox is not enabled. Use / (MacOS/Linux) or C:\\ (Windows) to start from the root directory.',
         )
       })
 
@@ -559,8 +584,10 @@ describe('API Functions', () => {
 
         const absolutePathInSandbox = '/sandbox/output.pdf'
 
+        const resolvedAbsolutePathInSandbox = path.resolve('/sandbox/output.pdf')
+
         // The path should be accepted as is, without appending the sandbox path again
-        expect(sandbox.resolveOutputFilePath(absolutePathInSandbox)).toBe('/sandbox/output.pdf')
+        expect(sandbox.resolveOutputFilePath(absolutePathInSandbox)).toBe(resolvedAbsolutePathInSandbox)
       })
     })
   })
