@@ -10,6 +10,7 @@ import * as sandbox from '../src/fs/sandbox.js'
 import * as api from '../src/dws/api.js'
 import axios, { AxiosError, InternalAxiosRequestConfig } from 'axios'
 import path from 'path'
+import { FileHandle } from 'fs/promises'
 
 dotenvConfig()
 
@@ -35,11 +36,23 @@ describe('API Functions', () => {
 
     process.env = { ...originalEnv, NUTRIENT_DWS_API_KEY: 'test-api-key' }
 
-    vi.mocked(fs.existsSync).mockReturnValue(true)
-    vi.mocked(fs.readFileSync).mockReturnValue(Buffer.from('test file content'))
-    vi.mocked(fs.writeFileSync).mockImplementation(() => {})
+    vi.spyOn(fs.promises, "access").mockImplementation(async () => {})
+    vi.spyOn(fs.promises, 'stat').mockReturnValue(
+      Promise.resolve({
+        isFile: () => true,
+        isDirectory: () => true,
+      } as Stats),
+    )
+    vi.spyOn(fs.promises, "open").mockReturnValue(Promise.resolve({close: async () => {}} as FileHandle))
 
-    vi.spyOn(fs.promises, 'readdir').mockImplementation(() => Promise.resolve([]))
+    vi.spyOn(fs.promises, "readFile").mockReturnValue(Promise.resolve(Buffer.from('test file content')))
+    vi.spyOn(fs.promises, "writeFile").mockImplementation(async () => {})
+
+    vi.spyOn(fs.promises, "readdir").mockImplementation(() => Promise.resolve([]))
+    vi.spyOn(fs.promises, "mkdir").mockReturnValue(Promise.resolve(undefined))
+    vi.spyOn(fs.promises, "unlink").mockImplementation(async () => {})
+    vi.spyOn(fs.promises, "rm").mockImplementation(async () => {})
+
 
     vi.mocked(api.callNutrientApi).mockImplementation(async () => {
       const mockStream = createMockStream('default mock response')
@@ -59,11 +72,11 @@ describe('API Functions', () => {
 
   describe('performBuildCall', () => {
     it('should throw an error if file does not exist', async () => {
-      vi.mocked(fs.existsSync).mockReturnValue(false)
-
-      const buildCall = performBuildCall({ parts: [{ file: '/test.pdf' }] }, 'test_processed.pdf')
-
       const resolvedPath = path.resolve('/test.pdf')
+
+      vi.spyOn(fs.promises, "access").mockImplementation(async () => { throw new Error(`Path not found: ${resolvedPath}`)})
+
+      const buildCall = performBuildCall({ parts: [{ file: '/test.pdf' }] }, '/test_processed.pdf')
 
       await expect(buildCall).rejects.toThrowError(
         `Error with referenced file /test.pdf: Path not found: ${resolvedPath}`,
@@ -78,7 +91,7 @@ describe('API Functions', () => {
         ),
       )
 
-      const result = await performBuildCall({ parts: [{ file: '/test.pdf' }] }, 'test_processed.pdf')
+      const result = await performBuildCall({ parts: [{ file: '/test.pdf' }] }, '/test_processed.pdf')
 
       expect(result.isError).toBe(true)
       expect(result.content[0].text).toContain('NUTRIENT_DWS_API_KEY environment variable is required')
@@ -143,7 +156,7 @@ describe('API Functions', () => {
         },
       }
 
-      const result = await performBuildCall(instructions, 'test_processed.pdf')
+      const result = await performBuildCall(instructions, '/test_processed.pdf')
 
       expect(result.isError).toBe(false)
       expect(result.content[0].type).toBe('text')
@@ -162,7 +175,7 @@ describe('API Functions', () => {
 
       await performBuildCall({ parts: [{ file: '/test.pdf' }] }, '/test_processed.pdf')
 
-      expect(fs.writeFileSync).toHaveBeenCalledWith(expect.stringContaining('_processed.pdf'), expect.any(Buffer))
+      expect(fs.promises.writeFile).toHaveBeenCalledWith(expect.stringContaining('_processed.pdf'), expect.any(Buffer))
     })
 
     it('should handle errors from the API', async () => {
@@ -173,7 +186,7 @@ describe('API Functions', () => {
       } as unknown as AxiosError)
       vi.mocked(axios.isAxiosError).mockImplementation(() => true)
       vi.mocked(api.callNutrientApi).mockRejectedValue(new AxiosError())
-      const result = await performBuildCall({ parts: [{ file: '/test.pdf' }] }, 'test_processed.pdf')
+      const result = await performBuildCall({ parts: [{ file: '/test.pdf' }] }, '/test_processed.pdf')
 
       expect(result.isError).toBe(true)
       expect(result.content[0].text).toContain('Error processing API response: Error message from API')
@@ -199,7 +212,7 @@ describe('API Functions', () => {
       vi.mocked(axios.isAxiosError).mockImplementation(() => true)
       vi.mocked(api.callNutrientApi).mockRejectedValue(new AxiosError())
 
-      const result = await performBuildCall({ parts: [{ file: '/test.pdf' }] }, 'test_processed.pdf')
+      const result = await performBuildCall({ parts: [{ file: '/test.pdf' }] }, '/test_processed.pdf')
 
       expect(result.isError).toBe(true)
 
@@ -215,11 +228,11 @@ describe('API Functions', () => {
 
   describe('performSignCall', () => {
     it('should throw an error if file does not exist', async () => {
-      vi.mocked(fs.existsSync).mockReturnValue(false)
+      const resolvedPath = path.resolve('/test.pdf')
+
+      vi.spyOn(fs.promises, "access").mockImplementation(async () => { throw new Error(`Error with referenced file /test.pdf: Path not found: ${resolvedPath}`)})
 
       const buildCall = performBuildCall({ parts: [{ file: '/test.pdf' }] }, '/test_processed.pdf')
-
-      const resolvedPath = path.resolve('/test.pdf')
 
       await expect(buildCall).rejects.toThrowError(
         `Error with referenced file /test.pdf: Path not found: ${resolvedPath}`,
@@ -282,7 +295,7 @@ describe('API Functions', () => {
         '/watermark.png',
       )
 
-      expect(fs.readFileSync).toHaveBeenCalledWith(path.resolve('/watermark.png'))
+      expect(fs.promises.readFile).toHaveBeenCalledWith(path.resolve('/watermark.png'))
     })
 
     it('should include graphic image if provided', async () => {
@@ -303,7 +316,7 @@ describe('API Functions', () => {
         '/graphic.png',
       )
 
-      expect(fs.readFileSync).toHaveBeenCalledWith(path.resolve('/graphic.png'))
+      expect(fs.promises.readFile).toHaveBeenCalledWith(path.resolve('/graphic.png'))
     })
 
     it('should save the result to disk', async () => {
@@ -318,7 +331,7 @@ describe('API Functions', () => {
 
       await performSignCall('/test.pdf', '/test_signed.pdf')
 
-      expect(fs.writeFileSync).toHaveBeenCalledWith(expect.stringContaining('_signed.pdf'), expect.any(Buffer))
+      expect(fs.promises.writeFile).toHaveBeenCalledWith(expect.stringContaining('_signed.pdf'), expect.any(Buffer))
     })
 
     it('should handle errors from the API', async () => {
@@ -339,15 +352,16 @@ describe('API Functions', () => {
 
   describe('performDirectoryTreeCall', () => {
     it('should return a tree structure for a valid directory', async () => {
-      vi.mocked(fs.existsSync).mockReturnValue(true)
+      vi.spyOn(fs.promises, "access").mockImplementation(async () => {})
 
-      vi.mocked(fs.statSync).mockReturnValue({
+      vi.spyOn(fs.promises, "stat").mockReturnValue(Promise.resolve({
         isDirectory: () => true,
-      } as Stats)
+      } as Stats))
 
       const mockEntries = [
         {
           name: 'file1.txt',
+          parentPath: '/test/dir',
           isDirectory: () => false,
           isFile: () => true,
           isBlockDevice: () => false,
@@ -358,6 +372,7 @@ describe('API Functions', () => {
         },
         {
           name: 'file2.pdf',
+          parentPath: '/test/dir',
           isDirectory: () => false,
           isFile: () => true,
           isBlockDevice: () => false,
@@ -368,6 +383,7 @@ describe('API Functions', () => {
         },
         {
           name: 'subdir',
+          parentPath: '/test/dir',
           isDirectory: () => true,
           isFile: () => false,
           isBlockDevice: () => false,
@@ -378,8 +394,7 @@ describe('API Functions', () => {
         },
       ]
 
-      const readdirSpy = vi.spyOn(fs.promises, 'readdir')
-      readdirSpy.mockImplementationOnce(() =>
+      vi.spyOn(fs.promises, "readdir").mockImplementationOnce(() =>
         Promise.resolve(mockEntries as unknown as fs.Dirent<Buffer<ArrayBufferLike>>[]),
       )
 
@@ -400,9 +415,9 @@ describe('API Functions', () => {
     })
 
     it('should return an error if the directory does not exist', async () => {
-      vi.mocked(fs.statSync).mockReturnValue({
+      vi.spyOn(fs.promises, "stat").mockReturnValue(Promise.resolve({
         isDirectory: () => false,
-      } as Stats)
+      } as Stats))
 
       const result = await performDirectoryTreeCall('/nonexistent/dir')
 
@@ -413,11 +428,11 @@ describe('API Functions', () => {
     })
 
     it('should return an error if the path is not a directory', async () => {
-      vi.mocked(fs.existsSync).mockReturnValue(true)
+      vi.spyOn(fs.promises, "access").mockImplementation(async () => {})
 
-      vi.mocked(fs.statSync).mockReturnValue({
+      vi.spyOn(fs.promises, "stat").mockReturnValue(Promise.resolve({
         isDirectory: () => false,
-      } as Stats)
+      } as Stats))
 
       const result = await performDirectoryTreeCall('/test/file.txt')
 
@@ -426,14 +441,13 @@ describe('API Functions', () => {
     })
 
     it('should handle empty directories', async () => {
-      vi.mocked(fs.existsSync).mockReturnValue(true)
+      vi.spyOn(fs.promises, "access").mockImplementation(async () => {})
 
-      vi.mocked(fs.statSync).mockReturnValue({
+      vi.spyOn(fs.promises, "stat").mockReturnValue(Promise.resolve({
         isDirectory: () => true,
-      } as Stats)
+      } as Stats))
 
-      const readdirSpy = vi.spyOn(fs.promises, 'readdir')
-      readdirSpy.mockImplementation(() => Promise.resolve([] as unknown as fs.Dirent<Buffer>[]))
+      vi.spyOn(fs.promises, "readdir").mockImplementation(() => Promise.resolve([] as unknown as fs.Dirent<Buffer>[]))
 
       const result = await performDirectoryTreeCall('/test/empty-dir')
 
@@ -444,150 +458,177 @@ describe('API Functions', () => {
     })
 
     it('should handle errors during tree building', async () => {
-      vi.mocked(fs.existsSync).mockReturnValue(true)
+      vi.spyOn(fs.promises, "access").mockImplementation(async () => {})
 
-      vi.mocked(fs.statSync).mockReturnValue({
+      vi.spyOn(fs.promises, "stat").mockReturnValue(Promise.resolve({
         isDirectory: () => true,
-      } as Stats)
+      } as Stats))
 
       const mockError = new Error('Permission denied')
-      const readdirSpy = vi.spyOn(fs.promises, 'readdir')
-      readdirSpy.mockImplementation(() => Promise.reject(mockError))
+      vi.spyOn(fs.promises, "readdir").mockImplementation(() => Promise.reject(mockError))
 
       const result = await performDirectoryTreeCall('/test/dir')
 
       expect(result.isError).toBe(true)
-      expect(result.content[0].text).toContain('Permission denied')
+      expect(result.content[0].text).toContain('Cannot read the directory tree, make sure to allow this application access to')
     })
   })
 
   describe('Sandbox Functionality', () => {
-    beforeEach(() => {
+    beforeEach(async () => {
       vi.resetAllMocks()
 
-      vi.mocked(fs.existsSync).mockReturnValue(true)
-      sandbox.setSandboxDirectory(null)
+      vi.spyOn(fs.promises, "access").mockImplementation(async () => {})
+      vi.spyOn(fs.promises, 'stat').mockReturnValue(
+        Promise.resolve({
+          isFile: () => true,
+          isDirectory: () => true,
+        } as Stats),
+      )
+      vi.spyOn(fs.promises, "open").mockReturnValue(Promise.resolve({close: async () => {}} as FileHandle))
+
+      vi.spyOn(fs.promises, "mkdir").mockReturnValue(Promise.resolve(undefined))
+      vi.spyOn(fs.promises, "unlink").mockImplementation(async () => {})
+      vi.spyOn(fs.promises, "rm").mockImplementation(async () => {})
+
+      await sandbox.setSandboxDirectory(null)
     })
 
-    describe('resolveSandboxFilePath', () => {
-      it('should append sandbox dir to absolute file paths when sandbox mode is enabled', () => {
-        sandbox.setSandboxDirectory('/sandbox')
+    describe('resolveReadFilePath', () => {
+      it('should append sandbox dir to absolute file paths when sandbox mode is enabled', async () => {
+        await sandbox.setSandboxDirectory('/sandbox')
 
         const absolutePathOutsideSandbox = '/outside/test.pdf'
 
         const resolvedAbsolutePathOutsideSandbox = path.resolve('/sandbox/outside/test.pdf')
 
+        const answerPath = await  sandbox.resolveReadFilePath(absolutePathOutsideSandbox)
+
         // Paths should resolve inside the sandbox.
-        expect(sandbox.resolveSandboxFilePath(absolutePathOutsideSandbox)).toBe(resolvedAbsolutePathOutsideSandbox)
+        expect(answerPath).toBe(resolvedAbsolutePathOutsideSandbox)
       })
 
-      it('should resolve relative paths to the sandbox directory when sandbox mode is enabled', () => {
-        sandbox.setSandboxDirectory('/sandbox')
+      it('should resolve relative paths to the sandbox directory when sandbox mode is enabled', async () => {
+        await sandbox.setSandboxDirectory('/sandbox')
 
         const relativePath = 'test.pdf'
 
         const resolvedRelativePath = path.resolve('/sandbox/test.pdf')
 
+        const answerPath = await sandbox.resolveReadFilePath(relativePath)
+
         // Paths should resolve inside the sandbox.
-        expect(sandbox.resolveSandboxFilePath(relativePath)).toBe(resolvedRelativePath)
+        expect(answerPath).toBe(resolvedRelativePath)
       })
 
-      it('should resolve absolute paths when sandbox is not enabled', () => {
+      it('should resolve absolute paths when sandbox is not enabled', async () => {
         const absolutePath = '/test.pdf'
 
         const resolvedAbsolutePath = path.resolve('/test.pdf')
 
-        expect(sandbox.resolveSandboxFilePath(absolutePath)).toBe(resolvedAbsolutePath)
+        const answerPath = await sandbox.resolveReadFilePath(absolutePath)
+
+        expect(answerPath).toBe(resolvedAbsolutePath)
       })
 
-      it('should reject relative paths when sandbox is not enabled', () => {
+      it('should reject relative paths when sandbox is not enabled', async () => {
         const relativePath = 'test.pdf'
 
-        expect(() => sandbox.resolveSandboxFilePath(relativePath)).toThrowError(
+        await expect(async () => await sandbox.resolveReadFilePath(relativePath)).rejects.toThrowError(
           'Invalid Path: test.pdf. Absolute paths are required when sandbox is not enabled. Use / (MacOS/Linux) or C:\\ (Windows) to start from the root directory.',
         )
       })
 
-      it('should reject file path if it resolves outside the sandbox', () => {
-        sandbox.setSandboxDirectory('/sandbox')
+      it('should reject file path if it resolves outside the sandbox', async () => {
+        await sandbox.setSandboxDirectory('/sandbox')
 
         const relativePath = '../output.pdf'
 
-        expect(() => sandbox.resolveSandboxFilePath(relativePath)).toThrowError(
+        await expect(async () => await sandbox.resolveReadFilePath(relativePath)).rejects.toThrowError(
           'Invalid Path: ../output.pdf. You may only access files within the sandbox directory, please use relative paths.',
         )
       })
 
-      it('should accept absolute paths that already start with the sandbox directory', () => {
-        sandbox.setSandboxDirectory('/sandbox')
+      it('should accept absolute paths that already start with the sandbox directory', async () => {
+        await sandbox.setSandboxDirectory('/sandbox')
 
         const absolutePathInSandbox = '/sandbox/test.pdf'
 
         const resolvedAbsolutePathInSandbox = path.resolve('/sandbox/test.pdf')
 
+        const answerPath = await sandbox.resolveReadFilePath(absolutePathInSandbox)
+
         // The path should be accepted as is, without appending the sandbox path again
-        expect(sandbox.resolveSandboxFilePath(absolutePathInSandbox)).toBe(resolvedAbsolutePathInSandbox)
+        expect(answerPath).toBe(resolvedAbsolutePathInSandbox)
       })
     })
 
-    describe('resolveOutputFilePath', () => {
-      it('absolute paths should be within sandbox when sandbox mode is enabled', () => {
-        sandbox.setSandboxDirectory('/sandbox')
+    describe('resolveWriteFilePath', () => {
+      it('absolute paths should be within sandbox when sandbox mode is enabled', async () => {
+        await sandbox.setSandboxDirectory('/sandbox')
 
         const absolutePathInSandbox = '/output.pdf'
 
         const resolvedPathInSandbox = path.resolve('/sandbox/output.pdf')
 
+        const answerPath = await sandbox.resolveWriteFilePath(absolutePathInSandbox)
+
         // The resolved path should be the same as the input
-        expect(sandbox.resolveOutputFilePath(absolutePathInSandbox)).toBe(resolvedPathInSandbox)
+        expect(answerPath).toBe(resolvedPathInSandbox)
       })
 
-      it('should resolve relative paths to the sandbox directory when sandbox mode is enabled', () => {
-        sandbox.setSandboxDirectory('/sandbox')
+      it('should resolve relative paths to the sandbox directory when sandbox mode is enabled', async () => {
+        await sandbox.setSandboxDirectory('/sandbox')
 
         const relativePath = 'output.pdf'
 
         const resolvedRelativePath = path.resolve('/sandbox/output.pdf')
 
+        const answerPath = await sandbox.resolveWriteFilePath(relativePath)
+
         // Relative paths should resolve to the sandbox directory.
-        expect(sandbox.resolveOutputFilePath(relativePath)).toBe(resolvedRelativePath)
+        expect(answerPath).toBe(resolvedRelativePath)
       })
 
-      it('should resolve absolute paths when sandbox is not enabled', () => {
+      it('should resolve absolute paths when sandbox is not enabled', async () => {
         const absolutePath = '/output.pdf'
 
         const resolvedAbsolutePath = path.resolve('/output.pdf')
 
-        expect(sandbox.resolveOutputFilePath(absolutePath)).toBe(resolvedAbsolutePath)
+        const answerPath = await sandbox.resolveWriteFilePath(absolutePath)
+
+        expect(answerPath).toBe(resolvedAbsolutePath)
       })
 
-      it('should reject relative paths when sandbox is not enabled', () => {
+      it('should reject relative paths when sandbox is not enabled', async () => {
         const relativePath = 'output.pdf'
 
-        expect(() => sandbox.resolveOutputFilePath(relativePath)).toThrowError(
+        await expect(async () => await sandbox.resolveWriteFilePath(relativePath)).rejects.toThrowError(
           'Invalid Path: output.pdf. Absolute paths are required when sandbox is not enabled. Use / (MacOS/Linux) or C:\\ (Windows) to start from the root directory.',
         )
       })
 
-      it('should reject file path if it resolves outside the sandbox', () => {
-        sandbox.setSandboxDirectory('/sandbox')
+      it('should reject file path if it resolves outside the sandbox', async () => {
+        await sandbox.setSandboxDirectory('/sandbox')
 
         const relativePath = '../output.pdf'
 
-        expect(() => sandbox.resolveOutputFilePath(relativePath)).toThrowError(
+        await expect(async () => await sandbox.resolveWriteFilePath(relativePath)).rejects.toThrowError(
           'Invalid Path: ../output.pdf. You may only access files within the sandbox directory, please use relative paths.',
         )
       })
 
-      it('should accept absolute paths that already start with the sandbox directory', () => {
-        sandbox.setSandboxDirectory('/sandbox')
+      it('should accept absolute paths that already start with the sandbox directory', async () => {
+        await sandbox.setSandboxDirectory('/sandbox')
 
         const absolutePathInSandbox = '/sandbox/output.pdf'
 
         const resolvedAbsolutePathInSandbox = path.resolve('/sandbox/output.pdf')
 
+        const answerPath = await sandbox.resolveWriteFilePath(absolutePathInSandbox)
+
         // The path should be accepted as is, without appending the sandbox path again
-        expect(sandbox.resolveOutputFilePath(absolutePathInSandbox)).toBe(resolvedAbsolutePathInSandbox)
+        expect(answerPath).toBe(resolvedAbsolutePathInSandbox)
       })
     })
   })

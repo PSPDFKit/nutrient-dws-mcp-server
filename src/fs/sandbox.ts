@@ -7,17 +7,22 @@ let sandboxDirectory: string | null = null
  * Sets the sandbox directory for file operations
  * @param directory The directory to use as a sandbox
  */
-export function setSandboxDirectory(directory: string | null = null) {
+export async function setSandboxDirectory(directory: string | null = null) {
   if (!directory) {
     sandboxDirectory = null
     return
   }
 
-  if (!fs.existsSync(directory)) {
-    fs.mkdirSync(directory, { recursive: true })
+  const resolvedDirectory = path.resolve(directory)
+
+  try {
+    await fs.promises.access(resolvedDirectory)
+    await fs.promises.readdir(resolvedDirectory);
+  } catch {
+    await fs.promises.mkdir(resolvedDirectory, { recursive: true })
   }
 
-  sandboxDirectory = path.resolve(directory)
+  sandboxDirectory = resolvedDirectory;
 }
 
 function isInsideSandboxDirectory(filePath: string) {
@@ -28,60 +33,89 @@ function isInsideSandboxDirectory(filePath: string) {
   return !relativePath.startsWith('..') && !path.isAbsolute(relativePath)
 }
 
-function resolveFilePath(filePath: string): string {
+function resolvePath(pathStr: string): string {
   if (sandboxDirectory) {
     // If the path is absolute and already starts with the sandbox directory, use it as is
     // Otherwise, treat paths as relative to sandbox if sandbox is enabled
-    const isAbsolutePath = path.isAbsolute(filePath)
+    const isAbsolutePath = path.isAbsolute(pathStr)
     const absolutePath =
-      isAbsolutePath && isInsideSandboxDirectory(filePath)
-        ? path.resolve(filePath)
-        : path.resolve(path.join(sandboxDirectory, filePath))
+      isAbsolutePath && isInsideSandboxDirectory(pathStr)
+        ? path.resolve(pathStr)
+        : path.resolve(path.join(sandboxDirectory, pathStr))
 
     if (!isInsideSandboxDirectory(absolutePath)) {
       throw new Error(
-        `Invalid Path: ${filePath}. You may only access files within the sandbox directory, please use relative paths.`,
+        `Invalid Path: ${pathStr}. You may only access files within the sandbox directory, please use relative paths.`,
       )
     }
     return absolutePath
   } else {
-    if (!path.isAbsolute(filePath)) {
+    if (!path.isAbsolute(pathStr)) {
       throw new Error(
-        `Invalid Path: ${filePath}. Absolute paths are required when sandbox is not enabled. Use / (MacOS/Linux) or C:\\ (Windows) to start from the root directory.`,
+        `Invalid Path: ${pathStr}. Absolute paths are required when sandbox is not enabled. Use / (MacOS/Linux) or C:\\ (Windows) to start from the root directory.`,
       )
     }
-    return path.resolve(filePath)
+    return path.resolve(pathStr)
   }
 }
 
 /**
- * Resolves the absolute file path for a given file and ensures it exists within the specified sandbox directory
- * (if applicable). Throws an error if the file does not exist.
+ * Resolve and returns the reading directory path based on the provided directory path.
  *
- * @param {string} filePath - The relative or absolute path to the file to resolve.
- * @return {string} The resolved absolute file path.
+ * @param {string} dirPath - The reading directory path to be resolved.
+ * @return {Promise<string>} The resolved absolute directory path.
  */
-export function resolveSandboxFilePath(filePath: string): string {
-  const absolutePath = resolveFilePath(filePath)
-
-  if (!fs.existsSync(absolutePath)) {
-    if (sandboxDirectory) {
-      throw new Error(
-        `Path not found in sandbox: ${filePath}. Please make sure the file exists in the sandbox directory: ${sandboxDirectory}.`,
-      )
-    }
-    throw new Error(`Path not found: ${absolutePath}`)
+export async function resolveReadDirectoryPath(dirPath: string): Promise<string> {
+  const resolvedDirPath = resolvePath(dirPath)
+  const stats = await fs.promises.stat(resolvedDirPath)
+  if (!stats.isDirectory()) {
+    throw new Error(`Path is not a directory: ${resolvedDirPath}`)
   }
-
-  return absolutePath
+  return resolvedDirPath;
 }
 
 /**
- * Resolves and returns the output file path based on the provided file path.
+ * Resolves and returns the reading file path based on the provided file path.
  *
- * @param {string} filePath - The input file path to be resolved.
- * @return {string} The resolved output file path.
+ * @param {string} filePath - The reading file path to be resolved.
+ * @return {Promise<string>} The resolved absolute file path.
  */
-export function resolveOutputFilePath(filePath: string): string {
-  return resolveFilePath(filePath)
+export async function resolveReadFilePath(filePath: string): Promise<string> {
+  const resolvedFilePath = resolvePath(filePath)
+  await fs.promises.access(resolvedFilePath)
+  const stats = await fs.promises.stat(resolvedFilePath)
+  if (!stats.isFile()) {
+    throw new Error(`Path is not a file: ${resolvedFilePath}`)
+  }
+  return resolvedFilePath;
+}
+
+/**
+ * Resolves and returns the writing file path based on the provided file path.
+ *
+ * @param {string} filePath - The writing file path to be resolved.
+ * @return {Promise<string>} The resolved absolute file path.
+ */
+export async function resolveWriteFilePath(filePath: string): Promise<string> {
+  const resolvedFilePath = resolvePath(filePath)
+  try {
+    await fs.promises.access(resolvedFilePath)
+    const fd = await fs.promises.open(resolvedFilePath, 'r+');
+    await fd.close();
+  } catch {
+    const outputDir = path.dirname(resolvedFilePath)
+    let createdFolderPath: string | undefined;
+    try {
+      await fs.promises.access(outputDir)
+    } catch {
+      createdFolderPath = await fs.promises.mkdir(outputDir, { recursive: true })
+    }
+    await fs.promises.writeFile(resolvedFilePath, 'test');
+    if (createdFolderPath) {
+      await fs.promises.rm(createdFolderPath, {recursive: true})
+    } else {
+      await fs.promises.unlink(resolvedFilePath);
+    }
+  }
+  return resolvedFilePath;
 }

@@ -124,7 +124,7 @@ export async function runServer() {
 
   if (sandboxDir) {
     try {
-      setSandboxDirectory(sandboxDir)
+      await setSandboxDirectory(sandboxDir)
     } catch (error) {
       console.error(`Error setting sandbox directory: ${error instanceof Error ? error.message : String(error)}`)
       process.exit(1)

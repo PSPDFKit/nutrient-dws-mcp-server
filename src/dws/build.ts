@@ -1,32 +1,33 @@
 import FormData from 'form-data'
 import fs from 'fs'
 import path from 'path'
-import { handleApiError, handleFileResponse, pipeToString } from './utils.js'
+import { handleApiError, handleFileResponse, handleJsonContentResponse } from './utils.js'
 import { Action, Instructions } from '../schemas.js'
 import { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import { FileReference } from './types.js'
-import { createErrorResponse, createSuccessResponse } from '../responses.js'
-import { AxiosResponse } from 'axios'
-import { resolveSandboxFilePath } from '../fs/sandbox.js'
+import { createErrorResponse } from '../responses.js'
+import { resolveReadFilePath, resolveWriteFilePath } from '../fs/sandbox.js'
 import { callNutrientApi } from './api.js'
 
 /**
  * Performs a build call to the Nutrient DWS Processor API
  */
 export async function performBuildCall(instructions: Instructions, outputFilePath: string): Promise<CallToolResult> {
-  const { instructions: adjustedInstructions, fileReferences } = processInstructions(instructions)
+  const { instructions: adjustedInstructions, fileReferences } = await processInstructions(instructions)
 
   if (fileReferences.size === 0) {
     return createErrorResponse('Error: No valid files or urls found in instructions')
   }
 
   try {
+    // We resolve the output path first to fail early
+    const resolvedOutputPath = await resolveWriteFilePath(outputFilePath)
     const response = await makeApiBuildCall(adjustedInstructions, fileReferences)
 
     if (adjustedInstructions.output?.type === 'json-content') {
       return handleJsonContentResponse(response)
     } else {
-      return handleFileResponse(response, outputFilePath, 'File processed successfully using build API')
+      return handleFileResponse(response, resolvedOutputPath, 'File processed successfully using build API')
     }
   } catch (e: unknown) {
     return handleApiError(e)
@@ -36,17 +37,17 @@ export async function performBuildCall(instructions: Instructions, outputFilePat
 /**
  * Process file references in instructions
  */
-function processInstructions(instructions: Instructions): {
+async function processInstructions(instructions: Instructions): Promise<{
   instructions: Instructions
   fileReferences: Map<string, FileReference>
-} {
+}> {
   const adjustedInstructions = { ...instructions }
   const fileReferences = new Map<string, FileReference>()
 
   if (adjustedInstructions.parts) {
     for (const part of adjustedInstructions.parts) {
       if (part.file) {
-        const fileReference = processFileReference(part.file)
+        const fileReference = await processFileReference(part.file)
         part.file = fileReference.key
         fileReferences.set(fileReference.key, fileReference)
       }
@@ -54,7 +55,7 @@ function processInstructions(instructions: Instructions): {
       // Actions have been disabled in parts to reduce tool complexity. We can re-enable them if needed.
       // if (part.actions) {
       //   for (const action of part.actions) {
-      //     const fileReference = processActionFileReferences(action)
+      //     const fileReference = await processActionFileReferences(action)
       //     if (fileReference) {
       //       fileReferences.set(fileReference.key, fileReference)
       //     }
@@ -65,7 +66,7 @@ function processInstructions(instructions: Instructions): {
 
   if (adjustedInstructions.actions) {
     for (const action of adjustedInstructions.actions) {
-      const fileReference = processActionFileReferences(action)
+      const fileReference = await processActionFileReferences(action)
       if (fileReference) {
         fileReferences.set(fileReference.key, fileReference)
       }
@@ -78,13 +79,13 @@ function processInstructions(instructions: Instructions): {
 /**
  * Process file references in actions
  */
-function processActionFileReferences(action: Action): FileReference | undefined {
+async function processActionFileReferences(action: Action): Promise<FileReference | undefined> {
   if (action.type === 'watermark' && 'image' in action && action.image) {
-    const fileReference = processFileReference(action.image)
+    const fileReference = await processFileReference(action.image)
     action.image = fileReference.key
     return fileReference
   } else if (action.type === 'applyXfdf' && 'file' in action && typeof action.file === 'string') {
-    const fileReference = processFileReference(action.file)
+    const fileReference = await processFileReference(action.file)
     action.file = fileReference.key
     return fileReference
   }
@@ -96,7 +97,7 @@ function processActionFileReferences(action: Action): FileReference | undefined 
 /**
  * Process a single file reference
  */
-function processFileReference(reference: string): FileReference {
+async function processFileReference(reference: string): Promise<FileReference> {
   if (reference.startsWith('http://') || reference.startsWith('https://')) {
     return {
       key: reference,
@@ -106,9 +107,9 @@ function processFileReference(reference: string): FileReference {
   }
 
   try {
-    const resolvedPath = resolveSandboxFilePath(reference)
+    const resolvedPath = await resolveReadFilePath(reference)
 
-    const fileBuffer = fs.readFileSync(resolvedPath)
+    const fileBuffer = await fs.promises.readFile(resolvedPath)
     const fileName = path.basename(resolvedPath)
     const fileKey = fileName.replace(/[^a-zA-Z0-9]/g, '_')
 
@@ -149,10 +150,4 @@ async function makeApiBuildCall(instructions: Instructions, fileReferences: Map<
   }
 }
 
-/**
- * Handle JSON content response
- */
-async function handleJsonContentResponse(response: AxiosResponse): Promise<CallToolResult> {
-  const resultString = await pipeToString(response.data)
-  return createSuccessResponse(resultString)
-}
+

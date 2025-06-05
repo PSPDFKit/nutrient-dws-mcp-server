@@ -12,7 +12,7 @@ describe('performSignCall with signing-api-examples', () => {
   let outputDirectory: string
   beforeAll(async () => {
     const assetsDir = path.join(__dirname, `assets`)
-    setSandboxDirectory(assetsDir)
+    await setSandboxDirectory(assetsDir)
 
     outputDirectory = `test-output-${new Date().toISOString().replace(/[:.]/g, '-')}`
   })
@@ -20,7 +20,7 @@ describe('performSignCall with signing-api-examples', () => {
   afterEach(async () => {
     // A naive way to do rate limiting.
     return await new Promise((resolve) => setTimeout(resolve, 5000))
-  }, 10000)
+  }, 20000)
 
   const signatureExamples: { name: string; example: SignAPIArgs }[] = [
     { name: 'basicSignatureExample', example: examples.basicSignatureExample },

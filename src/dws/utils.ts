@@ -1,11 +1,8 @@
 import path from 'path'
 import fs from 'fs'
-import FormData from 'form-data'
 import axios, { AxiosResponse } from 'axios'
 import { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import { Readable } from 'stream'
-import { resolveOutputFilePath, resolveSandboxFilePath } from '../fs/sandbox.js'
-import { writeBufferToFile } from '../fs/utils.js'
 import { createSuccessResponse } from '../responses.js'
 
 /**
@@ -109,36 +106,28 @@ export async function handleApiError(e: unknown): Promise<CallToolResult> {
  */
 export async function handleFileResponse(
   response: AxiosResponse,
-  outputFilePath: string,
+  resolvedOutputPath: string,
   successMessage: string,
 ): Promise<CallToolResult> {
   const resultBuffer = await pipeToBuffer(response.data)
 
-  const outputPath = resolveOutputFilePath(outputFilePath)
-  const outputDir = path.dirname(outputPath)
+  const outputDir = path.dirname(resolvedOutputPath)
 
-  if (!fs.existsSync(outputDir)) {
-    fs.mkdirSync(outputDir, { recursive: true })
+  try {
+    await fs.promises.access(outputDir)
+  } catch {
+    await fs.promises.mkdir(outputDir, { recursive: true })
   }
 
-  writeBufferToFile(resultBuffer, outputPath)
+  await fs.promises.writeFile(resolvedOutputPath, resultBuffer)
 
-  return createSuccessResponse(`${successMessage} and saved to: ${outputPath}`)
+  return createSuccessResponse(`${successMessage} and saved to: ${resolvedOutputPath}`)
 }
 
 /**
- * Adds an optional file to the form data
- * @param formData The form data to add the file to
- * @param filePath Path to the file to add
- * @param fieldName Name of the field in the form data
- * @returns Object with error information if any
+ * Handle JSON content response
  */
-export function addFileToFormData(formData: FormData, filePath: string, fieldName: string) {
-  try {
-    const validatedPath = resolveSandboxFilePath(filePath)
-    const fileBuffer = fs.readFileSync(validatedPath)
-    formData.append(fieldName, fileBuffer, { filename: path.basename(validatedPath) })
-  } catch (error) {
-    throw Error(`Error with ${fieldName} image: ${error instanceof Error ? error.message : String(error)}`)
-  }
+export async function handleJsonContentResponse(response: AxiosResponse): Promise<CallToolResult> {
+  const resultString = await pipeToString(response.data)
+  return createSuccessResponse(resultString)
 }
