@@ -45,7 +45,7 @@ async function buildDirectoryTree(name: string, directoryPath: string): Promise<
       } else if (entry.isFile()) {
         try {
           const fd = await fs.promises.open(subPath, 'r')
-          fs.close(fd.fd);
+          await fd.close();
           entryData = {
             name: entry.name,
             path: subPath,
