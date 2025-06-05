@@ -37,6 +37,7 @@ export async function performSignCall(
     }
 
     const response = await callNutrientApi('sign', formData)
+
     return handleFileResponse(response, resolvedOutputPath, 'File signed successfully')
   } catch (e: unknown) {
     return handleApiError(e)

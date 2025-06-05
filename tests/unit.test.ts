@@ -515,10 +515,10 @@ describe('API Functions', () => {
 
         const resolvedRelativePath = path.resolve('/sandbox/test.pdf')
 
-        const asnwerPath = await sandbox.resolveReadFilePath(relativePath)
+        const answerPath = await sandbox.resolveReadFilePath(relativePath)
 
         // Paths should resolve inside the sandbox.
-        expect(asnwerPath).toBe(resolvedRelativePath)
+        expect(answerPath).toBe(resolvedRelativePath)
       })
 
       it('should resolve absolute paths when sandbox is not enabled', async () => {
