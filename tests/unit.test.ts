@@ -36,23 +36,22 @@ describe('API Functions', () => {
 
     process.env = { ...originalEnv, NUTRIENT_DWS_API_KEY: 'test-api-key' }
 
-    vi.spyOn(fs.promises, "access").mockImplementation(async () => {})
+    vi.spyOn(fs.promises, 'access').mockImplementation(async () => {})
     vi.spyOn(fs.promises, 'stat').mockReturnValue(
       Promise.resolve({
         isFile: () => true,
         isDirectory: () => true,
       } as Stats),
     )
-    vi.spyOn(fs.promises, "open").mockReturnValue(Promise.resolve({close: async () => {}} as FileHandle))
+    vi.spyOn(fs.promises, 'open').mockReturnValue(Promise.resolve({ close: async () => {} } as FileHandle))
 
-    vi.spyOn(fs.promises, "readFile").mockReturnValue(Promise.resolve(Buffer.from('test file content')))
-    vi.spyOn(fs.promises, "writeFile").mockImplementation(async () => {})
+    vi.spyOn(fs.promises, 'readFile').mockReturnValue(Promise.resolve(Buffer.from('test file content')))
+    vi.spyOn(fs.promises, 'writeFile').mockImplementation(async () => {})
 
-    vi.spyOn(fs.promises, "readdir").mockImplementation(() => Promise.resolve([]))
-    vi.spyOn(fs.promises, "mkdir").mockReturnValue(Promise.resolve(undefined))
-    vi.spyOn(fs.promises, "unlink").mockImplementation(async () => {})
-    vi.spyOn(fs.promises, "rm").mockImplementation(async () => {})
-
+    vi.spyOn(fs.promises, 'readdir').mockImplementation(() => Promise.resolve([]))
+    vi.spyOn(fs.promises, 'mkdir').mockReturnValue(Promise.resolve(undefined))
+    vi.spyOn(fs.promises, 'unlink').mockImplementation(async () => {})
+    vi.spyOn(fs.promises, 'rm').mockImplementation(async () => {})
 
     vi.mocked(api.callNutrientApi).mockImplementation(async () => {
       const mockStream = createMockStream('default mock response')
@@ -74,7 +73,9 @@ describe('API Functions', () => {
     it('should throw an error if file does not exist', async () => {
       const resolvedPath = path.resolve('/test.pdf')
 
-      vi.spyOn(fs.promises, "access").mockImplementation(async () => { throw new Error(`Path not found: ${resolvedPath}`)})
+      vi.spyOn(fs.promises, 'access').mockImplementation(async () => {
+        throw new Error(`Path not found: ${resolvedPath}`)
+      })
 
       const buildCall = performBuildCall({ parts: [{ file: '/test.pdf' }] }, '/test_processed.pdf')
 
@@ -231,7 +232,9 @@ describe('API Functions', () => {
     it('should throw an error if file does not exist', async () => {
       const resolvedPath = path.resolve('/test.pdf')
 
-      vi.spyOn(fs.promises, "access").mockImplementation(async () => { throw new Error(`Error with referenced file /test.pdf: Path not found: ${resolvedPath}`)})
+      vi.spyOn(fs.promises, 'access').mockImplementation(async () => {
+        throw new Error(`Error with referenced file /test.pdf: Path not found: ${resolvedPath}`)
+      })
 
       const buildCall = performBuildCall({ parts: [{ file: '/test.pdf' }] }, '/test_processed.pdf')
 
@@ -353,11 +356,13 @@ describe('API Functions', () => {
 
   describe('performDirectoryTreeCall', () => {
     it('should return a tree structure for a valid directory', async () => {
-      vi.spyOn(fs.promises, "access").mockImplementation(async () => {})
+      vi.spyOn(fs.promises, 'access').mockImplementation(async () => {})
 
-      vi.spyOn(fs.promises, "stat").mockReturnValue(Promise.resolve({
-        isDirectory: () => true,
-      } as Stats))
+      vi.spyOn(fs.promises, 'stat').mockReturnValue(
+        Promise.resolve({
+          isDirectory: () => true,
+        } as Stats),
+      )
 
       const mockEntries = [
         {
@@ -395,7 +400,7 @@ describe('API Functions', () => {
         },
       ]
 
-      vi.spyOn(fs.promises, "readdir").mockImplementationOnce(() =>
+      vi.spyOn(fs.promises, 'readdir').mockImplementationOnce(() =>
         Promise.resolve(mockEntries as unknown as fs.Dirent<Buffer<ArrayBufferLike>>[]),
       )
 
@@ -416,9 +421,11 @@ describe('API Functions', () => {
     })
 
     it('should return an error if the directory does not exist', async () => {
-      vi.spyOn(fs.promises, "stat").mockReturnValue(Promise.resolve({
-        isDirectory: () => false,
-      } as Stats))
+      vi.spyOn(fs.promises, 'stat').mockReturnValue(
+        Promise.resolve({
+          isDirectory: () => false,
+        } as Stats),
+      )
 
       const result = await performDirectoryTreeCall('/nonexistent/dir')
 
@@ -429,11 +436,13 @@ describe('API Functions', () => {
     })
 
     it('should return an error if the path is not a directory', async () => {
-      vi.spyOn(fs.promises, "access").mockImplementation(async () => {})
+      vi.spyOn(fs.promises, 'access').mockImplementation(async () => {})
 
-      vi.spyOn(fs.promises, "stat").mockReturnValue(Promise.resolve({
-        isDirectory: () => false,
-      } as Stats))
+      vi.spyOn(fs.promises, 'stat').mockReturnValue(
+        Promise.resolve({
+          isDirectory: () => false,
+        } as Stats),
+      )
 
       const result = await performDirectoryTreeCall('/test/file.txt')
 
@@ -442,13 +451,15 @@ describe('API Functions', () => {
     })
 
     it('should handle empty directories', async () => {
-      vi.spyOn(fs.promises, "access").mockImplementation(async () => {})
+      vi.spyOn(fs.promises, 'access').mockImplementation(async () => {})
 
-      vi.spyOn(fs.promises, "stat").mockReturnValue(Promise.resolve({
-        isDirectory: () => true,
-      } as Stats))
+      vi.spyOn(fs.promises, 'stat').mockReturnValue(
+        Promise.resolve({
+          isDirectory: () => true,
+        } as Stats),
+      )
 
-      vi.spyOn(fs.promises, "readdir").mockImplementation(() => Promise.resolve([] as unknown as fs.Dirent<Buffer>[]))
+      vi.spyOn(fs.promises, 'readdir').mockImplementation(() => Promise.resolve([] as unknown as fs.Dirent<Buffer>[]))
 
       const result = await performDirectoryTreeCall('/test/empty-dir')
 
@@ -459,19 +470,23 @@ describe('API Functions', () => {
     })
 
     it('should handle errors during tree building', async () => {
-      vi.spyOn(fs.promises, "access").mockImplementation(async () => {})
+      vi.spyOn(fs.promises, 'access').mockImplementation(async () => {})
 
-      vi.spyOn(fs.promises, "stat").mockReturnValue(Promise.resolve({
-        isDirectory: () => true,
-      } as Stats))
+      vi.spyOn(fs.promises, 'stat').mockReturnValue(
+        Promise.resolve({
+          isDirectory: () => true,
+        } as Stats),
+      )
 
       const mockError = new Error('Permission denied')
-      vi.spyOn(fs.promises, "readdir").mockImplementation(() => Promise.reject(mockError))
+      vi.spyOn(fs.promises, 'readdir').mockImplementation(() => Promise.reject(mockError))
 
       const result = await performDirectoryTreeCall('/test/dir')
 
       expect(result.isError).toBe(true)
-      expect(result.content[0].text).toContain('Cannot read the directory tree, make sure to allow this application access to')
+      expect(result.content[0].text).toContain(
+        'Cannot read the directory tree, make sure to allow this application access to',
+      )
     })
   })
 
@@ -479,18 +494,18 @@ describe('API Functions', () => {
     beforeEach(async () => {
       vi.resetAllMocks()
 
-      vi.spyOn(fs.promises, "access").mockImplementation(async () => {})
+      vi.spyOn(fs.promises, 'access').mockImplementation(async () => {})
       vi.spyOn(fs.promises, 'stat').mockReturnValue(
         Promise.resolve({
           isFile: () => true,
           isDirectory: () => true,
         } as Stats),
       )
-      vi.spyOn(fs.promises, "open").mockReturnValue(Promise.resolve({close: async () => {}} as FileHandle))
+      vi.spyOn(fs.promises, 'open').mockReturnValue(Promise.resolve({ close: async () => {} } as FileHandle))
 
-      vi.spyOn(fs.promises, "mkdir").mockReturnValue(Promise.resolve(undefined))
-      vi.spyOn(fs.promises, "unlink").mockImplementation(async () => {})
-      vi.spyOn(fs.promises, "rm").mockImplementation(async () => {})
+      vi.spyOn(fs.promises, 'mkdir').mockReturnValue(Promise.resolve(undefined))
+      vi.spyOn(fs.promises, 'unlink').mockImplementation(async () => {})
+      vi.spyOn(fs.promises, 'rm').mockImplementation(async () => {})
 
       await sandbox.setSandboxDirectory(null)
     })
@@ -503,7 +518,7 @@ describe('API Functions', () => {
 
         const resolvedAbsolutePathOutsideSandbox = path.resolve('/sandbox/outside/test.pdf')
 
-        const answerPath = await  sandbox.resolveReadFilePath(absolutePathOutsideSandbox)
+        const answerPath = await sandbox.resolveReadFilePath(absolutePathOutsideSandbox)
 
         // Paths should resolve inside the sandbox.
         expect(answerPath).toBe(resolvedAbsolutePathOutsideSandbox)

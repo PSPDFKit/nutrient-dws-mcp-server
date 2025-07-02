@@ -14,29 +14,26 @@ function createMockDirent(name: string, isDir: boolean = false): fs.Dirent {
 }
 
 describe('Directory Tree File Descriptor Handling', () => {
-  let mockClose: ReturnType<typeof vi.fn>;
-  let mockFileHandle: FileHandle;
+  let mockClose: ReturnType<typeof vi.fn>
+  let mockFileHandle: FileHandle
 
   beforeEach(() => {
     vi.resetAllMocks()
 
-    vi.spyOn(fs.promises, "access").mockResolvedValue(undefined)
+    vi.spyOn(fs.promises, 'access').mockResolvedValue(undefined)
     vi.spyOn(fs.promises, 'stat').mockResolvedValue({
       isFile: () => true,
       isDirectory: () => true,
     } as Stats)
 
-    const mockFiles = [
-      createMockDirent('file1.txt'),
-      createMockDirent('file2.pdf')
-    ];
+    const mockFiles = [createMockDirent('file1.txt'), createMockDirent('file2.pdf')]
 
-    vi.spyOn(fs.promises, "readdir").mockResolvedValue(mockFiles as unknown as fs.Dirent<Buffer<ArrayBufferLike>>[])
+    vi.spyOn(fs.promises, 'readdir').mockResolvedValue(mockFiles as unknown as fs.Dirent<Buffer<ArrayBufferLike>>[])
 
     mockClose = vi.fn().mockResolvedValue(undefined)
     mockFileHandle = {
       fd: 16,
-      close: mockClose
+      close: mockClose,
     } as unknown as FileHandle
   })
 
@@ -45,7 +42,7 @@ describe('Directory Tree File Descriptor Handling', () => {
   })
 
   it('should properly close file descriptors when processing files', async () => {
-    const openSpy = vi.spyOn(fs.promises, "open").mockResolvedValue(mockFileHandle)
+    const openSpy = vi.spyOn(fs.promises, 'open').mockResolvedValue(mockFileHandle)
 
     await performDirectoryTreeCall('/test/dir')
 
@@ -60,7 +57,8 @@ describe('Directory Tree File Descriptor Handling', () => {
   })
 
   it('should handle errors when opening files and continue processing', async () => {
-    const openSpy = vi.spyOn(fs.promises, "open")
+    const openSpy = vi
+      .spyOn(fs.promises, 'open')
       .mockRejectedValueOnce(new Error('Permission denied'))
       .mockResolvedValueOnce(mockFileHandle)
 
@@ -77,10 +75,10 @@ describe('Directory Tree File Descriptor Handling', () => {
     const specialMockClose = vi.fn().mockResolvedValue(undefined)
     const specialMockFileHandle = {
       fd: 42,
-      close: specialMockClose
+      close: specialMockClose,
     } as unknown as FileHandle
 
-    vi.spyOn(fs.promises, "open").mockResolvedValue(specialMockFileHandle)
+    vi.spyOn(fs.promises, 'open').mockResolvedValue(specialMockFileHandle)
 
     const fsCloseSpy = vi.spyOn(fs, 'close')
 

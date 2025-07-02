@@ -425,16 +425,14 @@ export const PDFUAOutputSchema = BasePDFOutputSchema.extend({
 
 export const JSONContentOutputSchema = z.object({
   type: z.literal('json-content').describe('Output as JSON with document contents.'),
-  plainText: z
-    .boolean()
-    .optional()
-    .default(true)
-    .describe('Extract document text. Text is extracted via OCR process.'),
+  plainText: z.boolean().optional().default(true).describe('Extract document text. Text is extracted via OCR process.'),
   structuredText: z
     .boolean()
     .optional()
     .default(false)
-    .describe('Extract structured document text. This includes text words, characters, lines and paragraphs. Use one of `plainText`, `keyValuePairs`, or `tables`. at a time.'),
+    .describe(
+      'Extract structured document text. This includes text words, characters, lines and paragraphs. Use one of `plainText`, `keyValuePairs`, or `tables`. at a time.',
+    ),
   keyValuePairs: z
     .boolean()
     .optional()
@@ -446,7 +444,9 @@ export const JSONContentOutputSchema = z.object({
     .boolean()
     .optional()
     .default(true)
-    .describe('Extract tabular data from the document. Use one of `plainText`, `keyValuePairs`, or `tables`. at a time.'),
+    .describe(
+      'Extract tabular data from the document. Use one of `plainText`, `keyValuePairs`, or `tables`. at a time.',
+    ),
   language: z
     .union([
       z.string().describe('Language for OCR text extraction.'),
@@ -466,8 +466,8 @@ export const HTMLOutputSchema = z.object({
     .optional()
     .describe(
       'The layout type to use for conversion to HTML. ' +
-      '`page` layout keeps the original structure of the document, segmented by page. ' +
-      '`reflow` layout converts the document into a continuous flow of text, without page breaks.',
+        '`page` layout keeps the original structure of the document, segmented by page. ' +
+        '`reflow` layout converts the document into a continuous flow of text, without page breaks.',
     ),
 })
 

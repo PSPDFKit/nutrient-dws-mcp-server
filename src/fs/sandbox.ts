@@ -17,12 +17,12 @@ export async function setSandboxDirectory(directory: string | null = null) {
 
   try {
     await fs.promises.access(resolvedDirectory)
-    await fs.promises.readdir(resolvedDirectory);
+    await fs.promises.readdir(resolvedDirectory)
   } catch {
     await fs.promises.mkdir(resolvedDirectory, { recursive: true })
   }
 
-  sandboxDirectory = resolvedDirectory;
+  sandboxDirectory = resolvedDirectory
 }
 
 function isInsideSandboxDirectory(filePath: string) {
@@ -71,7 +71,7 @@ export async function resolveReadDirectoryPath(dirPath: string): Promise<string>
   if (!stats.isDirectory()) {
     throw new Error(`Path is not a directory: ${resolvedDirPath}`)
   }
-  return resolvedDirPath;
+  return resolvedDirPath
 }
 
 /**
@@ -87,7 +87,7 @@ export async function resolveReadFilePath(filePath: string): Promise<string> {
   if (!stats.isFile()) {
     throw new Error(`Path is not a file: ${resolvedFilePath}`)
   }
-  return resolvedFilePath;
+  return resolvedFilePath
 }
 
 /**
@@ -100,22 +100,22 @@ export async function resolveWriteFilePath(filePath: string): Promise<string> {
   const resolvedFilePath = resolvePath(filePath)
   try {
     await fs.promises.access(resolvedFilePath)
-    const fd = await fs.promises.open(resolvedFilePath, 'r+');
-    await fd.close();
+    const fd = await fs.promises.open(resolvedFilePath, 'r+')
+    await fd.close()
   } catch {
     const outputDir = path.dirname(resolvedFilePath)
-    let createdFolderPath: string | undefined;
+    let createdFolderPath: string | undefined
     try {
       await fs.promises.access(outputDir)
     } catch {
       createdFolderPath = await fs.promises.mkdir(outputDir, { recursive: true })
     }
-    await fs.promises.writeFile(resolvedFilePath, 'test');
+    await fs.promises.writeFile(resolvedFilePath, 'test')
     if (createdFolderPath) {
-      await fs.promises.rm(createdFolderPath, {recursive: true})
+      await fs.promises.rm(createdFolderPath, { recursive: true })
     } else {
-      await fs.promises.unlink(resolvedFilePath);
+      await fs.promises.unlink(resolvedFilePath)
     }
   }
-  return resolvedFilePath;
+  return resolvedFilePath
 }
