@@ -419,49 +419,71 @@ export const ImageOutputSchema = z.object({
     .describe('Resolution of the rendered image in dots per inch. Only one of width, height, or dpi can be defined.'),
 })
 
+export const PDFUAOutputSchema = BasePDFOutputSchema.extend({
+  type: z.literal('pdfua').describe('Output as PDF/UA for accessibility.'),
+})
+
 export const JSONContentOutputSchema = z.object({
   type: z.literal('json-content').describe('Output as JSON with document contents.'),
-  // We try to hint to the LLM to use one of the following at a time to reduce context length.
   plainText: z
     .boolean()
     .optional()
     .default(true)
-    .describe('Extract document text. Use one of `plainText`, `keyValuePairs`, or `tables`. at a time.'),
+    .describe('Extract document text. Text is extracted via OCR process.'),
+  structuredText: z
+    .boolean()
+    .optional()
+    .default(false)
+    .describe('Extract structured document text. This includes text words, characters, lines and paragraphs. Use one of `plainText`, `keyValuePairs`, or `tables`. at a time.'),
   keyValuePairs: z
     .boolean()
     .optional()
     .default(false)
     .describe(
-      'Extract key-value pairs from the document. Use one of `plainText`, `keyValuePairs`, or `tables`. at a time.',
+      'Extract key-value pairs detected within the document contents. Example of detected values are phone numbers, email addresses, currencies, numbers, dates, etc. Use one of `plainText`, `keyValuePairs`, or `tables`. at a time.',
     ),
   tables: z
     .boolean()
     .optional()
     .default(true)
-    .describe(
-      'Extract tabular data from the document. Use one of `plainText`, `keyValuePairs`, or `tables`. at a time.',
-    ),
+    .describe('Extract tabular data from the document. Use one of `plainText`, `keyValuePairs`, or `tables`. at a time.'),
   language: z
     .union([
       z.string().describe('Language for OCR text extraction.'),
       z.array(z.string()).describe('Languages for OCR text extraction.'),
     ])
     .optional(),
-
-  // Structure text uses many chars, and often overflows the context length of an LLM. We will not support this for now.
-  // structuredText: z.boolean().optional().default(false).describe('Extracts text with positional data.'),
 })
 
 export const OfficeOutputSchema = z.object({
   type: z.enum(['docx', 'xlsx', 'pptx']).describe('Output as Office document.'),
 })
 
+export const HTMLOutputSchema = z.object({
+  type: z.literal('html').describe('Output as HTML.'),
+  layout: z
+    .enum(['page', 'reflow'])
+    .optional()
+    .describe(
+      'The layout type to use for conversion to HTML. ' +
+      '`page` layout keeps the original structure of the document, segmented by page. ' +
+      '`reflow` layout converts the document into a continuous flow of text, without page breaks.',
+    ),
+})
+
+export const MarkdownOutputSchema = z.object({
+  type: z.literal('markdown').describe('Output as Markdown.'),
+})
+
 export const BuildOutputSchema = z.discriminatedUnion('type', [
   PDFOutputSchema,
   PDFAOutputSchema,
+  PDFUAOutputSchema,
   ImageOutputSchema,
   JSONContentOutputSchema,
   OfficeOutputSchema,
+  HTMLOutputSchema,
+  MarkdownOutputSchema,
 ])
 
 const InstructionsSchema = z.object({
@@ -471,7 +493,7 @@ const InstructionsSchema = z.object({
     .optional()
     .describe('Actions to be performed on the document after it is built from the parts.'),
   output: BuildOutputSchema.optional().describe(
-    'Output format configuration. Supports PDF, PDF/A, image, JSON content, and Office document formats.',
+    'Output format configuration. Supports PDF, PDF/A, PDF/UA, image, JSON content, Office document formats, HTML, and Markdown.',
   ),
 })
 

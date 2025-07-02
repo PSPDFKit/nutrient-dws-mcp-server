@@ -150,6 +150,7 @@ describe('API Functions', () => {
         parts: [{ file: 'https://example.com/test.pdf' }],
         output: {
           type: 'json-content',
+          structuredText: false,
           plainText: true,
           keyValuePairs: false,
           tables: true,
