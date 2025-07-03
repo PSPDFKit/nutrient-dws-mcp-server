@@ -19,7 +19,7 @@ describe('performBuildCall with build-api-examples', () => {
 
   afterEach(async () => {
     // A naive way to do rate limiting.
-    return await new Promise((resolve) => setTimeout(resolve, 5000))
+    return await new Promise((resolve) => setTimeout(resolve, 10000))
   }, 20000)
 
   const fileOutputExamples: { name: string; example: BuildAPIArgs }[] = [
