@@ -19,7 +19,7 @@ describe('performBuildCall with build-api-examples', () => {
 
   afterEach(async () => {
     // A naive way to do rate limiting.
-    return await new Promise((resolve) => setTimeout(resolve, 5000))
+    return await new Promise((resolve) => setTimeout(resolve, 10000))
   }, 20000)
 
   const fileOutputExamples: { name: string; example: BuildAPIArgs }[] = [
@@ -59,10 +59,23 @@ describe('performBuildCall with build-api-examples', () => {
     { name: 'mixedFileTypesExample', example: examples.mixedFileTypesExample },
     { name: 'ocrAndRedactionsExample', example: examples.ocrAndRedactionsExample },
     { name: 'disabledImagesExample', example: examples.disabledImagesExample },
+    { name: 'pdfUAExample', example: examples.pdfUAExample },
+    { name: 'pdfUAWithPasswordExample', example: examples.pdfUAWithPasswordExample },
+    { name: 'htmlPageLayoutExample', example: examples.htmlPageLayoutExample },
+    { name: 'htmlReflowLayoutExample', example: examples.htmlReflowLayoutExample },
+    { name: 'htmlDefaultExample', example: examples.htmlDefaultExample },
+    { name: 'markdownExample', example: examples.markdownExample },
+    { name: 'markdownMultipleSourcesExample', example: examples.markdownMultipleSourcesExample },
+    { name: 'ocrToHtmlExample', example: examples.ocrToHtmlExample },
+    { name: 'watermarkToMarkdownExample', example: examples.watermarkToMarkdownExample },
+    { name: 'redactedPdfUAExample', example: examples.redactedPdfUAExample },
   ]
 
   const jsonOutputExamples: { name: string; example: BuildAPIArgs }[] = [
     { name: 'jsonContentExtractionExample', example: examples.jsonContentExtractionExample },
+    { name: 'jsonContentKeyValuePairsExample', example: examples.jsonContentKeyValuePairsExample },
+    { name: 'jsonContentTablesOnlyExample', example: examples.jsonContentTablesOnlyExample },
+    { name: 'jsonContentMultiLanguageExample', example: examples.jsonContentMultiLanguageExample },
   ]
 
   it.each(fileOutputExamples)('should process $name', async ({ example }) => {
@@ -95,8 +108,8 @@ describe('performBuildCall with build-api-examples', () => {
           expect.objectContaining({
             // The content type can be 'text' or 'json' depending on how performBuildCall processes the JSON string
             type: 'text',
-            // For text type, it should contain success message; for json type, it should have the result property
-            text: expect.stringContaining('Dummy PDF file'),
+            // For text type, it should contain success message for plain text; and pages array of pageIndexs for structured output
+            text: expect.toBeOneOf([expect.stringContaining('Dummy PDF file'), expect.stringContaining('pageIndex')]),
           }),
         ]),
       }),

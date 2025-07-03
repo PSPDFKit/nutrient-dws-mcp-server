@@ -19,10 +19,10 @@ export async function performSignCall(
 ): Promise<CallToolResult> {
   try {
     // We resolve the output path first to fail early
-    const resolvedOutputPath = await resolveWriteFilePath(outputFilePath);
+    const resolvedOutputPath = await resolveWriteFilePath(outputFilePath)
 
     const formData = new FormData()
-    await addFileToFormData(formData, "file", filePath)
+    await addFileToFormData(formData, 'file', filePath)
 
     if (signatureOptions) {
       formData.append('data', JSON.stringify(signatureOptions))
@@ -51,7 +51,7 @@ export async function performSignCall(
  * @param filePath Path to the file to add
  * @returns Object with error information if any
  */
-export async function addFileToFormData(formData: FormData, fieldName: string, filePath: string, ) {
+export async function addFileToFormData(formData: FormData, fieldName: string, filePath: string) {
   try {
     const validatedPath = await resolveReadFilePath(filePath)
     const fileBuffer = await fs.promises.readFile(validatedPath)

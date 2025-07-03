@@ -8,7 +8,7 @@ import { BuildAPIArgs } from '../src/schemas.js'
  * - Different file types and formats
  * - Various instruction configurations
  * - All action types (OCR, rotation, watermarks, flattening, etc.)
- * - All output formats (PDF, PDF/A, image, JSON, Office)
+ * - All output formats (PDF, PDF/A, PDF/UA, image, JSON, Office, HTML, Markdown)
  * - Various combinations of options and parameters
  * - Edge cases and special use cases
  */
@@ -902,4 +902,244 @@ export const disabledImagesExample: BuildAPIArgs = {
     },
   },
   outputPath: 'output_pdf.pdf',
+}
+
+// Example with PDF/UA output for accessibility
+export const pdfUAExample: BuildAPIArgs = {
+  instructions: {
+    parts: [
+      {
+        file: 'example.pdf',
+      },
+    ],
+    output: {
+      type: 'pdfua',
+      metadata: {
+        title: 'Accessible Document',
+        author: 'Accessibility Team',
+      },
+    },
+  },
+  outputPath: 'output_pdfua.pdf',
+}
+
+// Example with HTML output using page layout
+export const htmlPageLayoutExample: BuildAPIArgs = {
+  instructions: {
+    parts: [
+      {
+        file: 'example.pdf',
+      },
+    ],
+    output: {
+      type: 'html',
+      layout: 'page',
+    },
+  },
+  outputPath: 'output_page.html',
+}
+
+// Example with HTML output using reflow layout
+export const htmlReflowLayoutExample: BuildAPIArgs = {
+  instructions: {
+    parts: [
+      {
+        file: 'example.pdf',
+      },
+    ],
+    output: {
+      type: 'html',
+      layout: 'reflow',
+    },
+  },
+  outputPath: 'output_reflow.html',
+}
+
+// Example with HTML output (default layout)
+export const htmlDefaultExample: BuildAPIArgs = {
+  instructions: {
+    parts: [
+      {
+        file: 'example.pdf',
+      },
+    ],
+    output: {
+      type: 'html',
+    },
+  },
+  outputPath: 'output.html',
+}
+
+// Example with Markdown output
+export const markdownExample: BuildAPIArgs = {
+  instructions: {
+    parts: [
+      {
+        file: 'example.pdf',
+      },
+    ],
+    output: {
+      type: 'markdown',
+    },
+  },
+  outputPath: 'output.md',
+}
+
+// Example with Markdown output from multiple sources
+export const markdownMultipleSourcesExample: BuildAPIArgs = {
+  instructions: {
+    parts: [
+      {
+        file: 'example.pdf',
+        pages: { start: 0, end: 2 },
+      },
+      {
+        file: 'example.docx',
+      },
+    ],
+    output: {
+      type: 'markdown',
+    },
+  },
+  outputPath: 'output_combined.md',
+}
+
+// Example with JSON content extraction for key-value pairs only
+export const jsonContentKeyValuePairsExample: BuildAPIArgs = {
+  instructions: {
+    parts: [
+      {
+        file: 'example.pdf',
+      },
+    ],
+    output: {
+      type: 'json-content',
+      plainText: false,
+      keyValuePairs: true,
+      tables: false,
+      language: 'english',
+    },
+  },
+  outputPath: 'output_kvp.json',
+}
+
+// Example with JSON content extraction for tables only
+export const jsonContentTablesOnlyExample: BuildAPIArgs = {
+  instructions: {
+    parts: [
+      {
+        file: 'example.pdf',
+      },
+    ],
+    output: {
+      type: 'json-content',
+      plainText: false,
+      keyValuePairs: false,
+      tables: true,
+      language: 'english',
+    },
+  },
+  outputPath: 'output_tables.json',
+}
+
+// Example with JSON content extraction with multiple languages
+export const jsonContentMultiLanguageExample: BuildAPIArgs = {
+  instructions: {
+    parts: [
+      {
+        file: 'example.pdf',
+      },
+    ],
+    output: {
+      type: 'json-content',
+      plainText: true,
+      keyValuePairs: true,
+      tables: true,
+      language: ['english', 'spanish', 'french'],
+    },
+  },
+  outputPath: 'output_multilang.json',
+}
+
+// Complex example with OCR and HTML output
+export const ocrToHtmlExample: BuildAPIArgs = {
+  instructions: {
+    parts: [
+      {
+        file: 'example.pdf',
+      },
+    ],
+    actions: [
+      {
+        type: 'ocr',
+        language: 'english',
+      },
+    ],
+    output: {
+      type: 'html',
+      layout: 'reflow',
+    },
+  },
+  outputPath: 'output_ocr.html',
+}
+
+// Complex example with watermark and Markdown output
+export const watermarkToMarkdownExample: BuildAPIArgs = {
+  instructions: {
+    parts: [
+      {
+        file: 'example.pdf',
+      },
+    ],
+    actions: [
+      {
+        type: 'watermark',
+        watermarkType: 'text',
+        text: 'DRAFT',
+        width: 100,
+        height: 50,
+        opacity: 0.3,
+        rotation: 45,
+        fontColor: '#CCCCCC',
+      },
+    ],
+    output: {
+      type: 'markdown',
+    },
+  },
+  outputPath: 'output_watermarked.md',
+}
+
+// Example with redactions and PDF/UA output
+export const redactedPdfUAExample: BuildAPIArgs = {
+  instructions: {
+    parts: [
+      {
+        file: 'example.pdf',
+      },
+    ],
+    actions: [
+      {
+        type: 'createRedactions',
+        strategy: 'preset',
+        strategyOptions: {
+          preset: 'social-security-number',
+          includeAnnotations: true,
+          start: 0,
+          limit: null,
+        },
+      },
+      {
+        type: 'applyRedactions',
+      },
+    ],
+    output: {
+      type: 'pdfua',
+      metadata: {
+        title: 'Redacted Accessible Document',
+        author: 'Compliance Team',
+      },
+    },
+  },
+  outputPath: 'output_redacted_accessible.pdf',
 }
