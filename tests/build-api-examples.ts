@@ -923,28 +923,6 @@ export const pdfUAExample: BuildAPIArgs = {
   outputPath: 'output_pdfua.pdf',
 }
 
-// Example with PDF/UA output with password protection
-export const pdfUAWithPasswordExample: BuildAPIArgs = {
-  instructions: {
-    parts: [
-      {
-        file: 'example.pdf',
-      },
-    ],
-    output: {
-      type: 'pdfua',
-      user_password: 'user123',
-      owner_password: 'owner456',
-      user_permissions: ['printing', 'extract_accessibility', 'fill_forms'],
-      metadata: {
-        title: 'Protected Accessible Document',
-        author: 'Security Team',
-      },
-    },
-  },
-  outputPath: 'output_pdfua_protected.pdf',
-}
-
 // Example with HTML output using page layout
 export const htmlPageLayoutExample: BuildAPIArgs = {
   instructions: {
