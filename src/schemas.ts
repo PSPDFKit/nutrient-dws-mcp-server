@@ -426,13 +426,6 @@ export const PDFUAOutputSchema = BasePDFOutputSchema.extend({
 export const JSONContentOutputSchema = z.object({
   type: z.literal('json-content').describe('Output as JSON with document contents.'),
   plainText: z.boolean().optional().default(true).describe('Extract document text. Text is extracted via OCR process.'),
-  structuredText: z
-    .boolean()
-    .optional()
-    .default(false)
-    .describe(
-      'Extract structured document text. This includes text words, characters, lines and paragraphs. Use one of `plainText`, `keyValuePairs`, or `tables`. at a time.',
-    ),
   keyValuePairs: z
     .boolean()
     .optional()
@@ -453,6 +446,9 @@ export const JSONContentOutputSchema = z.object({
       z.array(z.string()).describe('Languages for OCR text extraction.'),
     ])
     .optional(),
+
+  // Structure text uses many chars, and often overflows the context length of an LLM. We will not support this for now.
+  // structuredText: z.boolean().optional().default(false).describe('Extracts text with positional data.'),
 })
 
 export const OfficeOutputSchema = z.object({

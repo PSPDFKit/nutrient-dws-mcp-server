@@ -108,7 +108,6 @@ export const jsonContentExtractionExample: BuildAPIArgs = {
     output: {
       type: 'json-content',
       plainText: true,
-      structuredText: false,
       keyValuePairs: true,
       tables: true,
       language: 'english',
@@ -1027,26 +1026,6 @@ export const markdownMultipleSourcesExample: BuildAPIArgs = {
   outputPath: 'output_combined.md',
 }
 
-// Example with JSON content extraction including structured text
-export const jsonContentWithStructuredTextExample: BuildAPIArgs = {
-  instructions: {
-    parts: [
-      {
-        file: 'example.pdf',
-      },
-    ],
-    output: {
-      type: 'json-content',
-      plainText: false,
-      structuredText: true,
-      keyValuePairs: false,
-      tables: false,
-      language: 'english',
-    },
-  },
-  outputPath: 'output_structured.json',
-}
-
 // Example with JSON content extraction for key-value pairs only
 export const jsonContentKeyValuePairsExample: BuildAPIArgs = {
   instructions: {
@@ -1058,7 +1037,6 @@ export const jsonContentKeyValuePairsExample: BuildAPIArgs = {
     output: {
       type: 'json-content',
       plainText: false,
-      structuredText: false,
       keyValuePairs: true,
       tables: false,
       language: 'english',
@@ -1078,7 +1056,6 @@ export const jsonContentTablesOnlyExample: BuildAPIArgs = {
     output: {
       type: 'json-content',
       plainText: false,
-      structuredText: false,
       keyValuePairs: false,
       tables: true,
       language: 'english',
@@ -1098,7 +1075,6 @@ export const jsonContentMultiLanguageExample: BuildAPIArgs = {
     output: {
       type: 'json-content',
       plainText: true,
-      structuredText: false,
       keyValuePairs: true,
       tables: true,
       language: ['english', 'spanish', 'french'],

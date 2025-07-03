@@ -73,7 +73,6 @@ describe('performBuildCall with build-api-examples', () => {
 
   const jsonOutputExamples: { name: string; example: BuildAPIArgs }[] = [
     { name: 'jsonContentExtractionExample', example: examples.jsonContentExtractionExample },
-    { name: 'jsonContentWithStructuredTextExample', example: examples.jsonContentWithStructuredTextExample },
     { name: 'jsonContentKeyValuePairsExample', example: examples.jsonContentKeyValuePairsExample },
     { name: 'jsonContentTablesOnlyExample', example: examples.jsonContentTablesOnlyExample },
     { name: 'jsonContentMultiLanguageExample', example: examples.jsonContentMultiLanguageExample },
