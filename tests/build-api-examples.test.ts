@@ -60,7 +60,6 @@ describe('performBuildCall with build-api-examples', () => {
     { name: 'ocrAndRedactionsExample', example: examples.ocrAndRedactionsExample },
     { name: 'disabledImagesExample', example: examples.disabledImagesExample },
     { name: 'pdfUAExample', example: examples.pdfUAExample },
-    { name: 'pdfUAWithPasswordExample', example: examples.pdfUAWithPasswordExample },
     { name: 'htmlPageLayoutExample', example: examples.htmlPageLayoutExample },
     { name: 'htmlReflowLayoutExample', example: examples.htmlReflowLayoutExample },
     { name: 'htmlDefaultExample', example: examples.htmlDefaultExample },

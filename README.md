@@ -54,9 +54,10 @@ This server allows AI assistants to access the tools provided by Nutrient DWS Pr
   "mcpServers": {
     "nutrient-dws": {
       "command": "npx",
-      "args": ["-y", "@nutrient-sdk/dws-mcp-server", "--sandbox", "/your/sandbox/directory"], // "C:\\your\\sandbox\\directory" for Windows
+      "args": ["-y", "@nutrient-sdk/dws-mcp-server"],
       "env": {
-        "NUTRIENT_DWS_API_KEY": "YOUR_API_KEY_HERE"
+        "NUTRIENT_DWS_API_KEY": "YOUR_API_KEY_HERE",
+        "SANDBOX_PATH": "/your/sandbox/directory"  // "C:\\your\\sandbox\\directory" for Windows
       }
     }
   }
@@ -82,11 +83,20 @@ Nutrient DWS MCP Server supports macOS and Windows for now. Feel free to open an
 
 The server supports an optional sandbox mode that restricts file operations to a specific directory. This is useful for security purposes, ensuring that the server can only read from and write to files within the specified directory. You should drop any documents you'd like to work on in this directory.
 
-To enable sandbox mode, use the `--sandbox` (or `-s`) command line argument followed by the path to the directory:
+To enable sandbox mode, use either the `--sandbox` (or `-s`) command line argument or the `SANDBOX_PATH` environment variable:
 
+**Command line argument:**
 ```bash
 npx @nutrient-sdk/dws-mcp-server --sandbox /path/to/sandbox/directory
 ```
+
+**Environment variable:**
+```bash
+export SANDBOX_PATH=/path/to/sandbox/directory
+npx @nutrient-sdk/dws-mcp-server
+```
+
+**Note:** Command line arguments take precedence over environment variables if both are specified.
 
 When sandbox mode is enabled:
 

@@ -11,6 +11,7 @@ import * as api from '../src/dws/api.js'
 import axios, { AxiosError, InternalAxiosRequestConfig } from 'axios'
 import path from 'path'
 import { FileHandle } from 'fs/promises'
+import { parseSandboxPath } from '../src/utils/sandbox.js'
 
 dotenvConfig()
 
@@ -645,6 +646,51 @@ describe('API Functions', () => {
         // The path should be accepted as is, without appending the sandbox path again
         expect(answerPath).toBe(resolvedAbsolutePathInSandbox)
       })
+    })
+  })
+
+  describe('parseSandboxPath utility', () => {
+    it('should return undefined when no args or env var provided', () => {
+      const result = parseSandboxPath([], undefined)
+      expect(result).toBeUndefined()
+    })
+
+    it('should use environment variable when provided and no args', () => {
+      const result = parseSandboxPath([], '/env/sandbox')
+      expect(result).toBe('/env/sandbox')
+    })
+
+    it('should prefer command line --sandbox over environment variable', () => {
+      const args = ['--sandbox', '/cli/sandbox']
+      const result = parseSandboxPath(args, '/env/sandbox')
+      expect(result).toBe('/cli/sandbox')
+    })
+
+    it('should work with short flag -s', () => {
+      const args = ['-s', '/cli/sandbox']
+      const result = parseSandboxPath(args, '/env/sandbox')
+      expect(result).toBe('/cli/sandbox')
+    })
+
+    it('should throw error when --sandbox flag has no path', () => {
+      const args = ['--sandbox']
+      expect(() => parseSandboxPath(args, undefined)).toThrow('--sandbox flag requires a directory path')
+    })
+
+    it('should throw error when -s flag has no path', () => {
+      const args = ['-s']
+      expect(() => parseSandboxPath(args, undefined)).toThrow('--sandbox flag requires a directory path')
+    })
+
+    it('should handle multiple arguments and find sandbox flag', () => {
+      const args = ['--help', '--sandbox', '/path/to/sandbox', '--verbose']
+      const result = parseSandboxPath(args, undefined)
+      expect(result).toBe('/path/to/sandbox')
+    })
+
+    it('should return undefined when empty env var provided', () => {
+      const result = parseSandboxPath([], '')
+      expect(result).toBeUndefined()
     })
   })
 })
