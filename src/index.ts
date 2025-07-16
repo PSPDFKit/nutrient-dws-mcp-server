@@ -15,6 +15,7 @@ import { performDirectoryTreeCall } from './fs/directoryTree.js'
 import { setSandboxDirectory } from './fs/sandbox.js'
 import { createErrorResponse } from './responses.js'
 import { getVersion } from './version.js'
+import { parseSandboxPath } from './utils/sandbox.js'
 
 const server = new McpServer(
   {
@@ -99,24 +100,17 @@ Positioning:
 
 async function parseCommandLineArgs() {
   const args = process.argv.slice(2)
-  let sandboxDir: string | null = null
-
-  for (let i = 0; i < args.length; i++) {
-    if (args[i] === '--sandbox' || args[i] === '-s') {
-      if (i + 1 < args.length) {
-        sandboxDir = args[i + 1]
-        i++ // Skip the next argument as it's the directory path
-      } else {
-        await server.server.sendLoggingMessage({
-          level: 'error',
-          data: 'Error: --sandbox flag requires a directory path',
-        })
-        process.exit(1)
-      }
-    }
+  
+  try {
+    const sandboxDir = parseSandboxPath(args, process.env.SANDBOX_PATH) || null
+    return { sandboxDir }
+  } catch (error) {
+    await server.server.sendLoggingMessage({
+      level: 'error',
+      data: `Error: ${error instanceof Error ? error.message : String(error)}`,
+    })
+    process.exit(1)
   }
-
-  return { sandboxDir }
 }
 
 export async function runServer() {
@@ -132,7 +126,7 @@ export async function runServer() {
   } else {
     console.warn(
       'Info: No sandbox directory specified. File operations will not be restricted.\n' +
-        'Sandboxed mode is recommended - To enable sandboxed mode and restrict file operations, use: --sandbox <directory_path>',
+        'Sandboxed mode is recommended - To enable sandboxed mode and restrict file operations, set SANDBOX_PATH environment variable',
     )
   }
 
