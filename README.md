@@ -46,7 +46,7 @@ This server allows AI assistants to access the tools provided by Nutrient DWS Pr
    1. **macOS users**: The `claude_desktop_config.json` is inside the directory `~/Library/Application\ Support/Claude`.
    2. **Windows users**: The `claude_desktop_config.json` is inside the directory `%APPDATA%\Claude`
 
-> **NOTE**: For the `--sandbox`, you can put in the path in either the Unix-style (separated using forward slash `/`) or the Windows-style
+> **NOTE**: For the `SANDBOX_PATH`, you can put in the path in either the Unix-style (separated using forward slash `/`) or the Windows-style
 > (separated using the backward slash `/`). **And** for the Windows path, you must escape the backward slash (i.e. `\\` instead of `\`)
 
 ```json lines
@@ -66,7 +66,7 @@ This server allows AI assistants to access the tools provided by Nutrient DWS Pr
 
 6. **Restart Claude Desktop.**
    > On Windows you might need to go to the Task Manager and kill any processes named Claude to reset the application. On a macOS it will be the Activity Monitor
-7. **Add documents for processing:** Use any file manager to copy the documents into the sandbox directory set in the `claude_desktop_config.json` file above.
+7. **Add documents for processing:** Use any file manager to copy the documents into the sandbox directory set via the `SANDBOX_PATH` environment variable above.
 8. **Process documents:** Instruct Claude Sonnet 3.7 (e.g. “redact all PII from secret.pdf”, “sign the document contract.pdf”, “merge secret.pdf and contract.pdf together”, etc.).
 
 > **Note:** All operations involve reading from and writing to files on disk. We strongly recommend using the sandboxed directory feature to enhance security and prevent data loss.
@@ -83,20 +83,12 @@ Nutrient DWS MCP Server supports macOS and Windows for now. Feel free to open an
 
 The server supports an optional sandbox mode that restricts file operations to a specific directory. This is useful for security purposes, ensuring that the server can only read from and write to files within the specified directory. You should drop any documents you'd like to work on in this directory.
 
-To enable sandbox mode, use either the `--sandbox` (or `-s`) command line argument or the `SANDBOX_PATH` environment variable:
+To enable sandbox mode, set the `SANDBOX_PATH` environment variable:
 
-**Command line argument:**
-```bash
-npx @nutrient-sdk/dws-mcp-server --sandbox /path/to/sandbox/directory
-```
-
-**Environment variable:**
 ```bash
 export SANDBOX_PATH=/path/to/sandbox/directory
 npx @nutrient-sdk/dws-mcp-server
 ```
-
-**Note:** Command line arguments take precedence over environment variables if both are specified.
 
 When sandbox mode is enabled:
 

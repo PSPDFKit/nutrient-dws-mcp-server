@@ -126,7 +126,7 @@ export async function runServer() {
   } else {
     console.warn(
       'Info: No sandbox directory specified. File operations will not be restricted.\n' +
-        'Sandboxed mode is recommended - To enable sandboxed mode and restrict file operations, use: --sandbox <directory_path>',
+        'Sandboxed mode is recommended - To enable sandboxed mode and restrict file operations, set SANDBOX_PATH environment variable',
     )
   }
 

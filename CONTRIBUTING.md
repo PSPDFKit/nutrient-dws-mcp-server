@@ -50,7 +50,7 @@ To run the server locally:
 
 ```bash
 # With sandbox mode (recommended)
-npx . --sandbox /path/to/sandbox/directory
+SANDBOX_PATH=/path/to/sandbox/directory npx .
 
 # Without sandbox mode (not recommended)
 npx .
