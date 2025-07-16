@@ -1,7 +1,7 @@
 /**
  * Parses sandbox directory from command line arguments and environment variables.
  * Command line arguments take precedence over environment variables.
- * 
+ *
  * @param args - Command line arguments (typically process.argv.slice(2))
  * @param envVar - Environment variable value (typically process.env.SANDBOX_PATH)
  * @returns The sandbox directory path or undefined if none specified

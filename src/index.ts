@@ -100,7 +100,7 @@ Positioning:
 
 async function parseCommandLineArgs() {
   const args = process.argv.slice(2)
-  
+
   try {
     const sandboxDir = parseSandboxPath(args, process.env.SANDBOX_PATH) || null
     return { sandboxDir }

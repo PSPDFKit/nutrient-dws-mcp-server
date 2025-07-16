@@ -57,7 +57,7 @@ This server allows AI assistants to access the tools provided by Nutrient DWS Pr
       "args": ["-y", "@nutrient-sdk/dws-mcp-server"],
       "env": {
         "NUTRIENT_DWS_API_KEY": "YOUR_API_KEY_HERE",
-        "SANDBOX_PATH": "/your/sandbox/directory"  // "C:\\your\\sandbox\\directory" for Windows
+        "SANDBOX_PATH": "/your/sandbox/directory" // "C:\\your\\sandbox\\directory" for Windows
       }
     }
   }
