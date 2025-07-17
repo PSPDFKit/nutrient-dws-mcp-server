@@ -21,6 +21,7 @@ node_modules/
 
 # Build output
 dist
+dxt
 
 # Temporary files
 tests/assets/test-output-*

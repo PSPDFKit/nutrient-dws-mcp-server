@@ -8,14 +8,10 @@
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
-import { BuildAPIArgsSchema, DirectoryTreeArgsSchema, SignAPIArgsSchema } from './schemas.js'
-import { performBuildCall } from './dws/build.js'
-import { performSignCall } from './dws/sign.js'
-import { performDirectoryTreeCall } from './fs/directoryTree.js'
 import { setSandboxDirectory } from './fs/sandbox.js'
-import { createErrorResponse } from './responses.js'
 import { getVersion } from './version.js'
 import { parseSandboxPath } from './utils/sandbox.js'
+import { toolDefinitions } from './tool-definitions.js'
 
 const server = new McpServer(
   {
@@ -30,71 +26,21 @@ const server = new McpServer(
   },
 )
 
-function addToolsToServer(server: McpServer, sandboxEnabled: boolean = false) {
-  server.tool(
-    'document_processor',
-    `Processes documents using Nutrient DWS Processor API. Reads from and writes to file system or sandbox (if enabled).
+export function addToolsToServer(server: McpServer, sandboxEnabled: boolean = false) {
+  // Add primary tools
+  const documentProcessor = toolDefinitions.find(t => t.name === 'document_processor')!
+  server.tool(documentProcessor.name, documentProcessor.mcpDescription, documentProcessor.schema, documentProcessor.handler)
 
-Features:
-• Import XFDF annotations
-• Flatten annotations
-• OCR processing
-• Page rotation
-• Watermarking (text/image)
-• Redaction creation and application
+  const documentSigner = toolDefinitions.find(t => t.name === 'document_signer')!
+  server.tool(documentSigner.name, documentSigner.mcpDescription, documentSigner.schema, documentSigner.handler)
 
-Output formats: PDF, PDF/A, images (PNG, JPEG, WebP), JSON extraction, Office (DOCX, XLSX, PPTX)`,
-    BuildAPIArgsSchema.shape,
-    async ({ instructions, outputPath }) => {
-      try {
-        return performBuildCall(instructions, outputPath)
-      } catch (error) {
-        return createErrorResponse(`Error: ${error instanceof Error ? error.message : String(error)}`)
-      }
-    },
-  )
-
-  server.tool(
-    'document_signer',
-    `Digitally signs PDF files using Nutrient DWS Sign API. Reads from and writes to file system or sandbox (if enabled).
-
-Signature types:
-• CMS/PKCS#7 (standard digital signatures)
-• CAdES (advanced electronic signatures)
-
-Appearance options:
-• Visible or invisible signatures
-• Multiple display modes (signature only, description only, or both)
-• Customizable elements (signer name, reason, location, date)
-• Support for watermarks and custom graphics
-
-Positioning:
-• Place on specific page coordinates
-• Use existing signature form fields`,
-    SignAPIArgsSchema.shape,
-    async ({ filePath, signatureOptions, watermarkImagePath, graphicImagePath, outputPath }) => {
-      try {
-        return performSignCall(filePath, outputPath, signatureOptions, watermarkImagePath, graphicImagePath)
-      } catch (error) {
-        return createErrorResponse(`Error: ${error instanceof Error ? error.message : String(error)}`)
-      }
-    },
-  )
-
+  // Add directory tools based on sandbox mode
   if (sandboxEnabled) {
-    server.tool(
-      'sandbox_file_tree',
-      'Returns the file tree of the sandbox directory. It will recurse into subdirectories and return a list of files and directories.',
-      {},
-      async () => performDirectoryTreeCall('.'),
-    )
+    const sandboxFileTool = toolDefinitions.find(t => t.name === 'sandbox_file_tree')!
+    server.tool(sandboxFileTool.name, sandboxFileTool.mcpDescription, sandboxFileTool.schema, sandboxFileTool.handler)
   } else {
-    server.tool(
-      'directory_tree',
-      'Returns the directory tree of a given path. All paths are resolved relative to root directory.',
-      DirectoryTreeArgsSchema.shape,
-      async ({ path }) => performDirectoryTreeCall(path),
-    )
+    const directoryTool = toolDefinitions.find(t => t.name === 'directory_tree')!
+    server.tool(directoryTool.name, directoryTool.mcpDescription, directoryTool.schema, directoryTool.handler)
   }
 }
 
@@ -114,6 +60,7 @@ async function parseCommandLineArgs() {
 }
 
 export async function runServer() {
+  console.error('test')
   const { sandboxDir } = await parseCommandLineArgs()
 
   if (sandboxDir) {

@@ -26,7 +26,8 @@
   "files": [
     "dist",
     "README.md",
-    "LICENSE"
+    "LICENSE",
+    "resources"
   ],
   "scripts": {
     "build": "tsc && shx chmod +x dist/index.js",
@@ -35,7 +36,8 @@
     "pretest": "tsc --project tsconfig.test.json --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "clean": "shx rm -rf dist"
+    "clean": "shx rm -rf dist dxt",
+    "pack:dxt": "pnpm run clean && pnpm run build && pnpm exec tsx scripts/pack-dxt.ts"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.11.2",
@@ -50,6 +52,7 @@
     "eslint": "^9.26.0",
     "prettier": "^3.5.3",
     "shx": "^0.4.0",
+    "tsx": "^4.19.2",
     "typescript": "^5.8.3",
     "typescript-eslint": "^8.32.0",
     "vitest": "^3.1.2"
