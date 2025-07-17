@@ -5,7 +5,7 @@ export default tseslint.config(
   eslint.configs.recommended,
   tseslint.configs.recommended,
   {
-    ignores: ['./dist/**', './dxt/**'],
+    ignores: ['./dist/**', './dxt_build/**', './dxt_output/**'],
   },
   {
     rules: {

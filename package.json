@@ -36,7 +36,7 @@
     "pretest": "tsc --project tsconfig.test.json --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "clean": "shx rm -rf dist dxt dxt_build dxt_output",
+    "clean": "shx rm -rf dist dxt_build dxt_output",
     "pack:dxt": "./bin/build_dxt"
   },
   "dependencies": {
@@ -53,7 +53,6 @@
     "eslint": "^9.26.0",
     "prettier": "^3.5.3",
     "shx": "^0.4.0",
-    "tsx": "^4.19.2",
     "typescript": "^5.8.3",
     "typescript-eslint": "^8.32.0",
     "vitest": "^3.1.2"
