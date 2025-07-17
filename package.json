@@ -26,7 +26,8 @@
   "files": [
     "dist",
     "README.md",
-    "LICENSE"
+    "LICENSE",
+    "resources"
   ],
   "scripts": {
     "build": "tsc && shx chmod +x dist/index.js",
@@ -35,15 +36,17 @@
     "pretest": "tsc --project tsconfig.test.json --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "clean": "shx rm -rf dist"
+    "clean": "shx rm -rf dist dxt_build dxt_output",
+    "pack:dxt": "./bin/build_dxt"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.11.2",
+    "@modelcontextprotocol/sdk": "^1.15.1",
     "axios": "^1.9.0",
     "form-data": "^4.0.2",
     "zod": "^3.24.3"
   },
   "devDependencies": {
+    "@anthropic-ai/dxt": "^0.2.5",
     "@eslint/js": "^9.26.0",
     "@types/node": "^22.15.2",
     "dotenv": "^16.4.5",
