@@ -1,0 +1,98 @@
+{
+  "dxt_version": "0.1",
+  "name": "@nutrient-sdk/dws-mcp-server",
+  "display_name": "Nutrient DWS MCP Server",
+  "version": "{{APP_VERSION_PLACEHOLDER}}",
+  "description": "Powerful PDF processing capabilities via the Nutrient Document Web Service API including digital signing, OCR, format conversion, and document manipulation.",
+  "long_description": "Integrates with the Nutrient Document Web Service (DWS) Processor API to provide comprehensive PDF processing capabilities.\n\nFeatures include: document creation by merging PDFs/Office docs/images, digital signing with PAdES standards-compliant signatures, format conversion (PDF⇄DOCX/images/PDF/A), advanced OCR with multi-language support, watermarking and redaction, data extraction from text and tables, security operations like password protection, and file optimization. \n\nOperates in a secure sandbox mode to restrict file operations to a specified directory, making it ideal for document workflows.",
+  "author": {
+    "name": "Nutrient",
+    "url": "https://www.nutrient.io",
+    "email": "support@nutrient.io"
+  },
+  "homepage": "https://www.nutrient.io/api",
+  "documentation": "https://github.com/PSPDFKit/nutrient-dws-mcp-server",
+  "support": "https://github.com/PSPDFKit/nutrient-dws-mcp-server/issues",
+  "icon": "resources/nutrient-logo.png",
+  "screenshots": [
+    "resources/readme-header.png"
+  ],
+  "server": {
+    "type": "node",
+    "entry_point": "dist/index.js",
+    "mcp_config": {
+      "command": "node",
+      "args": [
+        "${__dirname}/dist/index.js"
+      ],
+      "env": {
+        "NUTRIENT_DWS_API_KEY": "${user_config.NUTRIENT_DWS_API_KEY}",
+        "SANDBOX_PATH": "${user_config.SANDBOX_PATH}"
+      }
+    }
+  },
+  "tools": [
+    {
+      "name": "document_processor",
+      "description": "Document creation, editing, format conversion, data extraction, security, OCR, and optimization. Merge PDFs/Office docs/images, watermark, rotate, flatten, redact, convert PDF↔DOCX/images/PDF/A, extract text/tables/content, password protection, multi-language OCR, and file compression."
+    },
+    {
+      "name": "document_signer",
+      "description": "Digital signing with PAdES standards-compliant signatures using trusted certificates. Supports CMS/PKCS#7 and CAdES signature types with customizable appearance, positioning, watermarks and graphics."
+    },
+    {
+      "name": "directory_tree",
+      "description": "Returns the directory tree of a given path. All paths are resolved relative to root directory. Only available when sandbox mode is disabled."
+    },
+    {
+      "name": "sandbox_file_tree",
+      "description": "Returns the file tree of the sandbox directory when sandbox mode is enabled. Recurses into subdirectories and returns a list of files and directories."
+    }
+  ],
+  "compatibility": {
+    "platforms": [
+      "darwin",
+      "win32",
+      "linux"
+    ],
+    "runtimes": {
+      "node": ">=18.0.0"
+    }
+  },
+  "user_config": {
+    "NUTRIENT_DWS_API_KEY": {
+      "type": "string",
+      "title": "Nutrient Document Web Service API Key",
+      "description": "Your API key for accessing Nutrient Document Web Service. Required for all document processing operations including PDF manipulation, digital signing, OCR, and format conversion. Get your free API key at: https://dashboard.nutrient.io/sign_up/",
+      "required": true,
+      "sensitive": true
+    },
+    "SANDBOX_PATH": {
+      "type": "directory",
+      "title": "Document Processing Sandbox Directory",
+      "description": "Choose a directory to contain all document processing operations. This sandbox restricts file access to only this directory and its subdirectories for security. Place your input documents here and processed outputs will be saved here. Highly recommended for safe document workflows.",
+      "required": false,
+      "sensitive": false,
+      "default": "${DOCUMENTS}"
+    }
+  },
+  "keywords": [
+    "mcp",
+    "nutrient",
+    "dws",
+    "document",
+    "pdf",
+    "extract",
+    "convert",
+    "sign",
+    "watermark",
+    "annotation",
+    "form",
+    "edit"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/PSPDFKit/nutrient-dws-mcp-server.git"
+  }
+}

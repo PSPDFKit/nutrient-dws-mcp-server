@@ -1,0 +1,61 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null)"
+
+if [ $? -ne 0 ]; then
+  echo "Error: Not in a git repository"
+  exit 1
+fi
+
+CURRENT_DIR="$(pwd)"
+
+if [ "$CURRENT_DIR" != "$REPO_ROOT" ]; then
+  echo "Error: This script must be run from the repository root"
+  echo "Current directory: $CURRENT_DIR"
+  echo "Repository root: $REPO_ROOT"
+  echo "Please cd to the repository root and run again"
+  exit 1
+fi
+
+APP_VERSION=$(node -e 'console.log(require("./package.json").version)')
+COMMIT_SHA=$(git rev-parse --short HEAD)
+OUTPUT_FILENAME="nutrient-dws-mcp-server@$APP_VERSION-$COMMIT_SHA.dxt"
+
+echo "Building $OUTPUT_FILENAME"
+echo "Git revision: $COMMIT_SHA"
+
+pnpm run clean && pnpm run build
+mkdir -p dxt_build
+mkdir -p dxt_output
+cp -a dist dxt_build/dist
+
+# Copy required files from package.json "files" field
+cp README.md dxt_build/README.md
+cp LICENSE dxt_build/LICENSE
+cp -a resources dxt_build/resources
+
+# Copy manifest.json with version substitution
+sed -e "s/{{APP_VERSION_PLACEHOLDER}}/$APP_VERSION/" manifest.json > dxt_build/manifest.json
+
+# Copy package.json for npm ci
+cp package.json dxt_build/package.json
+
+# Generate package-lock.json for npm ci
+cd dxt_build && npm install --package-lock-only --omit=dev && cd "$REPO_ROOT"
+
+cd dxt_build/
+
+echo "Installing production dependencies in dxt_build/"
+npm ci --omit=dev
+
+echo "Unpacked extension is in: dxt_build/"
+
+cd "$REPO_ROOT"
+
+cd dxt_build && npx @anthropic-ai/dxt pack
+cd "$REPO_ROOT"
+mv dxt_build/dxt_build.dxt "dxt_output/$OUTPUT_FILENAME"
+
+echo "DXT package created: dxt_output/$OUTPUT_FILENAME"
