@@ -63,7 +63,7 @@
     "NUTRIENT_DWS_API_KEY": {
       "type": "string",
       "title": "Nutrient Document Web Service API Key",
-      "description": "Your API key for accessing Nutrient Document Web Service. Required for all document processing operations including PDF manipulation, digital signing, OCR, and format conversion. Get your free API key at: https://dashboard.nutrient.io/sign_up/",
+      "description": "Your API key for accessing Nutrient Document Web Service. Get your free API key at: https://dashboard.nutrient.io/sign_up/",
       "required": true,
       "sensitive": true
     },
@@ -71,9 +71,8 @@
       "type": "directory",
       "title": "Document Processing Sandbox Directory",
       "description": "Choose a directory to contain all document processing operations. This sandbox restricts file access to only this directory and its subdirectories for security. Place your input documents here and processed outputs will be saved here. Highly recommended for safe document workflows.",
-      "required": false,
-      "sensitive": false,
-      "default": "${DOCUMENTS}"
+      "required": true,
+      "sensitive": false
     }
   },
   "keywords": [

@@ -54,8 +54,12 @@ echo "Unpacked extension is in: dxt_build/"
 
 cd "$REPO_ROOT"
 
-cd dxt_build && npx @anthropic-ai/dxt pack
+cd dxt_build && pnpm exec dxt pack
 cd "$REPO_ROOT"
 mv dxt_build/dxt_build.dxt "dxt_output/$OUTPUT_FILENAME"
 
 echo "DXT package created: dxt_output/$OUTPUT_FILENAME"
+
+echo "Signing DXT package..."
+pnpm exec dxt sign "dxt_output/$OUTPUT_FILENAME" --self-signed
+echo "Signed DXT package: dxt_output/$OUTPUT_FILENAME"
