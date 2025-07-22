@@ -72,7 +72,8 @@
       "title": "Document Processing Sandbox Directory",
       "description": "Choose a directory to contain all document processing operations. This sandbox restricts file access to only this directory and its subdirectories for security. Place your input documents here and processed outputs will be saved here. Highly recommended for safe document workflows.",
       "required": true,
-      "sensitive": false
+      "sensitive": false,
+      "default": "${HOME}"
     }
   },
   "keywords": [
