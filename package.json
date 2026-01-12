@@ -38,20 +38,20 @@
     "clean": "shx rm -rf dist"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.11.2",
-    "axios": "^1.9.0",
-    "form-data": "^4.0.2",
-    "zod": "^3.24.3"
+    "@modelcontextprotocol/sdk": "^1.25.2",
+    "axios": "^1.13.2",
+    "form-data": "^4.0.5",
+    "zod": "^3.25.76"
   },
   "devDependencies": {
-    "@eslint/js": "^9.26.0",
-    "@types/node": "^22.15.2",
-    "dotenv": "^16.4.5",
-    "eslint": "^9.26.0",
-    "prettier": "^3.5.3",
+    "@eslint/js": "^9.39.2",
+    "@types/node": "^22.19.5",
+    "dotenv": "^16.6.1",
+    "eslint": "^9.39.2",
+    "prettier": "^3.7.4",
     "shx": "^0.4.0",
-    "typescript": "^5.8.3",
-    "typescript-eslint": "^8.32.0",
-    "vitest": "^3.1.2"
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.52.0",
+    "vitest": "^4.0.16"
   }
 }

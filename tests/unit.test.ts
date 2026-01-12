@@ -8,15 +8,25 @@ import { performSignCall } from '../src/dws/sign.js'
 import { performDirectoryTreeCall } from '../src/fs/directoryTree.js'
 import * as sandbox from '../src/fs/sandbox.js'
 import * as api from '../src/dws/api.js'
-import axios, { AxiosError, InternalAxiosRequestConfig } from 'axios'
+import axios, { InternalAxiosRequestConfig } from 'axios'
 import path from 'path'
 import { FileHandle } from 'fs/promises'
 import { parseSandboxPath } from '../src/utils/sandbox.js'
+import { CallToolResult, TextContent } from '@modelcontextprotocol/sdk/types.js'
 
 dotenvConfig()
 
+/** Helper to safely get text from a CallToolResult content item */
+function getTextContent(result: CallToolResult, index: number = 0): string {
+  const content = result.content[index]
+  if (content.type === 'text') {
+    return (content as TextContent).text
+  }
+  throw new Error(`Expected text content at index ${index}, got ${content.type}`)
+}
+
 vi.mock('axios')
-vi.mock('fs')
+vi.mock('node:fs', { spy: true })
 vi.mock('../src/dws/api.js')
 
 function createMockStream(content: string | Buffer): Readable {
@@ -96,8 +106,8 @@ describe('API Functions', () => {
       const result = await performBuildCall({ parts: [{ file: '/test.pdf' }] }, '/test_processed.pdf')
 
       expect(result.isError).toBe(true)
-      expect(result.content[0].text).toContain('NUTRIENT_DWS_API_KEY environment variable is required')
-      expect(result.content[0].text).toContain('https://www.nutrient.io/api/')
+      expect(getTextContent(result)).toContain('NUTRIENT_DWS_API_KEY environment variable is required')
+      expect(getTextContent(result)).toContain('https://www.nutrient.io/api/')
     })
 
     it('should use application/json when all inputs are URLs', async () => {
@@ -162,7 +172,7 @@ describe('API Functions', () => {
 
       expect(result.isError).toBe(false)
       expect(result.content[0].type).toBe('text')
-      expect(result.content[0].text).toBe('{"result": "success"}')
+      expect(getTextContent(result)).toBe('{"result": "success"}')
     })
 
     it('should handle file output and save to disk', async () => {
@@ -181,17 +191,17 @@ describe('API Functions', () => {
     })
 
     it('should handle errors from the API', async () => {
-      vi.mocked(axios.AxiosError).mockReturnValue({
+      const mockError = {
         response: {
           data: createMockStream('Error message from API'),
         },
-      } as unknown as AxiosError)
+      }
       vi.mocked(axios.isAxiosError).mockImplementation(() => true)
-      vi.mocked(api.callNutrientApi).mockRejectedValue(new AxiosError())
+      vi.mocked(api.callNutrientApi).mockRejectedValueOnce(mockError)
       const result = await performBuildCall({ parts: [{ file: '/test.pdf' }] }, '/test_processed.pdf')
 
       expect(result.isError).toBe(true)
-      expect(result.content[0].text).toContain('Error processing API response: Error message from API')
+      expect(getTextContent(result)).toContain('Error processing API response: Error message from API')
     })
 
     it('should handle HostedErrorResponse format from the API', async () => {
@@ -206,19 +216,19 @@ describe('API Functions', () => {
           },
         ],
       }
-      vi.mocked(axios.AxiosError).mockReturnValue({
+      const mockError = {
         response: {
           data: createMockStream(JSON.stringify(hostedErrorResponse)),
         },
-      } as unknown as AxiosError)
+      }
       vi.mocked(axios.isAxiosError).mockImplementation(() => true)
-      vi.mocked(api.callNutrientApi).mockRejectedValue(new AxiosError())
+      vi.mocked(api.callNutrientApi).mockRejectedValueOnce(mockError)
 
       const result = await performBuildCall({ parts: [{ file: '/test.pdf' }] }, '/test_processed.pdf')
 
       expect(result.isError).toBe(true)
 
-      const errorJson = JSON.parse(result.content[0].text as string)
+      const errorJson = JSON.parse(getTextContent(result))
       expect(errorJson.details).toBe('The request is malformed')
       expect(errorJson.status).toBe(400)
       expect(errorJson.requestId).toBe('xy123zzdafaf')
@@ -244,7 +254,7 @@ describe('API Functions', () => {
     })
 
     it('should throw an error if API key is not set', async () => {
-      vi.mocked(api.callNutrientApi).mockRejectedValue(
+      vi.mocked(api.callNutrientApi).mockRejectedValueOnce(
         new Error(
           'Error: NUTRIENT_DWS_API_KEY environment variable is required. Please visit https://www.nutrient.io/api/ to get your free API key.',
         ),
@@ -253,8 +263,8 @@ describe('API Functions', () => {
       const result = await performSignCall('/test.pdf', '/test_processed.pdf')
 
       expect(result.isError).toBe(true)
-      expect(result.content[0].text).toContain('NUTRIENT_DWS_API_KEY environment variable is required')
-      expect(result.content[0].text).toContain('https://www.nutrient.io/api/')
+      expect(getTextContent(result)).toContain('NUTRIENT_DWS_API_KEY environment variable is required')
+      expect(getTextContent(result)).toContain('https://www.nutrient.io/api/')
     })
 
     it('should send the file and signature options to the API', async () => {
@@ -339,18 +349,18 @@ describe('API Functions', () => {
     })
 
     it('should handle errors from the API', async () => {
-      vi.mocked(axios.AxiosError).mockReturnValue({
+      const mockError = {
         response: {
           data: createMockStream('Error message from API'),
         },
-      } as unknown as AxiosError)
+      }
       vi.mocked(axios.isAxiosError).mockImplementation(() => true)
-      vi.mocked(api.callNutrientApi).mockRejectedValue(new AxiosError())
+      vi.mocked(api.callNutrientApi).mockRejectedValueOnce(mockError)
 
       const result = await performSignCall('/test.pdf', '/test_processed.pdf')
 
       expect(result.isError).toBe(true)
-      expect(result.content[0].text).toContain('Error processing API response: Error message from API')
+      expect(getTextContent(result)).toContain('Error processing API response: Error message from API')
     })
   })
 
@@ -400,16 +410,15 @@ describe('API Functions', () => {
         },
       ]
 
-      vi.spyOn(fs.promises, 'readdir').mockImplementationOnce(() =>
-        Promise.resolve(mockEntries as unknown as fs.Dirent<Buffer<ArrayBufferLike>>[]),
-      )
+      // @ts-expect-error - Mock Dirent type doesn't match TS 5.9's stricter NonSharedBuffer generic
+      vi.spyOn(fs.promises, 'readdir').mockImplementationOnce(() => Promise.resolve(mockEntries))
 
       const result = await performDirectoryTreeCall('/test/dir')
 
       expect(result.isError).toBe(false)
       expect(result.content[0].type).toBe('text')
 
-      const treeData = JSON.parse(result.content[0].text as string)
+      const treeData = JSON.parse(getTextContent(result))
       expect(treeData).toHaveLength(3)
       expect(treeData[0].name).toBe('file1.txt')
       expect(treeData[0].type).toBe('file')
@@ -432,7 +441,7 @@ describe('API Functions', () => {
       const resolvedDirectory = path.resolve('/nonexistent/dir')
 
       expect(result.isError).toBe(true)
-      expect(result.content[0].text).toContain(`Error: Path is not a directory: ${resolvedDirectory}`)
+      expect(getTextContent(result)).toContain(`Error: Path is not a directory: ${resolvedDirectory}`)
     })
 
     it('should return an error if the path is not a directory', async () => {
@@ -447,7 +456,7 @@ describe('API Functions', () => {
       const result = await performDirectoryTreeCall('/test/file.txt')
 
       expect(result.isError).toBe(true)
-      expect(result.content[0].text).toContain('Path is not a directory')
+      expect(getTextContent(result)).toContain('Path is not a directory')
     })
 
     it('should handle empty directories', async () => {
@@ -459,13 +468,13 @@ describe('API Functions', () => {
         } as Stats),
       )
 
-      vi.spyOn(fs.promises, 'readdir').mockImplementation(() => Promise.resolve([] as unknown as fs.Dirent<Buffer>[]))
+      vi.spyOn(fs.promises, 'readdir').mockImplementation(() => Promise.resolve([]))
 
       const result = await performDirectoryTreeCall('/test/empty-dir')
 
       expect(result.isError).toBe(false)
 
-      const treeData = JSON.parse(result.content[0].text as string)
+      const treeData = JSON.parse(getTextContent(result))
       expect(treeData).toEqual([])
     })
 
@@ -484,7 +493,7 @@ describe('API Functions', () => {
       const result = await performDirectoryTreeCall('/test/dir')
 
       expect(result.isError).toBe(true)
-      expect(result.content[0].text).toContain(
+      expect(getTextContent(result)).toContain(
         'Cannot read the directory tree, make sure to allow this application access to',
       )
     })

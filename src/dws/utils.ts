@@ -67,7 +67,6 @@ export async function handleApiError(e: unknown): Promise<CallToolResult> {
               {
                 type: 'text',
                 text: JSON.stringify(errorJson, null, 2),
-                isError: true,
               },
             ],
             isError: true,
