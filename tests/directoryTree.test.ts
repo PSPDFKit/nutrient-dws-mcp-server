@@ -28,7 +28,8 @@ describe('Directory Tree File Descriptor Handling', () => {
 
     const mockFiles = [createMockDirent('file1.txt'), createMockDirent('file2.pdf')]
 
-    vi.spyOn(fs.promises, 'readdir').mockResolvedValue(mockFiles as unknown as fs.Dirent<Buffer<ArrayBufferLike>>[])
+    // @ts-expect-error - Mock Dirent type doesn't match TS 5.9's stricter NonSharedBuffer generic
+    vi.spyOn(fs.promises, 'readdir').mockResolvedValue(mockFiles)
 
     mockClose = vi.fn().mockResolvedValue(undefined)
     mockFileHandle = {

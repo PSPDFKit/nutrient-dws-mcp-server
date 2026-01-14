@@ -105,13 +105,36 @@ describe('performBuildCall with build-api-examples', () => {
         isError: false,
         content: expect.arrayContaining([
           expect.objectContaining({
-            // The content type can be 'text' or 'json' depending on how performBuildCall processes the JSON string
             type: 'text',
-            // For text type, it should contain success message for plain text; and pages array of pageIndexs for structured output
-            text: expect.toBeOneOf([expect.stringContaining('Dummy PDF file'), expect.stringContaining('pageIndex')]),
+            // The json-content output returns a JSON object with a pages array
+            // Each page contains the requested extraction data (keyValuePairs, tables, plainText, etc.)
+            // Empty arrays are valid when the PDF doesn't contain extractable data of that type
+            text: expect.stringContaining('"pages"'),
           }),
         ]),
       }),
     )
+
+    // Verify the response contains the expected keys based on the requested output options
+    const firstContent = result.content[0]
+    expect(firstContent.type).toBe('text')
+    const responseText = (firstContent as { type: 'text'; text: string }).text
+
+    const output = instructions.output
+    if (output?.type === 'json-content') {
+      // When keyValuePairs is true, expect the key in output; when false, it should not be present
+      if (output.keyValuePairs === true) {
+        expect(responseText).toContain('"keyValuePairs"')
+      } else if (output.keyValuePairs === false) {
+        expect(responseText).not.toContain('"keyValuePairs"')
+      }
+
+      // When tables is true, expect the key in output; when false, it should not be present
+      if (output.tables === true) {
+        expect(responseText).toContain('"tables"')
+      } else if (output.tables === false) {
+        expect(responseText).not.toContain('"tables"')
+      }
+    }
   })
 }, 60000)
