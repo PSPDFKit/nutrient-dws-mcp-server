@@ -15,8 +15,17 @@
   },
   "keywords": [
     "mcp",
+    "mcp-server",
     "nutrient",
-    "dws"
+    "dws",
+    "pdf",
+    "document-processing",
+    "ai",
+    "agent",
+    "digital-signature",
+    "ocr",
+    "redaction",
+    "model-context-protocol"
   ],
   "engines": {
     "node": ">=18.0.0",

@@ -8,52 +8,48 @@
 
 [![npm](https://img.shields.io/npm/v/%40nutrient-sdk/dws-mcp-server)](https://www.npmjs.com/package/@nutrient-sdk/dws-mcp-server)
 
-A Model Context Protocol (MCP) server implementation that integrates with the Nutrient Document Web Service (DWS) Processor API, providing powerful PDF processing capabilities for AI assistants.
+**Give AI agents the power to process, sign, and transform documents.**
 
-This server allows AI assistants to access the tools provided by Nutrient DWS Processor API, enabling operations such as digital signing, document generation, document editing, OCR, watermarking, redaction, and more.
+A Model Context Protocol (MCP) server that connects AI assistants to the [Nutrient Document Web Service (DWS) Processor API](https://www.nutrient.io/api) — enabling document creation, editing, conversion, digital signing, OCR, redaction, and more through natural language.
 
-## Table of Contents
+## What You Can Do
 
-- [Features Overview](#features-overview)
-- [Usage](#usage)
-  - [Getting Started with Claude Desktop](#getting-started-with-claude-desktop--nutrient-dws-mcp-server)
-  - [Compatibility](#compatibility)
-  - [Further Configuration](#further-configuration)
-- [Contributions](#contributions)
+Once configured, you (or your AI agent) can process documents through natural language:
 
-### Features overview
+**You:** *"Merge report-q1.pdf and report-q2.pdf into a single document"*
+**AI:** *"Done! I've merged both reports into combined-report.pdf (24 pages total)."*
 
-| Feature           | Description                                                                 |
-| ----------------- | --------------------------------------------------------------------------- |
-| Document Creation | Merge PDFs, Office docs, and images                                         |
-| Editing           | Watermark, rotate, flatten, redact, and more                                |
-| Format Conversion | PDF ⇄ DOCX, images, PDF/A support                                           |
-| Digital Signing   | Add PAdES standards-compliant digital signatures using trusted certificates |
-| Data Extraction   | Extract text, tables, or structured content                                 |
-| Security          | Redaction presets, password protection, permission control                  |
-| Advanced OCR      | Multi-language, image and scan recognition                                  |
-| Optimization      | Compress files without quality loss                                         |
+**You:** *"Redact all social security numbers and email addresses from application.pdf"*
+**AI:** *"I found and redacted 5 SSNs and 3 email addresses. The redacted version is saved as application-redacted.pdf."*
 
-## Usage
+**You:** *"Digitally sign this contract with a visible signature on page 3"*
+**AI:** *"I've applied a PAdES-compliant digital signature to contract.pdf. The signed document is saved as contract-signed.pdf."*
 
-### Getting Started with Claude Desktop + Nutrient DWS MCP Server
+**You:** *"Convert this PDF to markdown"*
+**AI:** *"Here's the markdown content extracted from your document..."*
 
-1. **Get a Nutrient DWS API key:** Sign up at [nutrient.io/api](https://dashboard.nutrient.io/sign_up/).
-2. **Install Node.js**:
-   1. **macOS users**: Install Node.js with a package manager like brew on the command line. (`brew install node`)
-   2. **Windows users**: Download the Node Installer by visiting [Node.js Download Site](https://nodejs.org/en/download) and run the installer
-3. **Download Claude Desktop:** If you haven’t already, [download Claude Desktop](https://claude.ai/download) and sign in.
-4. **Create the `claude_desktop_config.json`**:
-   1. **macOS users**: Click on "Claude" next to the Apple icon on top of your mac screen. Go to Settings > Developer and click on Edit Config.
-   2. **Windows user**: Click on the hamburger menu on the top left of the Claude Desktop window. Go to File > Settings > Developer and click on Edit Config.
-5. **Configure Claude:**: Add `nutrient-dws` to the `claude_desktop_config.json` (example below). Make sure to add your API key and set the sandbox directory:
-   1. **macOS users**: The `claude_desktop_config.json` is inside the directory `~/Library/Application\ Support/Claude`.
-   2. **Windows users**: The `claude_desktop_config.json` is inside the directory `%APPDATA%\Claude`
+**You:** *"OCR this scanned document in German and extract the text"*
+**AI:** *"I've processed the scan with German OCR. Here's the extracted text..."*
 
-> **NOTE**: For the `SANDBOX_PATH`, you can put in the path in either the Unix-style (separated using forward slash `/`) or the Windows-style
-> (separated using the backward slash `/`). **And** for the Windows path, you must escape the backward slash (i.e. `\\` instead of `\`)
+## Quick Start
 
-```json lines
+### 1. Get a Nutrient API Key
+
+Sign up for free at [nutrient.io/api](https://dashboard.nutrient.io/sign_up/).
+
+### 2. Configure Your AI Client
+
+Choose your platform and add the configuration:
+
+<details>
+<summary><strong>Claude Desktop</strong></summary>
+
+Open Settings → Developer → Edit Config, then add:
+
+**macOS:** `~/Library/Application Support/Claude/claude_desktop_config.json`
+**Windows:** `%APPDATA%\Claude\claude_desktop_config.json`
+
+```json
 {
   "mcpServers": {
     "nutrient-dws": {
@@ -61,33 +57,150 @@ This server allows AI assistants to access the tools provided by Nutrient DWS Pr
       "args": ["-y", "@nutrient-sdk/dws-mcp-server"],
       "env": {
         "NUTRIENT_DWS_API_KEY": "YOUR_API_KEY_HERE",
-        "SANDBOX_PATH": "/your/sandbox/directory" // "C:\\your\\sandbox\\directory" for Windows
+        "SANDBOX_PATH": "/your/sandbox/directory"
       }
     }
   }
 }
 ```
+</details>
 
-6. **Restart Claude Desktop.**
-   > On Windows you might need to go to the Task Manager and kill any processes named Claude to reset the application. On a macOS it will be the Activity Monitor
-7. **Add documents for processing:** Use any file manager to copy the documents into the sandbox directory set via the `SANDBOX_PATH` environment variable above.
-8. **Process documents:** Instruct Claude Sonnet 3.7 (e.g. “redact all PII from secret.pdf”, “sign the document contract.pdf”, “merge secret.pdf and contract.pdf together”, etc.).
+<details>
+<summary><strong>Cursor</strong></summary>
 
-> **Note:** All operations involve reading from and writing to files on disk. We strongly recommend using the sandboxed directory feature to enhance security and prevent data loss.
+Create `.cursor/mcp.json` in your project root:
 
-### Compatibility
+```json
+{
+  "mcpServers": {
+    "nutrient-dws": {
+      "command": "npx",
+      "args": ["-y", "@nutrient-sdk/dws-mcp-server"],
+      "env": {
+        "NUTRIENT_DWS_API_KEY": "YOUR_API_KEY_HERE",
+        "SANDBOX_PATH": "/your/project/documents"
+      }
+    }
+  }
+}
+```
+</details>
 
-Nutrient DWS MCP Server has been tested with Claude Desktop (Claude 3.7 Sonnet). Other MCP clients may work, but results may vary.
+<details>
+<summary><strong>Windsurf</strong></summary>
 
-Nutrient DWS MCP Server supports macOS and Windows for now. Feel free to open an issue if you’re interested in Linux support.
+Add to `~/.codeium/windsurf/mcp_config.json`:
 
-### Further configuration
+```json
+{
+  "mcpServers": {
+    "nutrient-dws": {
+      "command": "npx",
+      "args": ["-y", "@nutrient-sdk/dws-mcp-server"],
+      "env": {
+        "NUTRIENT_DWS_API_KEY": "YOUR_API_KEY_HERE",
+        "SANDBOX_PATH": "/your/sandbox/directory"
+      }
+    }
+  }
+}
+```
+</details>
 
-#### Sandbox mode (Recommended)
+<details>
+<summary><strong>VS Code (GitHub Copilot)</strong></summary>
 
-The server supports an optional sandbox mode that restricts file operations to a specific directory. This is useful for security purposes, ensuring that the server can only read from and write to files within the specified directory. You should drop any documents you'd like to work on in this directory.
+Add to `.vscode/settings.json` in your project:
 
-To enable sandbox mode, set the `SANDBOX_PATH` environment variable:
+```json
+{
+  "mcp": {
+    "servers": {
+      "nutrient-dws": {
+        "command": "npx",
+        "args": ["-y", "@nutrient-sdk/dws-mcp-server"],
+        "env": {
+          "NUTRIENT_DWS_API_KEY": "YOUR_API_KEY_HERE",
+          "SANDBOX_PATH": "${workspaceFolder}"
+        }
+      }
+    }
+  }
+}
+```
+</details>
+
+<details>
+<summary><strong>Other MCP Clients</strong></summary>
+
+Any MCP-compatible client can connect using stdio transport:
+
+```bash
+NUTRIENT_DWS_API_KEY=your_key SANDBOX_PATH=/your/path npx @nutrient-sdk/dws-mcp-server
+```
+</details>
+
+### 3. Restart Your AI Client
+
+Restart the application to pick up the new MCP server configuration.
+
+### 4. Start Processing Documents
+
+Drop documents into your sandbox directory and start giving instructions!
+
+## Available Tools
+
+| Tool | Description |
+|------|-------------|
+| **document_processor** | All-in-one document processing: merge PDFs, convert formats, apply OCR, watermark, rotate, redact, flatten annotations, extract text/tables/key-value pairs, and more |
+| **document_signer** | Digitally sign PDFs with PAdES-compliant CMS or CAdES signatures, with customizable visible/invisible signature appearances |
+| **sandbox_file_tree** | Browse files in the sandbox directory (when sandbox mode is enabled) |
+| **directory_tree** | Browse directory contents (when sandbox mode is disabled) |
+
+### Document Processor Capabilities
+
+| Feature | Description |
+|---------|-------------|
+| Document Creation | Merge PDFs, Office docs (DOCX, XLSX, PPTX), and images into a single document |
+| Format Conversion | PDF ↔ DOCX, images (PNG, JPEG, WebP), PDF/A, PDF/UA, HTML, Markdown |
+| Editing | Watermark (text/image), rotate pages, flatten annotations |
+| Security | Redact sensitive data (SSNs, credit cards, emails, etc.), password protection, permission control |
+| Data Extraction | Extract text, tables, or key-value pairs as structured JSON |
+| OCR | Multi-language optical character recognition for scanned documents |
+| Optimization | Compress and linearize PDFs without quality loss |
+| Annotations | Import XFDF annotations, flatten annotations |
+| Digital Signing | PAdES-compliant CMS and CAdES digital signatures (via document_signer tool) |
+
+## Use with AI Agent Frameworks
+
+This MCP server works with any platform that supports the Model Context Protocol:
+
+- **[Claude Desktop](https://claude.ai/download)** — Direct MCP integration
+- **[Cursor](https://cursor.com)** — AI-powered IDE with MCP support
+- **[Windsurf](https://codeium.com/windsurf)** — AI-powered IDE with MCP support
+- **[VS Code + Copilot](https://code.visualstudio.com/)** — GitHub Copilot MCP integration
+- **[LangChain](https://langchain.com)** / **[LangGraph](https://langchain.com/langgraph)** — Via MCP tool adapters
+- **[OpenAI Agents SDK](https://github.com/openai/openai-agents-python)** — Via MCP server integration
+- **Custom agents** — Any MCP-compatible system
+
+## Why Nutrient?
+
+### The Read-Write Gap
+
+AI can read and understand documents — but most tools stop there. Nutrient gives AI agents the ability to actually **manipulate** documents: merge, redact, sign, watermark, convert formats, extract structured data, and more.
+
+- **Beyond PDF reading** — Not just text extraction. Full document creation, editing, and transformation.
+- **Production-grade** — Trusted by thousands of companies for mission-critical document processing.
+- **Standards-compliant** — PAdES digital signatures, PDF/A archiving, PDF/UA accessibility.
+- **Cloud-native** — No infrastructure to manage. Send documents to the API, get results back.
+- **Comprehensive redaction** — Built-in presets for SSNs, credit cards, phone numbers, emails, dates, and more.
+- **Multi-format** — Process PDFs, Office documents, images, HTML, and Markdown.
+
+## Configuration
+
+### Sandbox Mode (Recommended)
+
+The server supports sandbox mode that restricts file operations to a specific directory. Set the `SANDBOX_PATH` environment variable to enable it:
 
 ```bash
 export SANDBOX_PATH=/path/to/sandbox/directory
@@ -95,19 +208,43 @@ npx @nutrient-sdk/dws-mcp-server
 ```
 
 When sandbox mode is enabled:
+- Relative paths resolve relative to the sandbox directory
+- All input file paths are validated to ensure they reside in the sandbox
+- Processed files are saved within the sandbox
 
-- For relative paths, they are resolved relative to the sandbox directory.
-- All input file paths are validated to ensure they exist and reside in the sandbox before performing any file operations
+> **Note:** If no sandbox directory is specified, the server operates without file path restrictions. Sandbox mode is strongly recommended for security.
 
-If no sandbox directory is specified, the server will operate without file path restrictions, allowing access to any file on the system that the server process has permission to access. (Not Recommended)
+### Output Location
 
-#### Output location
+Processed files are saved to a location determined by the AI. To guide output placement, use natural language (e.g., "save the result to `output/result.pdf`") or create an `output` directory in your sandbox.
 
-Processed files will be saved to a location determined by the LLM. If sandbox mode is enabled, it will reside inside this directory.
+### Environment Variables
 
-To further guide the LLM on where to place the output file, use natural language such as "please output the result to `output/my_result.pdf`".
-Or you may also add an `output` directory in your sandbox to hint to the LLM to use this directory for all resulting files.
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `NUTRIENT_DWS_API_KEY` | Yes | Your Nutrient DWS API key ([get one free](https://dashboard.nutrient.io/sign_up/)) |
+| `SANDBOX_PATH` | Recommended | Directory to restrict file operations to |
 
-## Contributions
+## Troubleshooting
 
-Please see the contribution guidelines in [CONTRIBUTING.md](CONTRIBUTING.md)
+**Server not appearing in Claude Desktop?**
+- Ensure Node.js 18+ is installed (`node --version`)
+- Check the config file path is correct for your OS
+- Restart Claude Desktop completely (check Task Manager/Activity Monitor)
+
+**"API key invalid" errors?**
+- Verify your API key at [dashboard.nutrient.io](https://dashboard.nutrient.io)
+- Ensure the key is set correctly in the `env` section (no extra spaces)
+
+**Files not found?**
+- Check that `SANDBOX_PATH` points to an existing directory
+- Ensure your documents are inside the sandbox directory
+- Use the `sandbox_file_tree` tool to verify visible files
+
+## Contributing
+
+Please see the contribution guidelines in [CONTRIBUTING.md](CONTRIBUTING.md).
+
+## License
+
+MIT License — see [LICENSE](LICENSE) for details.
