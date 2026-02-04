@@ -8,7 +8,8 @@
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
-import { AiRedactArgsSchema, BuildAPIArgsSchema, DirectoryTreeArgsSchema, SignAPIArgsSchema } from './schemas.js'
+import { AiRedactArgsSchema, BuildAPIArgsSchema, CheckCreditsArgsSchema, DirectoryTreeArgsSchema, SignAPIArgsSchema } from './schemas.js'
+import { getBalanceResult, getUsageSummaryAgg, getForecast, type Period } from './credits/index.js'
 import { performBuildCall } from './dws/build.js'
 import { performSignCall } from './dws/sign.js'
 import { performAiRedactCall } from './dws/ai-redact.js'
@@ -104,6 +105,82 @@ The redaction is permanent and irreversible — the original content is complete
         return performAiRedactCall(filePath, criteria, outputPath)
       } catch (error) {
         return createErrorResponse(`Error: ${error instanceof Error ? error.message : String(error)}`)
+      }
+    },
+  )
+
+  server.tool(
+    'check_credits',
+    `Check Nutrient DWS API credit balance, usage, and forecasts.
+
+Actions:
+• balance — Returns remaining credits, daily usage rate, and projected days until exhaustion
+• usage — Returns credit consumption breakdown by operation type (OCR, signing, redaction, etc.)
+• forecast — Returns projected credit exhaustion date with confidence level
+
+Usage data is collected automatically from API response headers. The first call after server start
+may show limited data until more operations are logged.`,
+    CheckCreditsArgsSchema.shape,
+    async ({ action, period }) => {
+      try {
+        if (action === 'balance') {
+          const result = getBalanceResult();
+          return {
+            content: [{
+              type: 'text',
+              text: JSON.stringify({
+                remaining: result.remaining,
+                asOf: result.asOf,
+                usedToday: result.usedToday,
+                usedThisWeek: result.usedThisWeek,
+                usedThisMonth: result.usedThisMonth,
+                dailyRate: Math.round(result.dailyRate * 100) / 100,
+                daysRemaining: result.daysRemaining ? Math.round(result.daysRemaining) : null,
+                exhaustionDate: result.exhaustionDate,
+                confidence: result.confidence,
+              }, null, 2),
+            }],
+          };
+        }
+
+        if (action === 'usage') {
+          const summary = getUsageSummaryAgg(period as Period);
+          return {
+            content: [{
+              type: 'text',
+              text: JSON.stringify({
+                period: summary.period,
+                totalCredits: Math.round(summary.totalCredits * 100) / 100,
+                totalOperations: summary.totalOperations,
+                breakdown: summary.breakdown.map(b => ({
+                  operation: b.operation,
+                  count: b.count,
+                  credits: Math.round(b.credits * 100) / 100,
+                  avgCost: Math.round(b.avgCost * 100) / 100,
+                })),
+              }, null, 2),
+            }],
+          };
+        }
+
+        if (action === 'forecast') {
+          const forecast = getForecast();
+          return {
+            content: [{
+              type: 'text',
+              text: JSON.stringify({
+                dailyAverage: Math.round(forecast.dailyAverage * 100) / 100,
+                daysRemaining: forecast.daysRemaining ? Math.round(forecast.daysRemaining) : null,
+                exhaustionDate: forecast.exhaustionDate,
+                confidence: forecast.confidence,
+              }, null, 2),
+            }],
+          };
+        }
+
+        return createErrorResponse(`Unknown action: ${action}`);
+      } catch (error) {
+        return createErrorResponse(`Error: ${error instanceof Error ? error.message : String(error)}`);
       }
     },
   )

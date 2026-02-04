@@ -590,3 +590,22 @@ export const AiRedactArgsSchema = z.object({
 export type SignAPIArgs = z.infer<typeof SignAPIArgsSchema>
 export type SignatureOptions = z.infer<typeof CreateDigitalSignatureSchema>
 export type AiRedactArgs = z.infer<typeof AiRedactArgsSchema>
+
+// ── Credit Tracking ────────────────────────────────────────────────
+
+export const CheckCreditsArgsSchema = z.object({
+  action: z
+    .enum(['balance', 'usage', 'forecast'])
+    .describe(
+      'The credit tracking action to perform. ' +
+        '"balance" returns current credits remaining with daily usage rate. ' +
+        '"usage" returns credit consumption breakdown by operation type for the specified period. ' +
+        '"forecast" returns projected credit exhaustion date based on recent usage patterns.',
+    ),
+  period: z
+    .enum(['day', 'week', 'month', 'all'])
+    .default('week')
+    .describe('Time period for usage queries. Default is "week".'),
+})
+
+export type CheckCreditsArgs = z.infer<typeof CheckCreditsArgsSchema>

@@ -36,6 +36,7 @@ This server allows AI assistants to access the tools provided by Nutrient DWS Pr
 | Advanced OCR         | Multi-language, image and scan recognition                                  |
 | Optimization         | Compress files without quality loss                                         |
 | HTML-to-PDF          | Generate PDFs from HTML with layout control (orientation, margins, size)    |
+| **Credit Tracking**  | **Monitor API credit balance, usage breakdown, and forecast exhaustion**    |
 
 ## Usage
 
@@ -142,6 +143,18 @@ Processed files will be saved to a location determined by the LLM. If sandbox mo
 
 To further guide the LLM on where to place the output file, use natural language such as "please output the result to `output/my_result.pdf`".
 Or you may also add an `output` directory in your sandbox to hint to the LLM to use this directory for all resulting files.
+
+### Credit Tracking
+
+The server automatically tracks API credit usage from response headers. Use the `check_credits` tool to monitor your balance:
+
+| Action     | Description                                              |
+| ---------- | -------------------------------------------------------- |
+| `balance`  | Current credits remaining, daily rate, days until empty  |
+| `usage`    | Credit breakdown by operation (OCR, signing, etc.)       |
+| `forecast` | Projected exhaustion date with confidence level          |
+
+Usage data is stored locally in SQLite at `~/.local/share/nutrient-dws-mcp/credits.db` (macOS/Linux) or the equivalent platform-specific data directory.
 
 ## Contributions
 
