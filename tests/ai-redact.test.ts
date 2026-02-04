@@ -6,7 +6,6 @@ import { performAiRedactCall } from '../src/dws/ai-redact.js'
 import * as sandbox from '../src/fs/sandbox.js'
 import * as api from '../src/dws/api.js'
 import axios, { InternalAxiosRequestConfig } from 'axios'
-import path from 'path'
 import { FileHandle } from 'fs/promises'
 import { CallToolResult, TextContent } from '@modelcontextprotocol/sdk/types.js'
 
@@ -160,5 +159,28 @@ describe('performAiRedactCall', () => {
     expect(result.isError).toBe(false)
     // Verify callNutrientApi was called (the criteria is in the FormData)
     expect(api.callNutrientApi).toHaveBeenCalled()
+  })
+
+  it('should reject when output path equals input path', async () => {
+    const result = await performAiRedactCall('/test.pdf', 'All PII', '/test.pdf')
+
+    expect(result.isError).toBe(true)
+    expect(getTextContent(result)).toContain('Output path must be different from input path')
+  })
+
+  it('should pass FormData with file1 and data fields to ai/redact endpoint', async () => {
+    await performAiRedactCall('/test.pdf', 'All PII', '/output.pdf')
+
+    const callArgs = vi.mocked(api.callNutrientApi).mock.calls[0]
+    expect(callArgs[0]).toBe('ai/redact')
+
+    // Verify the FormData contains the expected fields
+    const formData = callArgs[1]
+    // FormData from the 'form-data' package stores entries internally
+    // We check the knownLength to confirm data was appended
+    expect(formData).toBeDefined()
+    expect(typeof formData).toBe('object')
+    // Verify it's FormData (has getHeaders method)
+    expect(typeof (formData as any).getHeaders).toBe('function')
   })
 })

@@ -32,6 +32,6 @@ export async function callNutrientApi(
   return axios.post(`https://api.nutrient.io/${endpoint}`, data, {
     headers,
     responseType: 'stream',
-    ...(options?.timeout ? { timeout: options.timeout } : {}),
+    timeout: options?.timeout,
   })
 }

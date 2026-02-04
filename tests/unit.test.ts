@@ -190,6 +190,28 @@ describe('API Functions', () => {
       expect(fs.promises.writeFile).toHaveBeenCalledWith(expect.stringContaining('_processed.pdf'), expect.any(Buffer))
     })
 
+    it('should handle applyInstantJson action with file reference', async () => {
+      const mockStream = createMockStream('form-filled content')
+      vi.mocked(api.callNutrientApi).mockResolvedValueOnce({
+        data: mockStream,
+        status: 200,
+        statusText: 'OK',
+        headers: {},
+        config: {} as InternalAxiosRequestConfig,
+      })
+
+      const instructions = {
+        parts: [{ file: '/test.pdf' }],
+        actions: [{ type: 'applyInstantJson' as const, file: '/form_data.json' }],
+      }
+
+      await performBuildCall(instructions, '/test_filled.pdf')
+
+      expect(api.callNutrientApi).toHaveBeenCalledWith('build', expect.any(Object))
+      expect(fs.promises.readFile).toHaveBeenCalled()
+      expect(fs.promises.writeFile).toHaveBeenCalledWith(expect.stringContaining('_filled.pdf'), expect.any(Buffer))
+    })
+
     it('should handle errors from the API', async () => {
       const mockError = {
         response: {

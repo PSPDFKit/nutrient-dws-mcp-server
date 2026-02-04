@@ -36,6 +36,13 @@ export async function performAiRedactCall(
       return createErrorResponse(`Error: Input file not found or not readable: ${filePath}`)
     }
 
+    // Guard against output overwriting input
+    if (path.resolve(resolvedInputPath) === path.resolve(resolvedOutputPath)) {
+      return createErrorResponse(
+        'Error: Output path must be different from input path to prevent data corruption.',
+      )
+    }
+
     const fileBuffer = await fs.promises.readFile(resolvedInputPath)
     const fileName = path.basename(resolvedInputPath)
 
@@ -48,7 +55,7 @@ export async function performAiRedactCall(
       'data',
       JSON.stringify({
         documents: [{ documentId: 'file1' }],
-        criteria: criteria,
+        criteria,
       }),
     )
 

@@ -570,6 +570,8 @@ export const AiRedactArgsSchema = z.object({
     ),
   criteria: z
     .string()
+    .min(1, 'Criteria must not be empty')
+    .max(1000)
     .default('All personally identifiable information')
     .describe(
       'What sensitive information to redact. The AI will detect and remove matching content. ' +
