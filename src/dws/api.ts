@@ -5,11 +5,16 @@ import { getVersion } from '../version.js'
 
 /**
  * Makes an API call to the Nutrient API
- * @param endpoint The API endpoint to call (e.g., 'sign', 'build')
+ * @param endpoint The API endpoint to call (e.g., 'sign', 'build', 'ai/redact')
  * @param data The data to send (FormData or JSON object)
+ * @param options Optional request configuration (e.g., timeout for slow endpoints)
  * @returns The API response
  */
-export async function callNutrientApi(endpoint: string, data: FormData | Record<string, unknown>) {
+export async function callNutrientApi(
+  endpoint: string,
+  data: FormData | Record<string, unknown>,
+  options?: { timeout?: number },
+) {
   const apiKey = getApiKey()
   const isFormData = data instanceof FormData
 
@@ -27,5 +32,6 @@ export async function callNutrientApi(endpoint: string, data: FormData | Record<
   return axios.post(`https://api.nutrient.io/${endpoint}`, data, {
     headers,
     responseType: 'stream',
+    ...(options?.timeout ? { timeout: options.timeout } : {}),
   })
 }

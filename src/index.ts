@@ -8,9 +8,10 @@
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
-import { BuildAPIArgsSchema, DirectoryTreeArgsSchema, SignAPIArgsSchema } from './schemas.js'
+import { AiRedactArgsSchema, BuildAPIArgsSchema, DirectoryTreeArgsSchema, SignAPIArgsSchema } from './schemas.js'
 import { performBuildCall } from './dws/build.js'
 import { performSignCall } from './dws/sign.js'
+import { performAiRedactCall } from './dws/ai-redact.js'
 import { performDirectoryTreeCall } from './fs/directoryTree.js'
 import { setSandboxDirectory } from './fs/sandbox.js'
 import { createErrorResponse } from './responses.js'
@@ -37,13 +38,15 @@ function addToolsToServer(server: McpServer, sandboxEnabled: boolean = false) {
 
 Features:
 • Import XFDF annotations
+• Apply Instant JSON (form filling, form creation, annotation import)
 • Flatten annotations
 • OCR processing
 • Page rotation
-• Watermarking (text/image)
-• Redaction creation and application
+• Watermarking (text/image, with positioning control)
+• Redaction creation and application (pattern-based: preset, regex, or text)
+• HTML-to-PDF with page layout options (orientation, size, margins)
 
-Output formats: PDF, PDF/A, images (PNG, JPEG, WebP), JSON extraction, Office (DOCX, XLSX, PPTX)`,
+Output formats: PDF, PDF/A, PDF/UA, images (PNG, JPEG, WebP), JSON extraction, Office (DOCX, XLSX, PPTX), HTML, Markdown`,
     BuildAPIArgsSchema.shape,
     async ({ instructions, outputPath }) => {
       try {
@@ -75,6 +78,30 @@ Positioning:
     async ({ filePath, signatureOptions, watermarkImagePath, graphicImagePath, outputPath }) => {
       try {
         return performSignCall(filePath, outputPath, signatureOptions, watermarkImagePath, graphicImagePath)
+      } catch (error) {
+        return createErrorResponse(`Error: ${error instanceof Error ? error.message : String(error)}`)
+      }
+    },
+  )
+
+  server.tool(
+    'ai_redactor',
+    `AI-powered document redaction using Nutrient DWS AI Redaction API. Reads from and writes to file system or sandbox (if enabled).
+
+Automatically detects and permanently removes sensitive information from documents using AI analysis.
+Detected content types include:
+• Personally identifiable information (names, addresses, phone numbers)
+• Financial data (credit card numbers, bank accounts, SSNs)
+• Email addresses and URLs
+• Protected health information (PHI)
+• Any custom criteria you specify
+
+Important: This operation typically takes 60-120 seconds due to AI analysis.
+The redaction is permanent and irreversible — the original content is completely removed from the PDF.`,
+    AiRedactArgsSchema.shape,
+    async ({ filePath, criteria, outputPath }) => {
+      try {
+        return performAiRedactCall(filePath, criteria, outputPath)
       } catch (error) {
         return createErrorResponse(`Error: ${error instanceof Error ? error.message : String(error)}`)
       }

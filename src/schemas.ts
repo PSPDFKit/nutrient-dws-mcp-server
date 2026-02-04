@@ -132,6 +132,48 @@ export const SignAPIArgsSchema = z.object({
     ),
 })
 
+export const PageSizePresetSchema = z.enum([
+  'A0',
+  'A1',
+  'A2',
+  'A3',
+  'A4',
+  'A5',
+  'A6',
+  'A7',
+  'A8',
+  'Letter',
+  'Legal',
+])
+
+export const HTMLLayoutSchema = z
+  .object({
+    orientation: z
+      .enum(['landscape', 'portrait'])
+      .optional()
+      .describe('Page orientation for HTML-to-PDF conversion.'),
+    size: z
+      .union([
+        PageSizePresetSchema,
+        z.object({
+          width: z.number().describe('Page width in millimeters.'),
+          height: z.number().describe('Page height in millimeters.'),
+        }),
+      ])
+      .optional()
+      .describe('Page size as a preset name (e.g. "A4", "Letter") or custom dimensions in millimeters.'),
+    margin: z
+      .object({
+        left: z.number().describe('Left margin in millimeters.'),
+        top: z.number().describe('Top margin in millimeters.'),
+        right: z.number().describe('Right margin in millimeters.'),
+        bottom: z.number().describe('Bottom margin in millimeters.'),
+      })
+      .optional()
+      .describe('Page margins in millimeters.'),
+  })
+  .optional()
+
 export const FilePartSchema = z.object({
   file: z
     .string()
@@ -144,6 +186,10 @@ export const FilePartSchema = z.object({
     .string()
     .optional()
     .describe("Used to determine the file type when the file content type is not available and can't be inferred."),
+  layout: HTMLLayoutSchema.describe(
+    'Page layout options for HTML-to-PDF conversion. Only applies when the input is an HTML file. ' +
+      'Supports orientation, page size, and margins.',
+  ),
 
   // For simplicity, we do not allow actions to be performed on individual parts. Instead, actions can be performed on the resulting parts output.
   // actions: z
@@ -158,6 +204,21 @@ export const ApplyXfdfActionSchema = z.object({
     .string()
     .describe(
       'The path to the XFDF file or a reference to a file in the multipart request. Resolves to sandbox path if enabled, otherwise resolves to the local file system.',
+    ),
+})
+
+export const ApplyInstantJsonActionSchema = z.object({
+  type: z
+    .literal('applyInstantJson')
+    .describe(
+      'Apply Instant JSON to the document. Used for filling PDF form fields, creating form fields, ' +
+        'and importing annotations. The file should be in Nutrient Instant JSON format.',
+    ),
+  file: z
+    .string()
+    .describe(
+      'The path to the Instant JSON file or a reference to a file in the multipart request. ' +
+        'Resolves to sandbox path if enabled, otherwise resolves to the local file system.',
     ),
 })
 
@@ -218,20 +279,16 @@ export const BaseWatermarkPropertiesSchema = z.object({
     .describe(
       'For image watermarks, the path to the image file or a reference to a file in the multipart request. Resolves to sandbox path if enabled, otherwise resolves to the local file system.',
     ),
-
-  // For simplicity, we apply the watermark to the center of the page.
-  // top: WatermarkDimensionSchema.optional().describe('Offset of the watermark from the top edge of a page.'),
-  // right: WatermarkDimensionSchema.optional().describe('Offset of the watermark from the right edge of a page.'),
-  // bottom: WatermarkDimensionSchema.optional().describe('Offset of the watermark from the bottom edge of a page.'),
-  // left: WatermarkDimensionSchema.optional().describe('Offset of the watermark from the left edge of a page.'),
-
-  // For simplicity, we do not support custom fonts.
-  // fontFamily: z.string().optional().describe('The font to render the text.'),
-  // fontSize: z.number().optional().describe('Size of the text in points.'),
-  // fontStyle: z
-  //   .array(z.enum(['bold', 'italic']))
-  //   .optional()
-  //   .describe('Text style. Can be only italic, only bold, italic and bold, or none of these.'),
+  top: WatermarkDimensionSchema.optional().describe('Offset of the watermark from the top edge of a page.'),
+  right: WatermarkDimensionSchema.optional().describe('Offset of the watermark from the right edge of a page.'),
+  bottom: WatermarkDimensionSchema.optional().describe('Offset of the watermark from the bottom edge of a page.'),
+  left: WatermarkDimensionSchema.optional().describe('Offset of the watermark from the left edge of a page.'),
+  fontFamily: z.string().optional().describe('The font family to use for text watermarks.'),
+  fontSize: z.number().optional().describe('Font size in points for text watermarks.'),
+  fontStyle: z
+    .array(z.enum(['bold', 'italic']))
+    .optional()
+    .describe('Font style for text watermarks. Can be italic, bold, or both.'),
 })
 
 export const SearchPresetSchema = z.enum([
@@ -323,8 +380,7 @@ export const ApplyRedactionsActionSchema = z.object({
 })
 
 export const BuildActionSchema = z.discriminatedUnion('type', [
-  // For now, we will not support applying Instant JSON.
-  // ApplyInstantJsonActionSchema,
+  ApplyInstantJsonActionSchema,
   ApplyXfdfActionSchema,
   FlattenActionSchema,
   OcrActionSchema,
@@ -506,5 +562,29 @@ export type BuildAPIArgs = z.infer<typeof BuildAPIArgsSchema>
 export type Instructions = z.infer<typeof InstructionsSchema>
 export type Action = z.infer<typeof BuildActionSchema>
 
+export const AiRedactArgsSchema = z.object({
+  filePath: z
+    .string()
+    .describe(
+      'The path to the document to redact. Resolves to sandbox path if enabled, otherwise resolves to the local file system.',
+    ),
+  criteria: z
+    .string()
+    .default('All personally identifiable information')
+    .describe(
+      'What sensitive information to redact. The AI will detect and remove matching content. ' +
+        'Examples: "All personally identifiable information", ' +
+        '"Social security numbers and credit card numbers", ' +
+        '"Names, email addresses, and phone numbers", ' +
+        '"Protected health information (PHI)".',
+    ),
+  outputPath: z
+    .string()
+    .describe(
+      'Path for the redacted output file. Resolves to sandbox path if enabled, otherwise resolves to the local file system.',
+    ),
+})
+
 export type SignAPIArgs = z.infer<typeof SignAPIArgsSchema>
 export type SignatureOptions = z.infer<typeof CreateDigitalSignatureSchema>
+export type AiRedactArgs = z.infer<typeof AiRedactArgsSchema>
