@@ -197,6 +197,21 @@ export const ApplyXfdfActionSchema = z.object({
     ),
 })
 
+export const ApplyInstantJsonActionSchema = z.object({
+  type: z
+    .literal('applyInstantJson')
+    .describe(
+      'Apply Instant JSON to the document. Used for filling PDF form fields, creating form fields, ' +
+        'and importing annotations. The file should be in Nutrient Instant JSON format.',
+    ),
+  file: z
+    .string()
+    .describe(
+      'The path to the Instant JSON file or a reference to a file in the multipart request. ' +
+        'Resolves to sandbox path if enabled, otherwise resolves to the local file system.',
+    ),
+})
+
 export const FlattenActionSchema = z.object({
   type: z.literal('flatten').describe('Flatten the annotations in the document.'),
 
@@ -359,8 +374,7 @@ export const ApplyRedactionsActionSchema = z.object({
 })
 
 export const BuildActionSchema = z.discriminatedUnion('type', [
-  // For now, we will not support applying Instant JSON.
-  // ApplyInstantJsonActionSchema,
+  ApplyInstantJsonActionSchema,
   ApplyXfdfActionSchema,
   FlattenActionSchema,
   OcrActionSchema,
