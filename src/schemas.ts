@@ -132,6 +132,35 @@ export const SignAPIArgsSchema = z.object({
     ),
 })
 
+export const AiRedactArgsSchema = z.object({
+  filePath: z
+    .string()
+    .describe(
+      'The path to the document to redact. Resolves to sandbox path if enabled, otherwise resolves to the local file system.',
+    ),
+  criteria: z
+    .string()
+    .min(1, 'Criteria must not be empty')
+    .default('All personally identifiable information')
+    .describe(
+      'What sensitive information to redact. The AI will detect and remove matching content. ' +
+        'Examples: "All personally identifiable information", ' +
+        '"Social security numbers and credit card numbers", ' +
+        '"Names, email addresses, and phone numbers", ' +
+        '"Protected health information (PHI)".',
+    ),
+  outputPath: z
+    .string()
+    .describe(
+      'Path for the redacted output file. Resolves to sandbox path if enabled, otherwise resolves to the local file system.',
+    ),
+  stage: z
+    .boolean()
+    .optional()
+    .describe('Whether to stage redactions instead of applying them immediately.'),
+  apply: z.boolean().optional().describe('Whether to apply staged redactions.'),
+})
+
 export const FilePartSchema = z.object({
   file: z
     .string()
@@ -508,3 +537,4 @@ export type Action = z.infer<typeof BuildActionSchema>
 
 export type SignAPIArgs = z.infer<typeof SignAPIArgsSchema>
 export type SignatureOptions = z.infer<typeof CreateDigitalSignatureSchema>
+export type AiRedactArgs = z.infer<typeof AiRedactArgsSchema>

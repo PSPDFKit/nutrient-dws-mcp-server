@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import fs, { Stats } from 'fs'
 import { Readable } from 'stream'
-import { Instructions, SignatureOptions } from '../src/schemas.js'
+import { AiRedactArgsSchema, Instructions, SignatureOptions } from '../src/schemas.js'
 import { config as dotenvConfig } from 'dotenv'
 import { performBuildCall } from '../src/dws/build.js'
 import { performSignCall } from '../src/dws/sign.js'
@@ -655,6 +655,43 @@ describe('API Functions', () => {
         // The path should be accepted as is, without appending the sandbox path again
         expect(answerPath).toBe(resolvedAbsolutePathInSandbox)
       })
+    })
+  })
+
+  describe('AiRedactArgsSchema', () => {
+    it('should apply default criteria when omitted', () => {
+      const result = AiRedactArgsSchema.parse({ filePath: '/input.pdf', outputPath: '/output.pdf' })
+
+      expect(result.criteria).toBe('All personally identifiable information')
+      expect(result.stage).toBeUndefined()
+      expect(result.apply).toBeUndefined()
+    })
+
+    it('should accept stage and apply flags when provided', () => {
+      const stageResult = AiRedactArgsSchema.parse({
+        filePath: '/input.pdf',
+        outputPath: '/output.pdf',
+        stage: true,
+      })
+
+      const applyResult = AiRedactArgsSchema.parse({
+        filePath: '/input.pdf',
+        outputPath: '/output.pdf',
+        apply: true,
+      })
+
+      expect(stageResult.stage).toBe(true)
+      expect(applyResult.apply).toBe(true)
+    })
+
+    it('should reject empty criteria', () => {
+      expect(() =>
+        AiRedactArgsSchema.parse({
+          filePath: '/input.pdf',
+          outputPath: '/output.pdf',
+          criteria: '',
+        }),
+      ).toThrow()
     })
   })
 
