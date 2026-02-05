@@ -8,6 +8,16 @@ export const DirectoryTreeArgsSchema = z.object({
     ),
 })
 
+export const CheckCreditsArgsSchema = z.object({
+  action: z
+    .enum(['balance', 'usage'])
+    .describe('The type of credit information to retrieve: balance for remaining credits or usage for consumption.'),
+  period: z
+    .enum(['day', 'week', 'month', 'all'])
+    .optional()
+    .describe('Time period to return usage for. Defaults to week when action is usage.'),
+})
+
 export const RectSchema = z
   .array(z.number())
   .length(4)
@@ -508,3 +518,4 @@ export type Action = z.infer<typeof BuildActionSchema>
 
 export type SignAPIArgs = z.infer<typeof SignAPIArgsSchema>
 export type SignatureOptions = z.infer<typeof CreateDigitalSignatureSchema>
+export type CheckCreditsArgs = z.infer<typeof CheckCreditsArgsSchema>

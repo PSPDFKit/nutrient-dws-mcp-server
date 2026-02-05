@@ -8,9 +8,10 @@
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
-import { BuildAPIArgsSchema, DirectoryTreeArgsSchema, SignAPIArgsSchema } from './schemas.js'
+import { BuildAPIArgsSchema, CheckCreditsArgsSchema, DirectoryTreeArgsSchema, SignAPIArgsSchema } from './schemas.js'
 import { performBuildCall } from './dws/build.js'
 import { performSignCall } from './dws/sign.js'
+import { performCheckCreditsCall } from './dws/credits.js'
 import { performDirectoryTreeCall } from './fs/directoryTree.js'
 import { setSandboxDirectory } from './fs/sandbox.js'
 import { createErrorResponse } from './responses.js'
@@ -75,6 +76,23 @@ Positioning:
     async ({ filePath, signatureOptions, watermarkImagePath, graphicImagePath, outputPath }) => {
       try {
         return performSignCall(filePath, outputPath, signatureOptions, watermarkImagePath, graphicImagePath)
+      } catch (error) {
+        return createErrorResponse(`Error: ${error instanceof Error ? error.message : String(error)}`)
+      }
+    },
+  )
+
+  server.tool(
+    'check_credits',
+    `Checks Nutrient DWS account credits using the /account/info endpoint.
+
+Actions:
+• balance - remaining credits
+• usage - usage breakdown for a period (day, week, month, all)`,
+    CheckCreditsArgsSchema.shape,
+    async ({ action, period }) => {
+      try {
+        return performCheckCreditsCall(action, period)
       } catch (error) {
         return createErrorResponse(`Error: ${error instanceof Error ? error.message : String(error)}`)
       }

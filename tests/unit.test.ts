@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import fs, { Stats } from 'fs'
 import { Readable } from 'stream'
-import { Instructions, SignatureOptions } from '../src/schemas.js'
+import { CheckCreditsArgsSchema, Instructions, SignatureOptions } from '../src/schemas.js'
 import { config as dotenvConfig } from 'dotenv'
 import { performBuildCall } from '../src/dws/build.js'
 import { performSignCall } from '../src/dws/sign.js'
@@ -496,6 +496,31 @@ describe('API Functions', () => {
       expect(getTextContent(result)).toContain(
         'Cannot read the directory tree, make sure to allow this application access to',
       )
+    })
+  })
+
+  describe('CheckCreditsArgsSchema', () => {
+    it('should accept balance without period', () => {
+      const result = CheckCreditsArgsSchema.parse({ action: 'balance' })
+      expect(result.action).toBe('balance')
+      expect(result.period).toBeUndefined()
+    })
+
+    it('should accept usage with explicit period', () => {
+      const result = CheckCreditsArgsSchema.parse({ action: 'usage', period: 'month' })
+      expect(result.action).toBe('usage')
+      expect(result.period).toBe('month')
+    })
+
+    it('should allow usage without period', () => {
+      const result = CheckCreditsArgsSchema.parse({ action: 'usage' })
+      expect(result.action).toBe('usage')
+      expect(result.period).toBeUndefined()
+    })
+
+    it('should reject invalid action', () => {
+      const result = CheckCreditsArgsSchema.safeParse({ action: 'invalid' })
+      expect(result.success).toBe(false)
     })
   })
 
