@@ -95,7 +95,7 @@ function extractUsage(payload: unknown, period: CreditPeriod): unknown | null {
       if (period in value) {
         return value[period]
       }
-      return value
+      return { allPeriods: value, note: "Requested period not available, returning all usage data" }
     }
   }
 

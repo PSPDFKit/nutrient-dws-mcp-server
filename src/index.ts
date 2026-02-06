@@ -88,7 +88,7 @@ Positioning:
 
 Actions:
 • balance - remaining credits
-• usage - usage breakdown for a period (day, week, month, all)`,
+• usage - usage breakdown for a period (day, week, month, all; defaults to week if not specified)`,
     CheckCreditsArgsSchema.shape,
     async ({ action, period }) => {
       try {

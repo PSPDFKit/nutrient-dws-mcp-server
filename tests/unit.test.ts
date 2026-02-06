@@ -4,6 +4,7 @@ import { Readable } from 'stream'
 import { CheckCreditsArgsSchema, Instructions, SignatureOptions } from '../src/schemas.js'
 import { config as dotenvConfig } from 'dotenv'
 import { performBuildCall } from '../src/dws/build.js'
+import { performCheckCreditsCall } from '../src/dws/credits.js'
 import { performSignCall } from '../src/dws/sign.js'
 import { performDirectoryTreeCall } from '../src/fs/directoryTree.js'
 import * as sandbox from '../src/fs/sandbox.js'
@@ -361,6 +362,87 @@ describe('API Functions', () => {
 
       expect(result.isError).toBe(true)
       expect(getTextContent(result)).toContain('Error processing API response: Error message from API')
+    })
+  })
+
+  describe('performCheckCreditsCall', () => {
+    it('should extract balance from nested JSON', async () => {
+      const mockStream = createMockStream(JSON.stringify({ credits: { remaining: 500 } }))
+      vi.mocked(api.callNutrientApi).mockResolvedValueOnce({
+        data: mockStream,
+        status: 200,
+        statusText: 'OK',
+        headers: {},
+        config: {} as InternalAxiosRequestConfig,
+      })
+
+      const result = await performCheckCreditsCall('balance')
+
+      expect(result.isError).toBe(false)
+      expect(api.callNutrientApi).toHaveBeenCalledWith('account/info', undefined, { method: 'GET' })
+
+      const payload = JSON.parse(getTextContent(result))
+      expect(payload).toEqual({ balance: 500 })
+    })
+
+    it('should extract usage for matching period', async () => {
+      const mockStream = createMockStream(JSON.stringify({ usage: { week: { used: 10 }, month: { used: 33 } } }))
+      vi.mocked(api.callNutrientApi).mockResolvedValueOnce({
+        data: mockStream,
+        status: 200,
+        statusText: 'OK',
+        headers: {},
+        config: {} as InternalAxiosRequestConfig,
+      })
+
+      const result = await performCheckCreditsCall('usage', 'month')
+
+      expect(result.isError).toBe(false)
+
+      const payload = JSON.parse(getTextContent(result))
+      expect(payload).toEqual({ period: 'month', usage: { used: 33 } })
+    })
+
+    it('should return raw text for non-JSON responses', async () => {
+      const mockStream = createMockStream('not json')
+      vi.mocked(api.callNutrientApi).mockResolvedValueOnce({
+        data: mockStream,
+        status: 200,
+        statusText: 'OK',
+        headers: {},
+        config: {} as InternalAxiosRequestConfig,
+      })
+
+      const result = await performCheckCreditsCall('balance')
+
+      expect(result.isError).toBe(false)
+      expect(getTextContent(result)).toBe('not json')
+    })
+
+    it('should handle API errors', async () => {
+      vi.mocked(api.callNutrientApi).mockRejectedValueOnce(new Error('Boom'))
+
+      const result = await performCheckCreditsCall('balance')
+
+      expect(result.isError).toBe(true)
+      expect(getTextContent(result)).toContain('Error: Boom')
+    })
+
+    it('should return full JSON when balance cannot be extracted', async () => {
+      const apiPayload = { credits: { spent: 12 }, other: 'value' }
+      const mockStream = createMockStream(JSON.stringify(apiPayload))
+      vi.mocked(api.callNutrientApi).mockResolvedValueOnce({
+        data: mockStream,
+        status: 200,
+        statusText: 'OK',
+        headers: {},
+        config: {} as InternalAxiosRequestConfig,
+      })
+
+      const result = await performCheckCreditsCall('balance')
+
+      expect(result.isError).toBe(false)
+      expect(JSON.parse(getTextContent(result))).toEqual(apiPayload)
     })
   })
 
