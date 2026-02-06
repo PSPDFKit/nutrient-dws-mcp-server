@@ -49,7 +49,7 @@ Open Settings → Developer → Edit Config, then add:
 **macOS:** `~/Library/Application Support/Claude/claude_desktop_config.json`
 **Windows:** `%APPDATA%\Claude\claude_desktop_config.json`
 
-```json
+```jsonc
 {
   "mcpServers": {
     "nutrient-dws": {
@@ -58,13 +58,12 @@ Open Settings → Developer → Edit Config, then add:
       "env": {
         "NUTRIENT_DWS_API_KEY": "YOUR_API_KEY_HERE",
         "SANDBOX_PATH": "/your/sandbox/directory"
+        // "C:\\your\\sandbox\\directory" for Windows
       }
     }
   }
 }
 ```
-
-> **Windows users:** For `SANDBOX_PATH`, use forward slashes (`C:/your/sandbox/directory`) or escaped backslashes (`C:\\your\\sandbox\\directory`).
 
 </details>
 
@@ -73,7 +72,7 @@ Open Settings → Developer → Edit Config, then add:
 
 Create `.cursor/mcp.json` in your project root:
 
-```json
+```jsonc
 {
   "mcpServers": {
     "nutrient-dws": {
@@ -82,6 +81,7 @@ Create `.cursor/mcp.json` in your project root:
       "env": {
         "NUTRIENT_DWS_API_KEY": "YOUR_API_KEY_HERE",
         "SANDBOX_PATH": "/your/project/documents"
+        // "C:\\your\\project\\documents" for Windows
       }
     }
   }
@@ -94,7 +94,7 @@ Create `.cursor/mcp.json` in your project root:
 
 Add to `~/.codeium/windsurf/mcp_config.json`:
 
-```json
+```jsonc
 {
   "mcpServers": {
     "nutrient-dws": {
@@ -103,6 +103,7 @@ Add to `~/.codeium/windsurf/mcp_config.json`:
       "env": {
         "NUTRIENT_DWS_API_KEY": "YOUR_API_KEY_HERE",
         "SANDBOX_PATH": "/your/sandbox/directory"
+        // "C:\\your\\sandbox\\directory" for Windows
       }
     }
   }
