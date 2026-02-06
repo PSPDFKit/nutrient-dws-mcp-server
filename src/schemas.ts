@@ -192,18 +192,18 @@ export const HTMLLayoutSchema = z
       .union([
         PageSizePresetSchema,
         z.object({
-          width: z.number().describe('Page width in millimeters.'),
-          height: z.number().describe('Page height in millimeters.'),
+          width: z.number().positive().describe('Page width in millimeters.'),
+          height: z.number().positive().describe('Page height in millimeters.'),
         }),
       ])
       .optional()
       .describe('Page size as a preset name (e.g. "A4", "Letter") or custom dimensions in millimeters.'),
     margin: z
       .object({
-        left: z.number().describe('Left margin in millimeters.'),
-        top: z.number().describe('Top margin in millimeters.'),
-        right: z.number().describe('Right margin in millimeters.'),
-        bottom: z.number().describe('Bottom margin in millimeters.'),
+        left: z.number().min(0).describe('Left margin in millimeters.'),
+        top: z.number().min(0).describe('Top margin in millimeters.'),
+        right: z.number().min(0).describe('Right margin in millimeters.'),
+        bottom: z.number().min(0).describe('Bottom margin in millimeters.'),
       })
       .optional()
       .describe('Page margins in millimeters.'),
@@ -222,7 +222,7 @@ export const FilePartSchema = z.object({
     .string()
     .optional()
     .describe("Used to determine the file type when the file content type is not available and can't be inferred."),
-  layout: HTMLLayoutSchema.describe(
+  layout: HTMLLayoutSchema.optional().describe(
     'Page layout options for HTML-to-PDF conversion. Only applies when the input is an HTML file. ' +
       'Supports orientation, page size, and margins.',
   ),
@@ -305,7 +305,7 @@ export const BaseWatermarkPropertiesSchema = z.object({
   bottom: WatermarkDimensionSchema.optional().describe('Offset of the watermark from the bottom edge of a page.'),
   left: WatermarkDimensionSchema.optional().describe('Offset of the watermark from the left edge of a page.'),
   fontFamily: z.string().optional().describe('The font family to use for text watermarks.'),
-  fontSize: z.number().optional().describe('Font size in points for text watermarks.'),
+  fontSize: z.number().positive().optional().describe('Font size in points for text watermarks.'),
   fontStyle: z
     .array(z.enum(['bold', 'italic']))
     .optional()
