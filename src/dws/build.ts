@@ -88,6 +88,10 @@ async function processActionFileReferences(action: Action): Promise<FileReferenc
     const fileReference = await processFileReference(action.file)
     action.file = fileReference.key
     return fileReference
+  } else if (action.type === 'applyInstantJson' && 'file' in action && typeof action.file === 'string') {
+    const fileReference = await processFileReference(action.file)
+    action.file = fileReference.key
+    return fileReference
   }
 
   // No need to parse files for the other actions

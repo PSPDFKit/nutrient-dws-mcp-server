@@ -290,6 +290,27 @@ export const applyXfdfExample: BuildAPIArgs = {
   outputPath: 'output_pdf.pdf',
 }
 
+// Example with applying Instant JSON
+export const applyInstantJsonExample: BuildAPIArgs = {
+  instructions: {
+    parts: [
+      {
+        file: 'example.pdf',
+      },
+    ],
+    actions: [
+      {
+        type: 'applyInstantJson',
+        file: 'example.json',
+      },
+    ],
+    output: {
+      type: 'pdf',
+    },
+  },
+  outputPath: 'output_pdf.pdf',
+}
+
 // Example with redactions using preset
 export const redactionsPresetExample: BuildAPIArgs = {
   instructions: {
