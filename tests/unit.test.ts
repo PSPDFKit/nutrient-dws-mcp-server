@@ -1,10 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import fs, { Stats } from 'fs'
 import { Readable } from 'stream'
-import { Instructions, SignatureOptions } from '../src/schemas.js'
+import { AiRedactArgsSchema, Instructions, SignatureOptions } from '../src/schemas.js'
 import { config as dotenvConfig } from 'dotenv'
 import { performBuildCall } from '../src/dws/build.js'
 import { performSignCall } from '../src/dws/sign.js'
+import { performAiRedactCall } from '../src/dws/ai-redact.js'
 import { performDirectoryTreeCall } from '../src/fs/directoryTree.js'
 import * as sandbox from '../src/fs/sandbox.js'
 import * as api from '../src/dws/api.js'
@@ -364,6 +365,86 @@ describe('API Functions', () => {
     })
   })
 
+  describe('performAiRedactCall', () => {
+    beforeEach(async () => {
+      await sandbox.setSandboxDirectory(null)
+    })
+
+    it('should return an error if file does not exist', async () => {
+      vi.spyOn(sandbox, 'resolveReadFilePath').mockRejectedValueOnce(new Error('Path not found: /missing.pdf'))
+
+      const result = await performAiRedactCall('/missing.pdf', 'All personally identifiable information', '/out.pdf')
+
+      expect(result.isError).toBe(true)
+      expect(getTextContent(result)).toContain('Error: Path not found: /missing.pdf')
+    })
+
+    it('should return an error when stage and apply are both true', async () => {
+      vi.spyOn(sandbox, 'resolveReadFilePath').mockResolvedValueOnce('/input.pdf')
+      vi.spyOn(sandbox, 'resolveWriteFilePath').mockResolvedValueOnce('/output.pdf')
+
+      const result = await performAiRedactCall('/input.pdf', 'All personally identifiable information', '/output.pdf', true, true)
+
+      expect(result.isError).toBe(true)
+      expect(getTextContent(result)).toBe('Error: stage and apply cannot both be true. Choose one mode.')
+    })
+
+    it('should return an error when output path equals input path', async () => {
+      vi.spyOn(sandbox, 'resolveReadFilePath').mockResolvedValueOnce('/same.pdf')
+      vi.spyOn(sandbox, 'resolveWriteFilePath').mockResolvedValueOnce('/same.pdf')
+
+      const result = await performAiRedactCall('/same.pdf', 'All personally identifiable information', '/same.pdf')
+
+      expect(result.isError).toBe(true)
+      expect(getTextContent(result)).toContain(
+        'Error: Output path must be different from input path to prevent data corruption.',
+      )
+    })
+
+    it('should call the API and save the result to disk', async () => {
+      vi.spyOn(sandbox, 'resolveReadFilePath').mockResolvedValueOnce('/input.pdf')
+      vi.spyOn(sandbox, 'resolveWriteFilePath').mockResolvedValueOnce('/redacted.pdf')
+
+      const mockStream = createMockStream('redacted content')
+      vi.mocked(api.callNutrientApi).mockResolvedValueOnce({
+        data: mockStream,
+        status: 200,
+        statusText: 'OK',
+        headers: {},
+        config: {} as InternalAxiosRequestConfig,
+      })
+
+      const result = await performAiRedactCall(
+        '/input.pdf',
+        'All personally identifiable information',
+        '/redacted.pdf',
+      )
+
+      expect(result.isError).toBe(false)
+      expect(getTextContent(result)).toContain('AI redaction completed successfully')
+      expect(fs.promises.writeFile).toHaveBeenCalledWith('/redacted.pdf', expect.any(Buffer))
+      expect(api.callNutrientApi).toHaveBeenCalledWith('ai/redact', expect.any(Object))
+    })
+
+    it('should handle errors from the API', async () => {
+      vi.spyOn(sandbox, 'resolveReadFilePath').mockResolvedValueOnce('/input.pdf')
+      vi.spyOn(sandbox, 'resolveWriteFilePath').mockResolvedValueOnce('/redacted.pdf')
+
+      const mockError = {
+        response: {
+          data: createMockStream('Error message from API'),
+        },
+      }
+      vi.mocked(axios.isAxiosError).mockImplementation(() => true)
+      vi.mocked(api.callNutrientApi).mockRejectedValueOnce(mockError)
+
+      const result = await performAiRedactCall('/input.pdf', 'All personally identifiable information', '/redacted.pdf')
+
+      expect(result.isError).toBe(true)
+      expect(getTextContent(result)).toContain('Error processing API response: Error message from API')
+    })
+  })
+
   describe('performDirectoryTreeCall', () => {
     it('should return a tree structure for a valid directory', async () => {
       vi.spyOn(fs.promises, 'access').mockImplementation(async () => {})
@@ -655,6 +736,43 @@ describe('API Functions', () => {
         // The path should be accepted as is, without appending the sandbox path again
         expect(answerPath).toBe(resolvedAbsolutePathInSandbox)
       })
+    })
+  })
+
+  describe('AiRedactArgsSchema', () => {
+    it('should apply default criteria when omitted', () => {
+      const result = AiRedactArgsSchema.parse({ filePath: '/input.pdf', outputPath: '/output.pdf' })
+
+      expect(result.criteria).toBe('All personally identifiable information')
+      expect(result.stage).toBeUndefined()
+      expect(result.apply).toBeUndefined()
+    })
+
+    it('should accept stage and apply flags when provided', () => {
+      const stageResult = AiRedactArgsSchema.parse({
+        filePath: '/input.pdf',
+        outputPath: '/output.pdf',
+        stage: true,
+      })
+
+      const applyResult = AiRedactArgsSchema.parse({
+        filePath: '/input.pdf',
+        outputPath: '/output.pdf',
+        apply: true,
+      })
+
+      expect(stageResult.stage).toBe(true)
+      expect(applyResult.apply).toBe(true)
+    })
+
+    it('should reject empty criteria', () => {
+      expect(() =>
+        AiRedactArgsSchema.parse({
+          filePath: '/input.pdf',
+          outputPath: '/output.pdf',
+          criteria: '',
+        }),
+      ).toThrow()
     })
   })
 

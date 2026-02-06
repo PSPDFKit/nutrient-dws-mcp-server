@@ -8,9 +8,10 @@
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
-import { BuildAPIArgsSchema, DirectoryTreeArgsSchema, SignAPIArgsSchema } from './schemas.js'
+import { AiRedactArgsSchema, BuildAPIArgsSchema, DirectoryTreeArgsSchema, SignAPIArgsSchema } from './schemas.js'
 import { performBuildCall } from './dws/build.js'
 import { performSignCall } from './dws/sign.js'
+import { performAiRedactCall } from './dws/ai-redact.js'
 import { performDirectoryTreeCall } from './fs/directoryTree.js'
 import { setSandboxDirectory } from './fs/sandbox.js'
 import { createErrorResponse } from './responses.js'
@@ -75,6 +76,29 @@ Positioning:
     async ({ filePath, signatureOptions, watermarkImagePath, graphicImagePath, outputPath }) => {
       try {
         return performSignCall(filePath, outputPath, signatureOptions, watermarkImagePath, graphicImagePath)
+      } catch (error) {
+        return createErrorResponse(`Error: ${error instanceof Error ? error.message : String(error)}`)
+      }
+    },
+  )
+
+  server.tool(
+    'ai_redactor',
+    `AI-powered document redaction using Nutrient DWS AI Redaction API. Reads from and writes to file system or sandbox (if enabled).
+
+Automatically detects and permanently removes sensitive information from documents using AI analysis.
+Detected content types include:
+• Personally identifiable information (names, addresses, phone numbers)
+• Financial data (credit card numbers, bank accounts, SSNs)
+• Email addresses and URLs
+• Protected health information (PHI)
+• Any custom criteria you specify
+
+By default (when neither stage nor apply is set), redactions are detected and immediately applied. Set stage to true to detect and stage redactions without applying them. Set apply to true to apply previously staged redactions.`,
+    AiRedactArgsSchema.shape,
+    async ({ filePath, criteria, outputPath, stage, apply }) => {
+      try {
+        return performAiRedactCall(filePath, criteria, outputPath, stage, apply)
       } catch (error) {
         return createErrorResponse(`Error: ${error instanceof Error ? error.message : String(error)}`)
       }
