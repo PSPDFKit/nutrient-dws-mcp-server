@@ -63,6 +63,9 @@ Open Settings → Developer → Edit Config, then add:
   }
 }
 ```
+
+> **Windows users:** For `SANDBOX_PATH`, use forward slashes (`C:/your/sandbox/directory`) or escaped backslashes (`C:\\your\\sandbox\\directory`).
+
 </details>
 
 <details>
