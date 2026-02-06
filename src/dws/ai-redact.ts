@@ -17,23 +17,17 @@ export async function performAiRedactCall(
   stage?: boolean,
   apply?: boolean,
 ): Promise<CallToolResult> {
+  // Resolve paths first to fail early
   try {
     const resolvedInputPath = await resolveReadFilePath(filePath)
     const resolvedOutputPath = await resolveWriteFilePath(outputPath)
-
-    // Verify input file exists
-    try {
-      await fs.promises.access(resolvedInputPath, fs.constants.R_OK)
-    } catch {
-      return createErrorResponse(`Error: Input file not found or not readable: ${filePath}`)
-    }
 
     if (stage && apply) {
       return createErrorResponse('Error: stage and apply cannot both be true. Choose one mode.')
     }
 
     // Guard against output overwriting input
-    if (path.resolve(resolvedInputPath) === path.resolve(resolvedOutputPath)) {
+    if (resolvedInputPath === resolvedOutputPath) {
       return createErrorResponse(
         'Error: Output path must be different from input path to prevent data corruption.',
       )

@@ -94,7 +94,7 @@ Detected content types include:
 • Protected health information (PHI)
 • Any custom criteria you specify
 
-Use stage to create redactions without applying them. Use apply to apply staged redactions.`,
+By default (when neither stage nor apply is set), redactions are detected and immediately applied. Set stage to true to detect and stage redactions without applying them. Set apply to true to apply previously staged redactions.`,
     AiRedactArgsSchema.shape,
     async ({ filePath, criteria, outputPath, stage, apply }) => {
       try {

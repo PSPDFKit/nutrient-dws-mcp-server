@@ -157,8 +157,15 @@ export const AiRedactArgsSchema = z.object({
   stage: z
     .boolean()
     .optional()
-    .describe('Whether to stage redactions instead of applying them immediately.'),
-  apply: z.boolean().optional().describe('Whether to apply staged redactions.'),
+    .describe(
+      'Stages redactions without applying them. By default (when neither stage nor apply is set), redactions are detected and immediately applied. Mutually exclusive with apply. Typical workflow: run once with stage=true, then later run again with apply=true to apply staged redactions.',
+    ),
+  apply: z
+    .boolean()
+    .optional()
+    .describe(
+      'Applies previously staged redactions. By default (when neither stage nor apply is set), redactions are detected and immediately applied. Mutually exclusive with stage. Typical workflow: run once with stage=true, then later run again with apply=true to apply staged redactions.',
+    ),
 })
 
 export const FilePartSchema = z.object({
