@@ -8,10 +8,17 @@
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
-import { AiRedactArgsSchema, BuildAPIArgsSchema, DirectoryTreeArgsSchema, SignAPIArgsSchema } from './schemas.js'
+import {
+  AiRedactArgsSchema,
+  BuildAPIArgsSchema,
+  CheckCreditsArgsSchema,
+  DirectoryTreeArgsSchema,
+  SignAPIArgsSchema,
+} from './schemas.js'
 import { performBuildCall } from './dws/build.js'
 import { performSignCall } from './dws/sign.js'
 import { performAiRedactCall } from './dws/ai-redact.js'
+import { performCheckCreditsCall } from './dws/credits.js'
 import { performDirectoryTreeCall } from './fs/directoryTree.js'
 import { setSandboxDirectory } from './fs/sandbox.js'
 import { createErrorResponse } from './responses.js'
@@ -99,6 +106,21 @@ By default (when neither stage nor apply is set), redactions are detected and im
     async ({ filePath, criteria, outputPath, stage, apply }) => {
       try {
         return performAiRedactCall(filePath, criteria, outputPath, stage, apply)
+      } catch (error) {
+        return createErrorResponse(`Error: ${error instanceof Error ? error.message : String(error)}`)
+      }
+    },
+  )
+
+  server.tool(
+    'check_credits',
+    `Check your Nutrient DWS API credit balance and usage for the current billing period.
+
+Returns: subscription type, total credits, used credits, and remaining credits.`,
+    CheckCreditsArgsSchema.shape,
+    async () => {
+      try {
+        return performCheckCreditsCall()
       } catch (error) {
         return createErrorResponse(`Error: ${error instanceof Error ? error.message : String(error)}`)
       }
