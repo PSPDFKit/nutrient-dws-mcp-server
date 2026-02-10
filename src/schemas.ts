@@ -168,6 +168,48 @@ export const AiRedactArgsSchema = z.object({
     ),
 })
 
+export const PageSizePresetSchema = z.enum([
+  'A0',
+  'A1',
+  'A2',
+  'A3',
+  'A4',
+  'A5',
+  'A6',
+  'A7',
+  'A8',
+  'Letter',
+  'Legal',
+])
+
+export const HTMLLayoutSchema = z
+  .object({
+    orientation: z
+      .enum(['landscape', 'portrait'])
+      .optional()
+      .describe('Page orientation for HTML-to-PDF conversion.'),
+    size: z
+      .union([
+        PageSizePresetSchema,
+        z.object({
+          width: z.number().positive().describe('Page width in millimeters.'),
+          height: z.number().positive().describe('Page height in millimeters.'),
+        }),
+      ])
+      .optional()
+      .describe('Page size as a preset name (e.g. "A4", "Letter") or custom dimensions in millimeters.'),
+    margin: z
+      .object({
+        left: z.number().min(0).describe('Left margin in millimeters.'),
+        top: z.number().min(0).describe('Top margin in millimeters.'),
+        right: z.number().min(0).describe('Right margin in millimeters.'),
+        bottom: z.number().min(0).describe('Bottom margin in millimeters.'),
+      })
+      .optional()
+      .describe('Page margins in millimeters.'),
+  })
+  .optional()
+
 export const FilePartSchema = z.object({
   file: z
     .string()
@@ -180,6 +222,10 @@ export const FilePartSchema = z.object({
     .string()
     .optional()
     .describe("Used to determine the file type when the file content type is not available and can't be inferred."),
+  layout: HTMLLayoutSchema.optional().describe(
+    'Page layout options for HTML-to-PDF conversion. Only applies when the input is an HTML file. ' +
+      'Supports orientation, page size, and margins.',
+  ),
 
   // For simplicity, we do not allow actions to be performed on individual parts. Instead, actions can be performed on the resulting parts output.
   // actions: z
@@ -254,20 +300,16 @@ export const BaseWatermarkPropertiesSchema = z.object({
     .describe(
       'For image watermarks, the path to the image file or a reference to a file in the multipart request. Resolves to sandbox path if enabled, otherwise resolves to the local file system.',
     ),
-
-  // For simplicity, we apply the watermark to the center of the page.
-  // top: WatermarkDimensionSchema.optional().describe('Offset of the watermark from the top edge of a page.'),
-  // right: WatermarkDimensionSchema.optional().describe('Offset of the watermark from the right edge of a page.'),
-  // bottom: WatermarkDimensionSchema.optional().describe('Offset of the watermark from the bottom edge of a page.'),
-  // left: WatermarkDimensionSchema.optional().describe('Offset of the watermark from the left edge of a page.'),
-
-  // For simplicity, we do not support custom fonts.
-  // fontFamily: z.string().optional().describe('The font to render the text.'),
-  // fontSize: z.number().optional().describe('Size of the text in points.'),
-  // fontStyle: z
-  //   .array(z.enum(['bold', 'italic']))
-  //   .optional()
-  //   .describe('Text style. Can be only italic, only bold, italic and bold, or none of these.'),
+  top: WatermarkDimensionSchema.optional().describe('Offset of the watermark from the top edge of a page.'),
+  right: WatermarkDimensionSchema.optional().describe('Offset of the watermark from the right edge of a page.'),
+  bottom: WatermarkDimensionSchema.optional().describe('Offset of the watermark from the bottom edge of a page.'),
+  left: WatermarkDimensionSchema.optional().describe('Offset of the watermark from the left edge of a page.'),
+  fontFamily: z.string().optional().describe('The font family to use for text watermarks.'),
+  fontSize: z.number().positive().optional().describe('Font size in points for text watermarks.'),
+  fontStyle: z
+    .array(z.enum(['bold', 'italic']))
+    .optional()
+    .describe('Font style for text watermarks. Can be italic, bold, or both.'),
 })
 
 export const SearchPresetSchema = z.enum([

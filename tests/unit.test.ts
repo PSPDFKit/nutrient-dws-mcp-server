@@ -1,7 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import fs, { Stats } from 'fs'
 import { Readable } from 'stream'
-import { AiRedactArgsSchema, Instructions, SignatureOptions } from '../src/schemas.js'
+import type { Instructions, SignatureOptions } from '../src/schemas.js'
+import { AiRedactArgsSchema, BaseWatermarkPropertiesSchema, FilePartSchema } from '../src/schemas.js'
 import { config as dotenvConfig } from 'dotenv'
 import { performBuildCall } from '../src/dws/build.js'
 import { performSignCall } from '../src/dws/sign.js'
@@ -39,6 +40,121 @@ function createMockStream(content: string | Buffer): Readable {
   })
   return readable
 }
+
+describe('Schema validation', () => {
+  describe('HTMLLayoutSchema / FilePartSchema', () => {
+    it('accepts a valid layout with orientation, size, and margin', () => {
+      const result = FilePartSchema.safeParse({
+        file: '/test.html',
+        layout: {
+          orientation: 'portrait',
+          size: {
+            width: 210,
+            height: 297,
+          },
+          margin: {
+            left: 10,
+            top: 10,
+            right: 10,
+            bottom: 10,
+          },
+        },
+      })
+
+      expect(result.success).toBe(true)
+    })
+
+    it('allows omitting layout entirely', () => {
+      const result = FilePartSchema.safeParse({ file: '/test.html' })
+      expect(result.success).toBe(true)
+    })
+
+    it('rejects negative margins', () => {
+      const result = FilePartSchema.safeParse({
+        file: '/test.html',
+        layout: {
+          margin: {
+            left: -1,
+            top: 0,
+            right: 0,
+            bottom: 0,
+          },
+        },
+      })
+
+      expect(result.success).toBe(false)
+    })
+
+    it('rejects zero or negative custom page sizes', () => {
+      const zeroWidth = FilePartSchema.safeParse({
+        file: '/test.html',
+        layout: {
+          size: {
+            width: 0,
+            height: 100,
+          },
+        },
+      })
+
+      const negativeHeight = FilePartSchema.safeParse({
+        file: '/test.html',
+        layout: {
+          size: {
+            width: 100,
+            height: -1,
+          },
+        },
+      })
+
+      expect(zeroWidth.success).toBe(false)
+      expect(negativeHeight.success).toBe(false)
+    })
+  })
+
+  describe('Watermark positioning and font fields', () => {
+    it('accepts valid positioning and font fields', () => {
+      const result = BaseWatermarkPropertiesSchema.safeParse({
+        type: 'watermark',
+        watermarkType: 'text',
+        width: 100,
+        height: 50,
+        top: 10,
+        right: '5%',
+        bottom: 12,
+        left: 8,
+        text: 'DRAFT',
+        fontFamily: 'Helvetica',
+        fontSize: 12,
+        fontStyle: ['bold', 'italic'],
+      })
+
+      expect(result.success).toBe(true)
+    })
+
+    it('rejects invalid fontSize values (0 or negative)', () => {
+      const zero = BaseWatermarkPropertiesSchema.safeParse({
+        type: 'watermark',
+        watermarkType: 'text',
+        width: 100,
+        height: 50,
+        text: 'DRAFT',
+        fontSize: 0,
+      })
+
+      const negative = BaseWatermarkPropertiesSchema.safeParse({
+        type: 'watermark',
+        watermarkType: 'text',
+        width: 100,
+        height: 50,
+        text: 'DRAFT',
+        fontSize: -1,
+      })
+
+      expect(zero.success).toBe(false)
+      expect(negative.success).toBe(false)
+    })
+  })
+})
 
 describe('API Functions', () => {
   const originalEnv = process.env
