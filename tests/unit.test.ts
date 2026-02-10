@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import fs, { Stats } from 'fs'
 import { Readable } from 'stream'
-import { AiRedactArgsSchema, Instructions, SignatureOptions } from '../src/schemas.js'
+import { AiRedactArgsSchema, BuildActionSchema, Instructions, SignatureOptions } from '../src/schemas.js'
 import { config as dotenvConfig } from 'dotenv'
 import { performBuildCall } from '../src/dws/build.js'
 import { performSignCall } from '../src/dws/sign.js'
@@ -39,6 +39,20 @@ function createMockStream(content: string | Buffer): Readable {
   })
   return readable
 }
+
+describe('BuildActionSchema', () => {
+  it('should parse applyInstantJson actions', () => {
+    const result = BuildActionSchema.safeParse({ type: 'applyInstantJson', file: '/test.json' })
+
+    expect(result.success).toBe(true)
+  })
+
+  it('should reject applyInstantJson actions without a file', () => {
+    const result = BuildActionSchema.safeParse({ type: 'applyInstantJson' })
+
+    expect(result.success).toBe(false)
+  })
+})
 
 describe('API Functions', () => {
   const originalEnv = process.env
