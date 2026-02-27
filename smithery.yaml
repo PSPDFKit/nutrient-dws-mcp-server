@@ -1,0 +1,27 @@
+# Smithery configuration file: https://smithery.ai/docs/config#smitheryyaml
+
+build:
+  dockerBuildPath: .
+
+startCommand:
+  type: stdio
+  configSchema:
+    type: object
+    required:
+      - nutrientDwsApiKey
+    properties:
+      nutrientDwsApiKey:
+        type: string
+        description: Nutrient DWS API key from dashboard.nutrient.io
+      sandboxPath:
+        type: string
+        description: Optional writable path for local temp/document I/O
+  commandFunction: |-
+    (config) => ({
+      command: 'node',
+      args: ['/app/dist/index.js'],
+      env: {
+        NUTRIENT_DWS_API_KEY: config.nutrientDwsApiKey,
+        SANDBOX_PATH: config.sandboxPath
+      }
+    })
