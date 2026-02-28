@@ -1,5 +1,9 @@
 import { z } from 'zod'
 
+export const CheckCreditsArgsSchema = z.object({})
+
+export type CheckCreditsArgs = z.infer<typeof CheckCreditsArgsSchema>
+
 export const DirectoryTreeArgsSchema = z.object({
   path: z
     .string()

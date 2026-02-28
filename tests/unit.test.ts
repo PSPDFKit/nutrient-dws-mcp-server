@@ -1,7 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import fs, { Stats } from 'fs'
 import { Readable } from 'stream'
-import { AiRedactArgsSchema, Instructions, SignatureOptions } from '../src/schemas.js'
+import { AiRedactArgsSchema, CheckCreditsArgsSchema, Instructions, SignatureOptions } from '../src/schemas.js'
+import { sanitizeAccountInfo, performCheckCreditsCall } from '../src/dws/credits.js'
 import { config as dotenvConfig } from 'dotenv'
 import { performBuildCall } from '../src/dws/build.js'
 import { performSignCall } from '../src/dws/sign.js'
@@ -818,6 +819,116 @@ describe('API Functions', () => {
     it('should return undefined when empty env var provided', () => {
       const result = parseSandboxPath([], '')
       expect(result).toBeUndefined()
+    })
+  })
+
+  describe('CheckCreditsArgsSchema', () => {
+    it('should accept an empty object', () => {
+      const result = CheckCreditsArgsSchema.safeParse({})
+      expect(result.success).toBe(true)
+    })
+  })
+
+  describe('sanitizeAccountInfo', () => {
+    it('should strip apiKeys from the response', () => {
+      const response = {
+        apiKeys: { live: 'sk_live_SUPER_SECRET_KEY_12345' },
+        signedIn: true,
+        subscriptionType: 'paid',
+        usage: { totalCredits: 100, usedCredits: 42 },
+      }
+
+      const sanitized = sanitizeAccountInfo(response)
+
+      expect(sanitized).not.toHaveProperty('apiKeys')
+      expect(sanitized).toEqual({
+        signedIn: true,
+        subscriptionType: 'paid',
+        usage: { totalCredits: 100, usedCredits: 42 },
+      })
+    })
+
+    it('should handle response with no apiKeys field', () => {
+      const response = {
+        signedIn: true,
+        subscriptionType: 'free',
+        usage: { totalCredits: 100, usedCredits: 0 },
+      }
+
+      const sanitized = sanitizeAccountInfo(response)
+
+      expect(sanitized).not.toHaveProperty('apiKeys')
+      expect(sanitized.subscriptionType).toBe('free')
+    })
+
+    it('should never leak the live API key to the LLM', () => {
+      const secretKey = 'sk_live_MUST_NEVER_APPEAR_IN_OUTPUT'
+      const response = {
+        apiKeys: { live: secretKey },
+        signedIn: true,
+        subscriptionType: 'enterprise',
+        usage: { totalCredits: 10000, usedCredits: 500 },
+      }
+
+      const sanitized = sanitizeAccountInfo(response)
+      const serialized = JSON.stringify(sanitized)
+
+      expect(serialized).not.toContain(secretKey)
+      expect(serialized).not.toContain('apiKeys')
+      expect(serialized).not.toContain('sk_live')
+    })
+  })
+
+  describe('performCheckCreditsCall', () => {
+    it('should return credit summary from API response', async () => {
+      const apiResponse = {
+        apiKeys: { live: 'sk_live_secret' },
+        signedIn: true,
+        subscriptionType: 'paid',
+        usage: { totalCredits: 100, usedCredits: 42 },
+      }
+
+      vi.stubEnv('NUTRIENT_DWS_API_KEY', 'test-key')
+      vi.spyOn(axios, 'get').mockResolvedValue({
+        data: Readable.from([JSON.stringify(apiResponse)]),
+      })
+
+      const result = await performCheckCreditsCall()
+
+      expect(result.isError).toBe(false)
+      const text = (result.content[0] as TextContent).text
+      const parsed = JSON.parse(text)
+      expect(parsed.subscriptionType).toBe('paid')
+      expect(parsed.totalCredits).toBe(100)
+      expect(parsed.usedCredits).toBe(42)
+      expect(parsed.remainingCredits).toBe(58)
+      // Must not contain the API key
+      expect(text).not.toContain('sk_live_secret')
+
+      vi.restoreAllMocks()
+    })
+
+    it('should handle non-JSON API response', async () => {
+      vi.stubEnv('NUTRIENT_DWS_API_KEY', 'test-key')
+      vi.spyOn(axios, 'get').mockResolvedValue({
+        data: Readable.from(['not json']),
+      })
+
+      const result = await performCheckCreditsCall()
+
+      expect(result.isError).toBe(true)
+      expect((result.content[0] as TextContent).text).toContain('Unexpected non-JSON response')
+
+      vi.restoreAllMocks()
+    })
+
+    it('should error when API key is not set', async () => {
+      vi.stubEnv('NUTRIENT_DWS_API_KEY', '')
+      delete process.env.NUTRIENT_DWS_API_KEY
+
+      await expect(performCheckCreditsCall()).rejects.toThrow('NUTRIENT_DWS_API_KEY not set')
+
+      vi.restoreAllMocks()
     })
   })
 })
