@@ -18,7 +18,6 @@ A Model Context Protocol (MCP) server that connects AI assistants to the [Nutrie
 |---|---|---|---|
 | [Nutrient DWS MCP Server](https://github.com/PSPDFKit/nutrient-dws-mcp-server) | Cloud document workflows | Nutrient-hosted API (API key) | Convert, OCR, redact, sign, extract, watermark, automation |
 | [Nutrient Document Engine MCP Server](https://github.com/PSPDFKit/nutrient-document-engine-mcp-server) | Self-hosted document workflows | On-prem/private cloud | Document processing with deployment control and data residency |
-| [Nutrient PDF MCP Server](https://github.com/PSPDFKit/nutrient-pdf-mcp-server) | Low-level PDF inspection/debugging | Local Python runtime | Object-tree exploration, indirect-object resolution, structural analysis |
 
 You are in the **DWS MCP Server** repo. Choose this when you want the fastest path to cloud-powered, production document workflows.
 
