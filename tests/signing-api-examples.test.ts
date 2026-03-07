@@ -8,7 +8,10 @@ import { setSandboxDirectory } from '../src/fs/sandbox.js'
 
 dotenvConfig()
 
-describe('performSignCall with signing-api-examples', () => {
+const liveExamplesEnabled = process.env.RUN_LIVE_DWS_EXAMPLE_TESTS === '1'
+const describeLive = liveExamplesEnabled ? describe : describe.skip
+
+describeLive('performSignCall with signing-api-examples', () => {
   let outputDirectory: string
   beforeAll(async () => {
     const assetsDir = path.join(__dirname, `assets`)

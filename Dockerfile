@@ -23,5 +23,5 @@ COPY --from=builder /app/dist ./dist
 RUN chown -R appuser:appgroup /app
 USER appuser
 
-# MCP runs over stdio
+# Transport is selected at runtime via MCP_TRANSPORT.
 ENTRYPOINT ["node", "dist/index.js"]

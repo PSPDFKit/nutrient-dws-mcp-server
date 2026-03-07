@@ -144,6 +144,58 @@ NUTRIENT_DWS_API_KEY=your_key SANDBOX_PATH=/your/path npx @nutrient-sdk/dws-mcp-
 ```
 </details>
 
+### Remote HTTP Mode
+
+For hosted or Co-work style deployments, the server also supports Streamable HTTP:
+
+```bash
+MCP_TRANSPORT=http \
+MCP_HOST=0.0.0.0 \
+PORT=5100 \
+MCP_ALLOWED_HOSTS=connector.internal.example.com,connector.example.com \
+MCP_BEARER_TOKENS_JSON='[{"token":"replace-me","clientId":"claude-cowork-prod","scopes":["mcp"],"allowedTools":["document_processor","document_signer","ai_redactor","check_credits"]}]' \
+NUTRIENT_DWS_API_KEY=your_key \
+node dist/index.js
+```
+
+Remote mode exposes:
+
+- `POST /mcp` for initialize and request traffic
+- `GET /mcp` for server-to-client event streams
+- `DELETE /mcp` for session teardown
+- `GET /health` for load balancer and readiness checks
+
+Security model:
+
+- bearer-token auth is required for every `/mcp` request
+- sessions are bound to the authenticated principal
+- the advertised MCP tool list is filtered per principal at session initialization
+- stdio mode remains unchanged for local desktop clients
+
+### Published Container Image
+
+This repo is the image owner for remote deployments.
+
+- registry: `ghcr.io/pspdfkit/nutrient-dws-mcp-server`
+- `latest`: current default-branch image
+- `sha-<commit>`: immutable commit image
+- `vX.Y.Z`: release tag image
+
+For Hosted-style deployments, use an immutable image tag in `TF_VAR_dws_mcp_docker_image` and keep the bearer-principal policy in environment-injected secrets.
+
+Example:
+
+```bash
+docker run --rm -p 5100:5100 \
+  -e MCP_TRANSPORT=http \
+  -e MCP_HOST=0.0.0.0 \
+  -e PORT=5100 \
+  -e MCP_ALLOWED_HOSTS=mcp.example.com \
+  -e MCP_BEARER_TOKENS_JSON='[{"token":"replace-me","clientId":"claude-cowork-prod","scopes":["mcp"],"allowedTools":["document_processor","document_signer","check_credits"]}]' \
+  -e NUTRIENT_DWS_API_KEY=your_key \
+  ghcr.io/pspdfkit/nutrient-dws-mcp-server:sha-<commit>
+```
+
 ### 3. Restart Your AI Client
 
 Restart the application to pick up the new MCP server configuration.
@@ -228,6 +280,25 @@ Processed files are saved to a location determined by the AI. To guide output pl
 |----------|----------|-------------|
 | `NUTRIENT_DWS_API_KEY` | Yes | Your Nutrient DWS API key ([get one free](https://dashboard.nutrient.io/sign_up/)) |
 | `SANDBOX_PATH` | Recommended | Directory to restrict file operations to |
+| `MCP_TRANSPORT` | No | `stdio` (default) or `http` |
+| `MCP_HOST` | HTTP only | Host to bind the HTTP server to. Defaults to `127.0.0.1` |
+| `PORT` | HTTP only | Port for HTTP mode. Defaults to `5100` |
+| `MCP_ALLOWED_HOSTS` | Optional | Comma-separated allowed `Host` headers when binding beyond loopback |
+| `MCP_BEARER_TOKEN` | HTTP only | Single inbound bearer token for `/mcp` |
+| `MCP_BEARER_TOKEN_CLIENT_ID` | Optional | Principal ID paired with `MCP_BEARER_TOKEN` |
+| `MCP_BEARER_TOKEN_SCOPES` | Optional | Comma-separated scopes paired with `MCP_BEARER_TOKEN` |
+| `MCP_BEARER_TOKEN_ALLOWED_TOOLS` | Optional | Comma-separated tool allowlist paired with `MCP_BEARER_TOKEN` |
+| `MCP_BEARER_TOKENS_JSON` | HTTP only | JSON array of principal configs for multi-token remote deployments |
+
+### Secret Management
+
+Do not commit bearer tokens or DWS API keys into repo config.
+
+Recommended pattern:
+
+- local/dev: inject env vars directly, or source them from 1Password CLI / `op://...` references
+- hosted environments: inject secrets through the platform secret store into container env vars
+- rotate remote bearer tokens by supplying overlapping entries in `MCP_BEARER_TOKENS_JSON`
 
 ## Troubleshooting
 
@@ -244,6 +315,10 @@ Processed files are saved to a location determined by the AI. To guide output pl
 - Check that `SANDBOX_PATH` points to an existing directory
 - Ensure your documents are inside the sandbox directory
 - Use the `sandbox_file_tree` tool to verify visible files
+
+**Running tests in CI or local dev?**
+- `pnpm test` runs the deterministic local suite
+- live DWS example suites are opt-in and require `RUN_LIVE_DWS_EXAMPLE_TESTS=1`
 
 ## Contributing
 
