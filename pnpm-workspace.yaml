@@ -1,5 +1,6 @@
 supportedArchitectures:
   os:
+    - linux
     - win32
     - darwin
   cpu:
