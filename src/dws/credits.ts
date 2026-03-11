@@ -2,6 +2,7 @@ import axios from 'axios'
 import { getApiKey, pipeToString } from './utils.js'
 import { getVersion } from '../version.js'
 import { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
+import { DwsApiClient } from './client.js'
 
 /**
  * Account info response from DWS API (GET /account/info)
@@ -32,16 +33,16 @@ export function sanitizeAccountInfo(data: AccountInfoResponse): Omit<AccountInfo
 /**
  * Calls the DWS /account/info endpoint and returns credit information.
  */
-export async function performCheckCreditsCall(): Promise<CallToolResult> {
-  const apiKey = getApiKey()
-
-  const response = await axios.get('https://api.nutrient.io/account/info', {
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      'User-Agent': `NutrientDWSMCPServer/${getVersion()}`,
-    },
-    responseType: 'stream',
-  })
+export async function performCheckCreditsCall(apiClient?: DwsApiClient): Promise<CallToolResult> {
+  const response = apiClient
+    ? await apiClient.get('account/info')
+    : await axios.get('https://api.nutrient.io/account/info', {
+        headers: {
+          Authorization: `Bearer ${getApiKey()}`,
+          'User-Agent': `NutrientDWSMCPServer/${getVersion()}`,
+        },
+        responseType: 'stream',
+      })
 
   const raw = await pipeToString(response.data)
 

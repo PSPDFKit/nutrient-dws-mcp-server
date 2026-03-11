@@ -6,6 +6,7 @@ import { callNutrientApi } from './api.js'
 import { resolveReadFilePath, resolveWriteFilePath } from '../fs/sandbox.js'
 import fs from 'fs'
 import path from 'path'
+import { DwsApiClient } from './client.js'
 
 /**
  * Performs a sign call to the Nutrient DWS API
@@ -16,6 +17,7 @@ export async function performSignCall(
   signatureOptions: SignatureOptions = { signatureType: 'cms', flatten: false },
   watermarkImagePath?: string,
   graphicImagePath?: string,
+  apiClient?: DwsApiClient,
 ): Promise<CallToolResult> {
   try {
     // We resolve the output path first to fail early
@@ -36,7 +38,7 @@ export async function performSignCall(
       await addFileToFormData(formData, 'graphic', graphicImagePath)
     }
 
-    const response = await callNutrientApi('sign', formData)
+    const response = apiClient ? await apiClient.post('sign', formData) : await callNutrientApi('sign', formData)
 
     return handleFileResponse(response, resolvedOutputPath, 'File signed successfully')
   } catch (e: unknown) {
