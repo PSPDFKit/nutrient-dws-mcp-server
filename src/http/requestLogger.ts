@@ -57,8 +57,7 @@ export function createRequestLoggerMiddleware(options?: { logger?: HttpLogger })
 
   return (req, res, next) => {
     const requestIdHeader = req.headers['x-request-id']
-    const requestId =
-      (typeof requestIdHeader === 'string' ? requestIdHeader : requestIdHeader?.[0]) ?? randomUUID()
+    const requestId = (typeof requestIdHeader === 'string' ? requestIdHeader : requestIdHeader?.[0]) ?? randomUUID()
 
     setRequestId(requestId)
     res.setHeader('x-request-id', requestId)

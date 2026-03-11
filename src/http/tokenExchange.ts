@@ -87,9 +87,7 @@ export class TokenExchangeClient {
       if (axios.isAxiosError(error)) {
         if (error.response?.data) {
           const message =
-            typeof error.response.data === 'string'
-              ? error.response.data
-              : JSON.stringify(error.response.data)
+            typeof error.response.data === 'string' ? error.response.data : JSON.stringify(error.response.data)
           throw new Error(`Token exchange failed: ${message}`)
         }
 

@@ -384,7 +384,13 @@ describe('API Functions', () => {
       vi.spyOn(sandbox, 'resolveReadFilePath').mockResolvedValueOnce('/input.pdf')
       vi.spyOn(sandbox, 'resolveWriteFilePath').mockResolvedValueOnce('/output.pdf')
 
-      const result = await performAiRedactCall('/input.pdf', 'All personally identifiable information', '/output.pdf', true, true)
+      const result = await performAiRedactCall(
+        '/input.pdf',
+        'All personally identifiable information',
+        '/output.pdf',
+        true,
+        true,
+      )
 
       expect(result.isError).toBe(true)
       expect(getTextContent(result)).toBe('Error: stage and apply cannot both be true. Choose one mode.')
@@ -415,11 +421,7 @@ describe('API Functions', () => {
         config: {} as InternalAxiosRequestConfig,
       })
 
-      const result = await performAiRedactCall(
-        '/input.pdf',
-        'All personally identifiable information',
-        '/redacted.pdf',
-      )
+      const result = await performAiRedactCall('/input.pdf', 'All personally identifiable information', '/redacted.pdf')
 
       expect(result.isError).toBe(false)
       expect(getTextContent(result)).toContain('AI redaction completed successfully')

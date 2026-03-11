@@ -30,8 +30,6 @@ describe('protected resource metadata', () => {
       resourceMetadataUrl: 'https://mcp.nutrient.io/.well-known/oauth-protected-resource',
     })
 
-    expect(header).toBe(
-      'Bearer resource_metadata="https://mcp.nutrient.io/.well-known/oauth-protected-resource"',
-    )
+    expect(header).toBe('Bearer resource_metadata="https://mcp.nutrient.io/.well-known/oauth-protected-resource"')
   })
 })

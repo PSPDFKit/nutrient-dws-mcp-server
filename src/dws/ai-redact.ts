@@ -30,9 +30,7 @@ export async function performAiRedactCall(
 
     // Guard against output overwriting input
     if (resolvedInputPath === resolvedOutputPath) {
-      return createErrorResponse(
-        'Error: Output path must be different from input path to prevent data corruption.',
-      )
+      return createErrorResponse('Error: Output path must be different from input path to prevent data corruption.')
     }
 
     const fileBuffer = await fs.promises.readFile(resolvedInputPath)
@@ -53,7 +51,9 @@ export async function performAiRedactCall(
     formData.append('file1', fileBuffer, { filename: fileName })
     formData.append('data', JSON.stringify(dataPayload))
 
-    const response = apiClient ? await apiClient.post('ai/redact', formData) : await callNutrientApi('ai/redact', formData)
+    const response = apiClient
+      ? await apiClient.post('ai/redact', formData)
+      : await callNutrientApi('ai/redact', formData)
 
     return handleFileResponse(response, resolvedOutputPath, 'AI redaction completed successfully. Output saved to')
   } catch (e: unknown) {

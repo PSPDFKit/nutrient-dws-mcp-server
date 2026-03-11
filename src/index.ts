@@ -510,7 +510,10 @@ async function prepareSandbox(sandboxDir: string | null) {
   )
 }
 
-async function runStdioServer(options: { sandboxEnabled: boolean; environment: Environment }): Promise<RunServerResult> {
+async function runStdioServer(options: {
+  sandboxEnabled: boolean
+  environment: Environment
+}): Promise<RunServerResult> {
   const { sandboxEnabled, environment } = options
 
   if (!environment.nutrientApiKey) {
