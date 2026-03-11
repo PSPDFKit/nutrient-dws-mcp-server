@@ -76,7 +76,7 @@ function toAuthInfo(token: string, payload: JWTPayload): AuthInfo {
 export function createJwtAuthMiddleware(options: {
   jwksUrl: string
   issuer: string
-  audience: string
+  audience: string | string[]
   requiredScope: string
   resourceMetadataUrl: string
 }): RequestHandler {

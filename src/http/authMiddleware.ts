@@ -9,10 +9,12 @@ export function createAuthMiddleware(environment: Environment): RequestHandler {
       throw new Error('JWT auth mode requires both JWKS_URL and ISSUER')
     }
 
+    const audiences = Array.from(new Set(['dws-mcp', environment.resourceUrl]))
+
     return createJwtAuthMiddleware({
       jwksUrl: environment.jwksUrl,
       issuer: environment.issuer,
-      audience: 'dws-mcp',
+      audience: audiences,
       requiredScope: 'mcp:invoke',
       resourceMetadataUrl: environment.protectedResourceMetadataUrl,
     })

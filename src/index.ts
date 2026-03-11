@@ -35,6 +35,7 @@ import { createApiClient } from './dws/api.js'
 import { DwsApiClient } from './dws/client.js'
 import { createAuthMiddleware } from './http/authMiddleware.js'
 import { createProtectedResourceHandler } from './http/protectedResource.js'
+import { createRequestLoggerMiddleware, isMcpDebugLoggingEnabled } from './http/requestLogger.js'
 import { TokenExchangeClient } from './http/tokenExchange.js'
 import { getAllowedTools, getPrincipalFingerprint, isToolAllowed, RequestWithAuth } from './http/types.js'
 import { Environment, getEnvironment } from './utils/environment.js'
@@ -322,6 +323,10 @@ export function createHttpApp(options: { environment: Environment; sandboxEnable
   })
 
   app.use(express.json({ limit: '25mb' }))
+
+  if (isMcpDebugLoggingEnabled(process.env)) {
+    app.use(createRequestLoggerMiddleware())
+  }
 
   app.get('/health', (_req, res) => {
     res.json({ status: 'ok', version: getVersion() })

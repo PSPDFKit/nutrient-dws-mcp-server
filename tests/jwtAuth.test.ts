@@ -75,13 +75,13 @@ describe('jwt auth middleware', () => {
       .sign(privateKey)
   }
 
-  function createApp() {
+  function createApp(audience: string | string[] = 'dws-mcp') {
     const app = express()
     app.use(
       createJwtAuthMiddleware({
         jwksUrl,
         issuer,
-        audience: 'dws-mcp',
+        audience,
         requiredScope: 'mcp:invoke',
         resourceMetadataUrl: `${issuer}/.well-known/oauth-protected-resource`,
       }),
@@ -108,6 +108,17 @@ describe('jwt auth middleware', () => {
     expect(response.status).toBe(200)
     expect(response.body.clientId).toBe('client-1')
     expect(response.body.scopes).toContain('mcp:invoke')
+  })
+
+  it('accepts JWTs whose audience matches the resource URL when configured', async () => {
+    const resourceUrl = 'http://localhost:3000/mcp'
+    const token = await createToken({ aud: resourceUrl })
+    const app = createApp(['dws-mcp', resourceUrl])
+
+    const response = await request(app).get('/protected').set('authorization', `Bearer ${token}`)
+
+    expect(response.status).toBe(200)
+    expect(response.body.clientId).toBe('client-1')
   })
 
   it('rejects JWTs with wrong audience', async () => {
