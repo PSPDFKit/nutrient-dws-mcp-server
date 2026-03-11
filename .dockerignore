@@ -1,0 +1,8 @@
+.git
+.context
+node_modules
+dist
+tests
+coverage
+pnpm-debug.log
+*.local

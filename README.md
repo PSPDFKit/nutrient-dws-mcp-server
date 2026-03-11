@@ -226,8 +226,42 @@ Processed files are saved to a location determined by the AI. To guide output pl
 
 | Variable | Required | Description |
 |----------|----------|-------------|
-| `NUTRIENT_DWS_API_KEY` | Yes | Your Nutrient DWS API key ([get one free](https://dashboard.nutrient.io/sign_up/)) |
+| `NUTRIENT_DWS_API_KEY` | Yes (stdio/static) | Your Nutrient DWS API key ([get one free](https://dashboard.nutrient.io/sign_up/)) |
 | `SANDBOX_PATH` | Recommended | Directory to restrict file operations to |
+| `MCP_TRANSPORT` | No | `stdio` (default) or `http` |
+| `AUTH_MODE` | No | `static` (default) or `jwt` (HTTP mode only) |
+| `PORT` | No | HTTP port (default `3000`) |
+| `MCP_HOST` | No | HTTP bind host (default `127.0.0.1`) |
+| `MCP_ALLOWED_HOSTS` | No | Comma/space-separated allowed hostnames |
+| `MCP_BEARER_TOKEN` | Yes (HTTP+static) | Single bearer token for static auth |
+| `MCP_BEARER_TOKENS_JSON` | Optional | JSON map/array of static bearer principals |
+| `RESOURCE_URL` | No | Protected resource URL advertised to OAuth clients |
+| `AUTH_SERVER_URL` | No | Authorization server base URL |
+| `JWKS_URL` | Yes (HTTP+jwt) | JWKS endpoint for JWT signature validation |
+| `ISSUER` | No | JWT issuer (defaults to `AUTH_SERVER_URL`) |
+| `CLIENT_ID` | Yes (HTTP+jwt) | OAuth client ID used for token exchange |
+| `CLIENT_SECRET` | Yes (HTTP+jwt) | OAuth client secret used for token exchange |
+
+### HTTP Transport
+
+Start the MCP server over Streamable HTTP:
+
+```bash
+MCP_TRANSPORT=http \
+AUTH_MODE=static \
+NUTRIENT_DWS_API_KEY=your_dws_api_key \
+MCP_BEARER_TOKEN=your_mcp_bearer_token \
+npx @nutrient-sdk/dws-mcp-server
+```
+
+Endpoints:
+- `POST /mcp` (MCP Streamable HTTP)
+- `GET /mcp` (SSE stream)
+- `DELETE /mcp` (session termination)
+- `GET /health`
+- `GET /.well-known/oauth-protected-resource`
+
+Unauthenticated HTTP requests receive `401` and a `WWW-Authenticate` header with `resource_metadata`.
 
 ## Troubleshooting
 
