@@ -6,14 +6,13 @@ import { createRequestLoggerMiddleware, isMcpDebugLoggingEnabled } from '../src/
 type LogEntry = {
   level: 'debug' | 'info'
   message: string
-  meta?: Record<string, unknown>
 }
 
 describe('request logger middleware', () => {
-  it('logs request and response with redacted sensitive headers', async () => {
+  it('logs request and response in readable arrow format', async () => {
     const entries: LogEntry[] = []
-    const logger = (level: 'debug' | 'info', message: string, meta?: Record<string, unknown>) => {
-      entries.push({ level, message, meta })
+    const logger = (level: 'debug' | 'info', message: string) => {
+      entries.push({ level, message })
     }
 
     const app = express()
@@ -33,22 +32,23 @@ describe('request logger middleware', () => {
       .send({ jsonrpc: '2.0', method: 'initialize' })
 
     expect(response.status).toBe(200)
+    expect(response.headers['x-request-id']).toBe('request-123')
 
-    const requestStarted = entries.find((entry) => entry.message === 'HTTP request started')
-    expect(requestStarted).toBeDefined()
-    expect(requestStarted?.meta?.requestId).toBe('request-123')
-    expect((requestStarted?.meta?.headers as Record<string, unknown>).authorization).toBe('[REDACTED]')
+    expect(entries).toContainEqual({ level: 'info', message: '<<< POST /mcp' })
 
-    const requestBodyLog = entries.find((entry) => entry.message === 'HTTP request body')
-    expect(requestBodyLog?.meta?.body).toEqual({ jsonrpc: '2.0', method: 'initialize' })
+    expect(entries).toContainEqual({
+      level: 'debug',
+      message: JSON.stringify({ jsonrpc: '2.0', method: 'initialize' }),
+    })
 
-    const requestFinished = entries.find((entry) => entry.message === 'HTTP request finished')
-    expect(requestFinished?.meta?.statusCode).toBe(200)
+    expect(entries).toContainEqual({ level: 'info', message: '>>> Sent 200' })
 
-    const responseBodyLog = entries.find((entry) => entry.message === 'HTTP response body')
-    expect(JSON.parse(responseBodyLog?.meta?.body as string)).toEqual({
-      ok: true,
-      echo: { jsonrpc: '2.0', method: 'initialize' },
+    expect(entries).toContainEqual({
+      level: 'debug',
+      message: JSON.stringify({
+        ok: true,
+        echo: { jsonrpc: '2.0', method: 'initialize' },
+      }),
     })
   })
 })

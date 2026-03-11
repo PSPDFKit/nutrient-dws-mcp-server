@@ -234,6 +234,7 @@ Processed files are saved to a location determined by the AI. To guide output pl
 | `MCP_HOST` | No | HTTP bind host (default `127.0.0.1`) |
 | `MCP_ALLOWED_HOSTS` | No | Comma/space-separated allowed hostnames |
 | `MCP_DEBUG_LOGGING` | No | Enable HTTP request/response logging (`true`/`1`/`on`) |
+| `LOG_LEVEL` | No | Console log level for Winston logger (`debug` default) |
 | `MCP_BEARER_TOKEN` | Yes (HTTP+static) | Single bearer token for static auth |
 | `MCP_BEARER_TOKENS_JSON` | Optional | JSON map/array of static bearer principals |
 | `RESOURCE_URL` | No | Protected resource URL advertised to OAuth clients |
