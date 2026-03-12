@@ -2,6 +2,7 @@ import { z } from 'zod'
 
 export type TransportMode = 'stdio' | 'http'
 export type AuthMode = 'static' | 'jwt'
+export type TokenEndpointAuthMethod = 'client_secret_basic' | 'private_key_jwt'
 
 export type StaticPrincipal = {
   token: string
@@ -24,8 +25,12 @@ export type Environment = {
   staticPrincipals: StaticPrincipal[]
   jwksUrl?: string
   issuer?: string
+  tokenEndpointAuthMethod: TokenEndpointAuthMethod
   clientId?: string
   clientSecret?: string
+  clientAssertionPrivateKey?: string
+  clientAssertionAlg?: string
+  clientAssertionKid?: string
 }
 
 const RawEnvironmentSchema = z.object({
@@ -40,8 +45,12 @@ const RawEnvironmentSchema = z.object({
   AUTH_SERVER_URL: z.string().url().default('https://api.nutrient.io'),
   JWKS_URL: z.string().url().optional(),
   ISSUER: z.string().url().optional(),
+  TOKEN_ENDPOINT_AUTH_METHOD: z.enum(['client_secret_basic', 'private_key_jwt']).default('client_secret_basic'),
   CLIENT_ID: z.string().optional(),
   CLIENT_SECRET: z.string().optional(),
+  CLIENT_ASSERTION_PRIVATE_KEY: z.string().optional(),
+  CLIENT_ASSERTION_ALG: z.string().default('RS256'),
+  CLIENT_ASSERTION_KID: z.string().optional(),
   MCP_BEARER_TOKEN: z.string().optional(),
   MCP_BEARER_CLIENT_ID: z.string().default('default-client'),
   MCP_BEARER_SCOPES: z.string().optional(),
@@ -217,8 +226,20 @@ function validateEnvironment(environment: Environment): Environment {
       throw new Error('AUTH_MODE=jwt requires JWKS_URL to be configured')
     }
 
-    if (!environment.clientId || !environment.clientSecret) {
-      throw new Error('AUTH_MODE=jwt requires CLIENT_ID and CLIENT_SECRET to be configured')
+    if (!environment.clientId) {
+      throw new Error('AUTH_MODE=jwt requires CLIENT_ID to be configured')
+    }
+
+    if (environment.tokenEndpointAuthMethod === 'client_secret_basic' && !environment.clientSecret) {
+      throw new Error(
+        'AUTH_MODE=jwt with TOKEN_ENDPOINT_AUTH_METHOD=client_secret_basic requires CLIENT_SECRET to be configured',
+      )
+    }
+
+    if (environment.tokenEndpointAuthMethod === 'private_key_jwt' && !environment.clientAssertionPrivateKey) {
+      throw new Error(
+        'AUTH_MODE=jwt with TOKEN_ENDPOINT_AUTH_METHOD=private_key_jwt requires CLIENT_ASSERTION_PRIVATE_KEY to be configured',
+      )
     }
   }
 
@@ -245,8 +266,12 @@ function parseEnvironment(rawEnv: NodeJS.ProcessEnv): Environment {
     staticPrincipals,
     jwksUrl: raw.JWKS_URL,
     issuer: raw.ISSUER ?? raw.AUTH_SERVER_URL,
+    tokenEndpointAuthMethod: raw.TOKEN_ENDPOINT_AUTH_METHOD,
     clientId: raw.CLIENT_ID,
     clientSecret: raw.CLIENT_SECRET,
+    clientAssertionPrivateKey: raw.CLIENT_ASSERTION_PRIVATE_KEY,
+    clientAssertionAlg: raw.CLIENT_ASSERTION_ALG,
+    clientAssertionKid: raw.CLIENT_ASSERTION_KID,
   }
 
   return validateEnvironment(environment)

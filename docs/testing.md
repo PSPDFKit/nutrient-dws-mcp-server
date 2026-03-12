@@ -67,13 +67,18 @@ Required:
 - `AUTH_MODE=jwt`
 - `JWKS_URL`
 - `CLIENT_ID`
-- `CLIENT_SECRET`
+- `TOKEN_ENDPOINT_AUTH_METHOD` (optional, default `client_secret_basic`)
+- One of:
+  - `CLIENT_SECRET` (when `TOKEN_ENDPOINT_AUTH_METHOD=client_secret_basic`)
+  - `CLIENT_ASSERTION_PRIVATE_KEY` (when `TOKEN_ENDPOINT_AUTH_METHOD=private_key_jwt`)
 
 Recommended/usually required:
 
 - `RESOURCE_URL` (public MCP resource URL, usually `http://localhost:3000/mcp`)
 - `AUTH_SERVER_URL`
 - `ISSUER` (defaults to `AUTH_SERVER_URL` if omitted)
+- `CLIENT_ASSERTION_ALG` (default `RS256`)
+- `CLIENT_ASSERTION_KID` (optional)
 
 Notes:
 
@@ -131,6 +136,40 @@ export LOG_LEVEL=debug
 pnpm run dev
 ```
 
+`private_key_jwt` variant:
+
+```bash
+export TOKEN_ENDPOINT_AUTH_METHOD=private_key_jwt
+export CLIENT_ID=dws-mcp-server
+export CLIENT_ASSERTION_PRIVATE_KEY='-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----'
+export CLIENT_ASSERTION_ALG=RS256
+export CLIENT_ASSERTION_KID=runtime-kid-1
+```
+
+Generate a keypair (RSA, for `RS256`):
+
+```bash
+mkdir -p .keys
+openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -out .keys/mcp-runtime-private.pem
+openssl rsa -in .keys/mcp-runtime-private.pem -pubout -out .keys/mcp-runtime-public.pem
+```
+
+Load private key into env var:
+
+```bash
+# Option A: one-line escaped value (great for .env files)
+export CLIENT_ASSERTION_PRIVATE_KEY="$(awk '{printf "%s\\\\n", $0}' .keys/mcp-runtime-private.pem)"
+
+# Option B: raw multiline value (works for direct shell export)
+export CLIENT_ASSERTION_PRIVATE_KEY="$(cat .keys/mcp-runtime-private.pem)"
+```
+
+Set a `kid` and use the same `kid` in your runtime client's registered JWKS:
+
+```bash
+export CLIENT_ASSERTION_KID=runtime-kid-1
+```
+
 Quick checks:
 
 ```bash
@@ -176,4 +215,5 @@ pnpm run dev
 - `401 invalid_token`: missing/invalid bearer or JWT.
 - `unexpected "aud" claim value`: token audience does not match expected resource/audience set.
 - `AUTH_MODE=jwt requires JWKS_URL`: missing JWT config.
+- `TOKEN_ENDPOINT_AUTH_METHOD=private_key_jwt requires CLIENT_ASSERTION_PRIVATE_KEY`: missing signing key for client assertion.
 - `Static HTTP auth requires bearer tokens`: set one of the bearer token env formats.

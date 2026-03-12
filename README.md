@@ -246,8 +246,12 @@ Processed files are saved to a location determined by the AI. To guide output pl
 | `AUTH_SERVER_URL`        | No                 | Authorization server base URL                                                      |
 | `JWKS_URL`               | Yes (HTTP+jwt)     | JWKS endpoint for JWT signature validation                                         |
 | `ISSUER`                 | No                 | JWT issuer (defaults to `AUTH_SERVER_URL`)                                         |
+| `TOKEN_ENDPOINT_AUTH_METHOD` | No            | JWT mode token endpoint client auth method: `client_secret_basic` (default) or `private_key_jwt` |
 | `CLIENT_ID`              | Yes (HTTP+jwt)     | OAuth client ID used for token exchange                                            |
-| `CLIENT_SECRET`          | Yes (HTTP+jwt)     | OAuth client secret used for token exchange                                        |
+| `CLIENT_SECRET`          | Yes (HTTP+jwt + `client_secret_basic`) | OAuth client secret for token exchange                                  |
+| `CLIENT_ASSERTION_PRIVATE_KEY` | Yes (HTTP+jwt + `private_key_jwt`) | Private key (PKCS8 PEM or JWK JSON string) used to sign client assertions |
+| `CLIENT_ASSERTION_ALG`   | No                 | Client assertion signing algorithm (default `RS256`)                               |
+| `CLIENT_ASSERTION_KID`   | No                 | Optional `kid` header value for client assertions                                  |
 
 ### HTTP Transport
 

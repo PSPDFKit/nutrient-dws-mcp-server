@@ -29,8 +29,12 @@ function createEnvironment(overrides: Partial<Environment> = {}): Environment {
     ],
     jwksUrl: undefined,
     issuer: undefined,
+    tokenEndpointAuthMethod: 'client_secret_basic',
     clientId: undefined,
     clientSecret: undefined,
+    clientAssertionPrivateKey: undefined,
+    clientAssertionAlg: undefined,
+    clientAssertionKid: undefined,
     ...overrides,
   }
 }

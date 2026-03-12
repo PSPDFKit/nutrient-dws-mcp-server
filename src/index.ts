@@ -307,11 +307,15 @@ export function createHttpApp(options: { environment: Environment; sandboxEnable
   const { environment, sandboxEnabled } = options
 
   const tokenExchangeClient =
-    environment.authMode === 'jwt' && environment.clientId && environment.clientSecret
+    environment.authMode === 'jwt' && environment.clientId
       ? new TokenExchangeClient({
           authServerUrl: environment.authServerUrl,
           clientId: environment.clientId,
+          tokenEndpointAuthMethod: environment.tokenEndpointAuthMethod,
           clientSecret: environment.clientSecret,
+          clientAssertionPrivateKey: environment.clientAssertionPrivateKey,
+          clientAssertionAlg: environment.clientAssertionAlg,
+          clientAssertionKid: environment.clientAssertionKid,
         })
       : undefined
 

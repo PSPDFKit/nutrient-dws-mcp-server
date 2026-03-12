@@ -41,12 +41,42 @@ describe('environment', () => {
     expect(() => getEnvironment()).toThrow(/requires JWKS_URL/)
   })
 
-  it('requires client credentials in HTTP JWT mode', () => {
+  it('requires client secret in HTTP JWT mode when using client_secret_basic', () => {
     process.env.MCP_TRANSPORT = 'http'
     process.env.AUTH_MODE = 'jwt'
     process.env.JWKS_URL = 'https://auth.example.com/.well-known/jwks.json'
+    process.env.CLIENT_ID = 'client-id'
 
-    expect(() => getEnvironment()).toThrow(/requires CLIENT_ID and CLIENT_SECRET/)
+    expect(() => getEnvironment()).toThrow(
+      /TOKEN_ENDPOINT_AUTH_METHOD=client_secret_basic requires CLIENT_SECRET/,
+    )
+  })
+
+  it('requires client assertion private key in HTTP JWT mode when using private_key_jwt', () => {
+    process.env.MCP_TRANSPORT = 'http'
+    process.env.AUTH_MODE = 'jwt'
+    process.env.JWKS_URL = 'https://auth.example.com/.well-known/jwks.json'
+    process.env.CLIENT_ID = 'client-id'
+    process.env.TOKEN_ENDPOINT_AUTH_METHOD = 'private_key_jwt'
+
+    expect(() => getEnvironment()).toThrow(
+      /TOKEN_ENDPOINT_AUTH_METHOD=private_key_jwt requires CLIENT_ASSERTION_PRIVATE_KEY/,
+    )
+  })
+
+  it('accepts private_key_jwt mode without client secret', () => {
+    process.env.MCP_TRANSPORT = 'http'
+    process.env.AUTH_MODE = 'jwt'
+    process.env.JWKS_URL = 'https://auth.example.com/.well-known/jwks.json'
+    process.env.CLIENT_ID = 'client-id'
+    process.env.TOKEN_ENDPOINT_AUTH_METHOD = 'private_key_jwt'
+    process.env.CLIENT_ASSERTION_PRIVATE_KEY = '-----BEGIN PRIVATE KEY-----\\nabc\\n-----END PRIVATE KEY-----'
+
+    const environment = getEnvironment()
+
+    expect(environment.tokenEndpointAuthMethod).toBe('private_key_jwt')
+    expect(environment.clientSecret).toBeUndefined()
+    expect(environment.clientAssertionPrivateKey).toContain('BEGIN PRIVATE KEY')
   })
 
   it('parses principals from MCP_BEARER_TOKENS_JSON', () => {
