@@ -2,14 +2,24 @@ import axios, { AxiosInstance, AxiosResponse } from 'axios'
 import FormData from 'form-data'
 import { getVersion } from '../version.js'
 
+/** Async function that returns a bearer token for authenticating with the DWS API. */
 export type DwsTokenResolver = () => Promise<string>
 
 export type DwsApiClientOptions = {
+  /** DWS API base URL. Defaults to `https://api.nutrient.io`. */
   baseUrl?: string
+  /** Provides the bearer token for each request. Called on every API call. */
   tokenResolver: DwsTokenResolver
+  /** Optional custom Axios instance (useful for testing or proxy configuration). */
   httpClient?: AxiosInstance
 }
 
+/**
+ * HTTP client for the Nutrient Document Web Services (DWS) API.
+ *
+ * Handles authentication, content-type negotiation, and streaming responses.
+ * All responses are returned as streams (`responseType: 'stream'`).
+ */
 export class DwsApiClient {
   private readonly baseUrl: string
   private readonly tokenResolver: DwsTokenResolver
@@ -48,6 +58,7 @@ export class DwsApiClient {
     return new URL(normalizedEndpoint, this.baseUrl.endsWith('/') ? this.baseUrl : `${this.baseUrl}/`).toString()
   }
 
+  /** POST to a DWS endpoint. Automatically sets Content-Type based on the payload type. */
   async post(endpoint: string, data: FormData | Record<string, unknown>): Promise<AxiosResponse> {
     const headers = await this.buildHeaders(data)
 
@@ -57,6 +68,7 @@ export class DwsApiClient {
     })
   }
 
+  /** GET a DWS endpoint. */
   async get(endpoint: string): Promise<AxiosResponse> {
     const headers = await this.buildHeaders()
 
@@ -67,6 +79,7 @@ export class DwsApiClient {
   }
 }
 
+/** Creates a {@link DwsApiClient} that authenticates with a static API key. */
 export function createApiClientFromApiKey(apiKey: string, baseUrl?: string): DwsApiClient {
   return new DwsApiClient({
     baseUrl,
@@ -74,6 +87,7 @@ export function createApiClientFromApiKey(apiKey: string, baseUrl?: string): Dws
   })
 }
 
+/** Creates a {@link DwsApiClient} that resolves a fresh token on each request (e.g. for JWT/OAuth flows). */
 export function createApiClientFromTokenResolver(tokenResolver: DwsTokenResolver, baseUrl?: string): DwsApiClient {
   return new DwsApiClient({
     baseUrl,
