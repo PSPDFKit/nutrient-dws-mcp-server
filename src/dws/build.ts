@@ -7,7 +7,6 @@ import { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import { FileReference } from './types.js'
 import { createErrorResponse } from '../responses.js'
 import { resolveReadFilePath, resolveWriteFilePath } from '../fs/sandbox.js'
-import { callNutrientApi } from './api.js'
 import { DwsApiClient } from './client.js'
 
 /**
@@ -16,7 +15,7 @@ import { DwsApiClient } from './client.js'
 export async function performBuildCall(
   instructions: Instructions,
   outputFilePath: string,
-  apiClient?: DwsApiClient,
+  apiClient: DwsApiClient,
 ): Promise<CallToolResult> {
   const { instructions: adjustedInstructions, fileReferences } = await processInstructions(instructions)
 
@@ -139,12 +138,12 @@ async function processFileReference(reference: string): Promise<FileReference> {
 async function makeApiBuildCall(
   instructions: Instructions,
   fileReferences: Map<string, FileReference>,
-  apiClient?: DwsApiClient,
+  apiClient: DwsApiClient,
 ) {
   const allInputsAreUrls = Array.from(fileReferences.values()).every((fileRef) => fileRef.url)
 
   if (allInputsAreUrls) {
-    return apiClient ? apiClient.post('build', instructions) : callNutrientApi('build', instructions)
+    return apiClient.post('build', instructions)
   } else {
     const formData = new FormData()
     formData.append('instructions', JSON.stringify(instructions))
@@ -155,6 +154,6 @@ async function makeApiBuildCall(
       }
     }
 
-    return apiClient ? apiClient.post('build', formData) : callNutrientApi('build', formData)
+    return apiClient.post('build', formData)
   }
 }

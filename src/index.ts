@@ -127,10 +127,10 @@ Positioning:
           return await performSignCall(
             filePath,
             outputPath,
+            apiClient,
             signatureOptions,
             watermarkImagePath,
             graphicImagePath,
-            apiClient,
           )
         } catch (error) {
           return createErrorResponse(`Error: ${error instanceof Error ? error.message : String(error)}`)
@@ -160,7 +160,7 @@ By default (when neither stage nor apply is set), redactions are detected and im
         }
 
         try {
-          return await performAiRedactCall(filePath, criteria, outputPath, stage, apply, apiClient)
+          return await performAiRedactCall(filePath, criteria, outputPath, apiClient, stage, apply)
         } catch (error) {
           return createErrorResponse(`Error: ${error instanceof Error ? error.message : String(error)}`)
         }

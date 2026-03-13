@@ -36,18 +36,6 @@ export async function pipeToBuffer(responseData: Readable): Promise<Buffer> {
 }
 
 /**
- * Validates that the API key is set in the environment
- * @returns Object with error information if API key is not set
- */
-export function getApiKey(): string {
-  if (!process.env.NUTRIENT_DWS_API_KEY) {
-    throw new Error('NUTRIENT_DWS_API_KEY not set in environment')
-  }
-
-  return process.env.NUTRIENT_DWS_API_KEY
-}
-
-/**
  * Handles API errors and converts them to a standard format
  * @returns Object with error information
  * @param e

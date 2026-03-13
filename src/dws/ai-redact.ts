@@ -5,7 +5,6 @@ import { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import { handleApiError, handleFileResponse } from './utils.js'
 import { createErrorResponse } from '../responses.js'
 import { resolveReadFilePath, resolveWriteFilePath } from '../fs/sandbox.js'
-import { callNutrientApi } from './api.js'
 import { DwsApiClient } from './client.js'
 
 /**
@@ -15,9 +14,9 @@ export async function performAiRedactCall(
   filePath: string,
   criteria: string,
   outputPath: string,
+  apiClient: DwsApiClient,
   stage?: boolean,
   apply?: boolean,
-  apiClient?: DwsApiClient,
 ): Promise<CallToolResult> {
   // Resolve paths first to fail early
   try {
@@ -51,9 +50,7 @@ export async function performAiRedactCall(
     formData.append('file1', fileBuffer, { filename: fileName })
     formData.append('data', JSON.stringify(dataPayload))
 
-    const response = apiClient
-      ? await apiClient.post('ai/redact', formData)
-      : await callNutrientApi('ai/redact', formData)
+    const response = await apiClient.post('ai/redact', formData)
 
     return handleFileResponse(response, resolvedOutputPath, 'AI redaction completed successfully. Output saved to')
   } catch (e: unknown) {
