@@ -23,7 +23,7 @@ export type Environment = {
   authServerUrl: string
   protectedResourceMetadataUrl: string
   staticPrincipals: StaticPrincipal[]
-  jwksUrl?: string
+  jwksUrl: string
   issuer?: string
   tokenEndpointAuthMethod: TokenEndpointAuthMethod
   clientId?: string
@@ -43,7 +43,7 @@ const RawEnvironmentSchema = z.object({
   DWS_API_BASE_URL: z.string().url().default('https://api.nutrient.io'),
   RESOURCE_URL: z.string().url().default('https://mcp.nutrient.io/mcp'),
   AUTH_SERVER_URL: z.string().url().default('https://api.nutrient.io'),
-  JWKS_URL: z.string().url().optional(),
+  JWKS_URL: z.string().url().default('https://api.nutrient.io/.well-known/jwks.json'),
   ISSUER: z.string().url().optional(),
   TOKEN_ENDPOINT_AUTH_METHOD: z.enum(['client_secret_basic', 'private_key_jwt']).default('client_secret_basic'),
   CLIENT_ID: z.string().optional(),
@@ -218,12 +218,6 @@ function validateEnvironment(environment: Environment): Environment {
 
     if (!environment.nutrientApiKey) {
       throw new Error('NUTRIENT_DWS_API_KEY is required when MCP_TRANSPORT=http and AUTH_MODE=static')
-    }
-  }
-
-  if (environment.transportMode === 'http' && environment.authMode === 'jwt') {
-    if (!environment.jwksUrl) {
-      throw new Error('AUTH_MODE=jwt requires JWKS_URL to be configured')
     }
   }
 

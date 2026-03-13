@@ -65,18 +65,18 @@ Optional token metadata:
 Required:
 
 - `AUTH_MODE=jwt`
-- `JWKS_URL`
 
-Optional:
+Optional (all have production defaults):
 
-- `RESOURCE_URL` (public MCP resource URL, usually `http://localhost:3000/mcp`)
-- `AUTH_SERVER_URL` (OAuth server URL)
-- `ISSUER` (JWT issuer claim validation, defaults to `AUTH_SERVER_URL` if omitted)
+- `JWKS_URL` (default `https://api.nutrient.io/.well-known/jwks.json`)
+- `AUTH_SERVER_URL` (default `https://api.nutrient.io`)
+- `RESOURCE_URL` (default `https://mcp.nutrient.io/mcp`, set to your public MCP URL)
+- `ISSUER` (defaults to `AUTH_SERVER_URL`)
 
 Notes:
 
-- `NUTRIENT_DWS_API_KEY` is not required in JWT mode.
-- `CLIENT_ID`, `CLIENT_SECRET`, and `CLIENT_ASSERTION_*` are no longer needed since the access token is forwarded directly to the DWS API.
+- `NUTRIENT_DWS_API_KEY` is not required in JWT mode — the user's OAuth access token is forwarded directly to the DWS API.
+- `CLIENT_ID`, `CLIENT_SECRET`, and `CLIENT_ASSERTION_*` are no longer needed.
 - Audience matching accepts `dws-mcp` plus `RESOURCE_URL` variants (origin/path and trailing slash variants).
 
 ## Local Run: HTTP + Static Auth
@@ -107,25 +107,20 @@ curl -X POST http://127.0.0.1:3000/mcp \
   -d '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}'
 ```
 
-## Local Run: HTTP + JWT Auth
+## Local Run: HTTP + JWT Auth (production DWS)
+
+All auth/JWKS settings default to `api.nutrient.io`, so minimal config is:
 
 ```bash
 export MCP_TRANSPORT=http
 export AUTH_MODE=jwt
-export PORT=3000
-export MCP_HOST=127.0.0.1
-
-export DWS_API_BASE_URL=https://api.nutrient.io
 export RESOURCE_URL=http://localhost:3000/mcp
-export AUTH_SERVER_URL=https://api.nutrient.io
-export JWKS_URL=https://api.nutrient.io/.well-known/jwks.json
-export ISSUER=https://api.nutrient.io
-
 export MCP_DEBUG_LOGGING=true
-export LOG_LEVEL=debug
 
 pnpm run dev
 ```
+
+The MCP client (Claude Code, MCP Inspector) will discover the auth server via `/.well-known/oauth-protected-resource`, register itself via DCR, and redirect the user to sign in at `api.nutrient.io`. The user's OAuth access token is forwarded directly to the DWS API.
 
 Quick checks:
 
@@ -176,11 +171,40 @@ npx @modelcontextprotocol/inspector
 
 The inspector UI opens at `http://localhost:6274`. Point it at your running server (e.g. `http://localhost:3000/mcp`) to start testing.
 
+## Local Run: HTTP + JWT Auth (localhost DWS debug build)
+
+For testing against a local DWS instance (e.g. the Louisville `hosted` app running on port 4000):
+
+```bash
+export MCP_TRANSPORT=http
+export AUTH_MODE=jwt
+export PORT=3000
+export MCP_HOST=127.0.0.1
+
+export DWS_API_BASE_URL=http://localhost:4000
+export RESOURCE_URL=http://localhost:3000/mcp
+export AUTH_SERVER_URL=http://localhost:4000
+export JWKS_URL=http://localhost:4000/.well-known/jwks.json
+export ISSUER=http://localhost:4000
+
+export MCP_DEBUG_LOGGING=true
+
+pnpm run dev
+```
+
+This requires the DWS auth server to be running locally with:
+- OAuth authorization server metadata at `/.well-known/oauth-authorization-server`
+- JWKS at `/.well-known/jwks.json`
+- DCR at `/oauth/register`
+- Token endpoint at `/oauth/token`
+
+The DWS `hosted` app seeds a default MCP client (`dws-mcp-server`) but in JWT-forward mode no server-side client credentials are needed — the user's OAuth token is passed through directly.
+
 ## Common Failures
 
 - `Cannot POST /`: client points to `/` instead of `/mcp`.
 - `401 invalid_token`: missing/invalid bearer or JWT.
-- `unexpected "aud" claim value`: token audience does not match expected resource/audience set.
-- `AUTH_MODE=jwt requires JWKS_URL`: missing JWT config.
-- `TOKEN_ENDPOINT_AUTH_METHOD=private_key_jwt requires CLIENT_ASSERTION_PRIVATE_KEY`: missing signing key for client assertion.
+- `unexpected "aud" claim value`: token audience does not match expected resource/audience set. Check `RESOURCE_URL`.
+- `401` from DWS API on tool calls: the forwarded OAuth token is not accepted by the DWS API. Ensure the auth server issues tokens that the DWS API recognizes.
 - `Static HTTP auth requires bearer tokens`: set one of the bearer token env formats.
+- `Protected resource does not match`: `RESOURCE_URL` must match the URL the client connects to (e.g. ngrok URL, not localhost).

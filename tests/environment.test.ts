@@ -32,32 +32,13 @@ describe('environment', () => {
     expect(() => getEnvironment()).toThrow(/Static HTTP auth requires bearer tokens/)
   })
 
-  it('requires JWKS URL in HTTP JWT mode', () => {
+  it('defaults JWKS URL to api.nutrient.io in HTTP JWT mode', () => {
     process.env.MCP_TRANSPORT = 'http'
     process.env.AUTH_MODE = 'jwt'
-    process.env.CLIENT_ID = 'client-id'
-    process.env.CLIENT_SECRET = 'client-secret'
 
-    expect(() => getEnvironment()).toThrow(/requires JWKS_URL/)
-  })
+    const environment = getEnvironment()
 
-  it('does not require client secret in HTTP JWT mode anymore', () => {
-    resetEnvironmentForTests()
-    process.env.MCP_TRANSPORT = 'http'
-    process.env.AUTH_MODE = 'jwt'
-    process.env.JWKS_URL = 'https://auth.example.com/.well-known/jwks.json'
-
-    expect(() => getEnvironment()).not.toThrow()
-  })
-
-  it('does not require client assertion private key in HTTP JWT mode anymore', () => {
-    resetEnvironmentForTests()
-    process.env.MCP_TRANSPORT = 'http'
-    process.env.AUTH_MODE = 'jwt'
-    process.env.JWKS_URL = 'https://auth.example.com/.well-known/jwks.json'
-    process.env.TOKEN_ENDPOINT_AUTH_METHOD = 'private_key_jwt'
-
-    expect(() => getEnvironment()).not.toThrow()
+    expect(environment.jwksUrl).toBe('https://api.nutrient.io/.well-known/jwks.json')
   })
 
   it('accepts private_key_jwt mode without client secret', () => {

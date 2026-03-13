@@ -34,8 +34,8 @@ export function buildJwtAudiences(resourceUrl: string): string[] {
 
 export function createAuthMiddleware(environment: Environment): RequestHandler {
   if (environment.authMode === 'jwt') {
-    if (!environment.jwksUrl || !environment.issuer) {
-      throw new Error('JWT auth mode requires both JWKS_URL and ISSUER')
+    if (!environment.issuer) {
+      throw new Error('JWT auth mode requires ISSUER (defaults to AUTH_SERVER_URL)')
     }
 
     return createJwtAuthMiddleware({
