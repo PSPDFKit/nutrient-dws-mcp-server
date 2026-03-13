@@ -122,7 +122,7 @@ export PORT=3000
 export MCP_HOST=127.0.0.1
 
 export DWS_API_BASE_URL=http://localhost:4000
-export RESOURCE_URL=http://127.0.0.1:3000/mcp
+export RESOURCE_URL=http://localhost:3000/mcp
 export AUTH_SERVER_URL=http://localhost:4000
 export JWKS_URL=http://localhost:4000/.well-known/jwks.json
 export ISSUER=http://localhost:4000
@@ -208,6 +208,16 @@ export MCP_TRANSPORT=stdio
 export NUTRIENT_DWS_API_KEY=your_dws_api_key
 pnpm run dev
 ```
+
+## MCP Inspector
+
+The [MCP Inspector](https://github.com/modelcontextprotocol/inspector) is a browser-based tool for interactively testing and debugging MCP servers. It connects to your running server and lets you inspect available tools, send requests, and view responses in real time.
+
+```bash
+npx @modelcontextprotocol/inspector
+```
+
+The inspector UI opens at `http://localhost:6274`. Point it at your running server (e.g. `http://localhost:3000/mcp`) to start testing.
 
 ## Common Failures
 
