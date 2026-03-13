@@ -41,27 +41,23 @@ describe('environment', () => {
     expect(() => getEnvironment()).toThrow(/requires JWKS_URL/)
   })
 
-  it('requires client secret in HTTP JWT mode when using client_secret_basic', () => {
+  it('does not require client secret in HTTP JWT mode anymore', () => {
+    resetEnvironmentForTests()
     process.env.MCP_TRANSPORT = 'http'
     process.env.AUTH_MODE = 'jwt'
     process.env.JWKS_URL = 'https://auth.example.com/.well-known/jwks.json'
-    process.env.CLIENT_ID = 'client-id'
 
-    expect(() => getEnvironment()).toThrow(
-      /TOKEN_ENDPOINT_AUTH_METHOD=client_secret_basic requires CLIENT_SECRET/,
-    )
+    expect(() => getEnvironment()).not.toThrow()
   })
 
-  it('requires client assertion private key in HTTP JWT mode when using private_key_jwt', () => {
+  it('does not require client assertion private key in HTTP JWT mode anymore', () => {
+    resetEnvironmentForTests()
     process.env.MCP_TRANSPORT = 'http'
     process.env.AUTH_MODE = 'jwt'
     process.env.JWKS_URL = 'https://auth.example.com/.well-known/jwks.json'
-    process.env.CLIENT_ID = 'client-id'
     process.env.TOKEN_ENDPOINT_AUTH_METHOD = 'private_key_jwt'
 
-    expect(() => getEnvironment()).toThrow(
-      /TOKEN_ENDPOINT_AUTH_METHOD=private_key_jwt requires CLIENT_ASSERTION_PRIVATE_KEY/,
-    )
+    expect(() => getEnvironment()).not.toThrow()
   })
 
   it('accepts private_key_jwt mode without client secret', () => {

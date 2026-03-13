@@ -225,22 +225,6 @@ function validateEnvironment(environment: Environment): Environment {
     if (!environment.jwksUrl) {
       throw new Error('AUTH_MODE=jwt requires JWKS_URL to be configured')
     }
-
-    if (!environment.clientId) {
-      throw new Error('AUTH_MODE=jwt requires CLIENT_ID to be configured')
-    }
-
-    if (environment.tokenEndpointAuthMethod === 'client_secret_basic' && !environment.clientSecret) {
-      throw new Error(
-        'AUTH_MODE=jwt with TOKEN_ENDPOINT_AUTH_METHOD=client_secret_basic requires CLIENT_SECRET to be configured',
-      )
-    }
-
-    if (environment.tokenEndpointAuthMethod === 'private_key_jwt' && !environment.clientAssertionPrivateKey) {
-      throw new Error(
-        'AUTH_MODE=jwt with TOKEN_ENDPOINT_AUTH_METHOD=private_key_jwt requires CLIENT_ASSERTION_PRIVATE_KEY to be configured',
-      )
-    }
   }
 
   return environment

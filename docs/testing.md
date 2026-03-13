@@ -66,23 +66,17 @@ Required:
 
 - `AUTH_MODE=jwt`
 - `JWKS_URL`
-- `CLIENT_ID`
-- `TOKEN_ENDPOINT_AUTH_METHOD` (optional, default `client_secret_basic`)
-- One of:
-  - `CLIENT_SECRET` (when `TOKEN_ENDPOINT_AUTH_METHOD=client_secret_basic`)
-  - `CLIENT_ASSERTION_PRIVATE_KEY` (when `TOKEN_ENDPOINT_AUTH_METHOD=private_key_jwt`)
 
-Recommended/usually required:
+Optional:
 
 - `RESOURCE_URL` (public MCP resource URL, usually `http://localhost:3000/mcp`)
-- `AUTH_SERVER_URL`
-- `ISSUER` (defaults to `AUTH_SERVER_URL` if omitted)
-- `CLIENT_ASSERTION_ALG` (default `RS256`)
-- `CLIENT_ASSERTION_KID` (optional)
+- `AUTH_SERVER_URL` (OAuth server URL)
+- `ISSUER` (JWT issuer claim validation, defaults to `AUTH_SERVER_URL` if omitted)
 
 Notes:
 
 - `NUTRIENT_DWS_API_KEY` is not required in JWT mode.
+- `CLIENT_ID`, `CLIENT_SECRET`, and `CLIENT_ASSERTION_*` are no longer needed since the access token is forwarded directly to the DWS API.
 - Audience matching accepts `dws-mcp` plus `RESOURCE_URL` variants (origin/path and trailing slash variants).
 
 ## Local Run: HTTP + Static Auth
@@ -121,53 +115,16 @@ export AUTH_MODE=jwt
 export PORT=3000
 export MCP_HOST=127.0.0.1
 
-export DWS_API_BASE_URL=http://localhost:4000
+export DWS_API_BASE_URL=https://api.nutrient.io
 export RESOURCE_URL=http://localhost:3000/mcp
-export AUTH_SERVER_URL=http://localhost:4000
-export JWKS_URL=http://localhost:4000/.well-known/jwks.json
-export ISSUER=http://localhost:4000
-
-export CLIENT_ID=dws-mcp-server
-export CLIENT_SECRET=dev-dws-mcp-secret
+export AUTH_SERVER_URL=https://api.nutrient.io
+export JWKS_URL=https://api.nutrient.io/.well-known/jwks.json
+export ISSUER=https://api.nutrient.io
 
 export MCP_DEBUG_LOGGING=true
 export LOG_LEVEL=debug
 
 pnpm run dev
-```
-
-`private_key_jwt` variant:
-
-```bash
-export TOKEN_ENDPOINT_AUTH_METHOD=private_key_jwt
-export CLIENT_ID=dws-mcp-server
-export CLIENT_ASSERTION_PRIVATE_KEY='-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----'
-export CLIENT_ASSERTION_ALG=RS256
-export CLIENT_ASSERTION_KID=runtime-kid-1
-```
-
-Generate a keypair (RSA, for `RS256`):
-
-```bash
-mkdir -p .keys
-openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -out .keys/mcp-runtime-private.pem
-openssl rsa -in .keys/mcp-runtime-private.pem -pubout -out .keys/mcp-runtime-public.pem
-```
-
-Load private key into env var:
-
-```bash
-# Option A: one-line escaped value (great for .env files)
-export CLIENT_ASSERTION_PRIVATE_KEY="$(awk '{printf "%s\\\\n", $0}' .keys/mcp-runtime-private.pem)"
-
-# Option B: raw multiline value (works for direct shell export)
-export CLIENT_ASSERTION_PRIVATE_KEY="$(cat .keys/mcp-runtime-private.pem)"
-```
-
-Set a `kid` and use the same `kid` in your runtime client's registered JWKS:
-
-```bash
-export CLIENT_ASSERTION_KID=runtime-kid-1
 ```
 
 Quick checks:

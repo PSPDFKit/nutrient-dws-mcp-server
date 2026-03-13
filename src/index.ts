@@ -36,7 +36,6 @@ import { DwsApiClient } from './dws/client.js'
 import { createAuthMiddleware } from './http/authMiddleware.js'
 import { createProtectedResourceHandler } from './http/protectedResource.js'
 import { createRequestLoggerMiddleware, isMcpDebugLoggingEnabled } from './http/requestLogger.js'
-import { TokenExchangeClient } from './http/tokenExchange.js'
 import { getAllowedTools, getPrincipalFingerprint, isToolAllowed, RequestWithAuth } from './http/types.js'
 import { Environment, getEnvironment } from './utils/environment.js'
 
@@ -278,18 +277,13 @@ function createSessionApiClient(options: {
   environment: Environment
   authInfo: AuthInfo
   principalFingerprint: string
-  tokenExchangeClient?: TokenExchangeClient
 }): DwsApiClient {
-  const { environment, authInfo, principalFingerprint, tokenExchangeClient } = options
+  const { environment, authInfo } = options
 
   if (environment.authMode === 'jwt') {
-    if (!tokenExchangeClient) {
-      throw new Error('Token exchange client is required in JWT mode')
-    }
-
     return createApiClient({
       baseUrl: environment.dwsApiBaseUrl,
-      tokenResolver: async () => tokenExchangeClient.getRuntimeToken(principalFingerprint, authInfo.token),
+      tokenResolver: async () => authInfo.token,
     })
   }
 
@@ -306,18 +300,7 @@ function createSessionApiClient(options: {
 export function createHttpApp(options: { environment: Environment; sandboxEnabled: boolean }) {
   const { environment, sandboxEnabled } = options
 
-  const tokenExchangeClient =
-    environment.authMode === 'jwt' && environment.clientId
-      ? new TokenExchangeClient({
-          authServerUrl: environment.authServerUrl,
-          clientId: environment.clientId,
-          tokenEndpointAuthMethod: environment.tokenEndpointAuthMethod,
-          clientSecret: environment.clientSecret,
-          clientAssertionPrivateKey: environment.clientAssertionPrivateKey,
-          clientAssertionAlg: environment.clientAssertionAlg,
-          clientAssertionKid: environment.clientAssertionKid,
-        })
-      : undefined
+  
 
   const sessions = new Map<string, HttpSessionContext>()
 
@@ -416,7 +399,6 @@ export function createHttpApp(options: { environment: Environment; sandboxEnable
         environment,
         authInfo,
         principalFingerprint,
-        tokenExchangeClient,
       })
 
       const server = createMcpServer({
