@@ -369,6 +369,7 @@ export function createHttpApp(options: { environment: Environment; sandboxEnable
 
     const sessionContext = sessions.get(sessionId)
     if (!sessionContext) {
+      console.warn(`Session miss: unknown session ID ${sessionId} (active sessions: ${sessions.size})`)
       res.status(404).send('Unknown MCP session ID')
       return
     }
