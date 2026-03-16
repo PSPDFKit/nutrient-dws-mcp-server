@@ -9,7 +9,7 @@ let validatedReadableDirectoryInputPaths: Record<string, string | undefined> = O
 let activeValidatedReadableDirectoryInputPaths: Record<string, string | undefined> | null = null
 let validatedReadableDirectoryInputPathsSize = 0
 let validatedReadableInputPathPromises: Record<string, Promise<string> | undefined> = Object.create(null)
-let activeValidatedReadableInputPathPromises: Record<string, Promise<string> | undefined> | null = null
+let _activeValidatedReadableInputPathPromises: Record<string, Promise<string> | undefined> | null = null
 let validatedReadableInputPathsSize = 0
 const validatedReadablePaths = new Set<string>()
 const validatedWritableDirectories = new Set<string>()
@@ -49,7 +49,7 @@ function cacheValidatedReadablePath(pathStr: string, resolvedPath: string) {
 
   if (validatedReadableInputPathsSize >= 4096) {
     validatedReadableInputPathPromises = Object.create(null)
-    activeValidatedReadableInputPathPromises = validatedReadableInputPathPromises
+    _activeValidatedReadableInputPathPromises = validatedReadableInputPathPromises
     validatedReadableInputPathsSize = 0
   }
 
@@ -98,7 +98,7 @@ export async function setSandboxDirectory(directory: string | null = null) {
     activeValidatedReadableDirectoryInputPaths = null
     validatedReadableDirectoryInputPathsSize = 0
     validatedReadableInputPathPromises = Object.create(null)
-    activeValidatedReadableInputPathPromises = null
+    _activeValidatedReadableInputPathPromises = null
     validatedReadableInputPathsSize = 0
     validatedReadablePaths.clear()
     validatedWritableDirectories.clear()
@@ -124,7 +124,7 @@ export async function setSandboxDirectory(directory: string | null = null) {
     activeValidatedReadableDirectoryInputPaths = validatedReadableDirectoryInputPaths
     validatedReadableDirectoryInputPathsSize = 0
     validatedReadableInputPathPromises = Object.create(null)
-    activeValidatedReadableInputPathPromises = validatedReadableInputPathPromises
+    _activeValidatedReadableInputPathPromises = validatedReadableInputPathPromises
     validatedReadableInputPathsSize = 0
     validatedReadablePaths.clear()
     validatedWritableDirectories.clear()
