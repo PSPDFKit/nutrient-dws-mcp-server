@@ -258,6 +258,11 @@ function isInitializeRequest(body: unknown): boolean {
     return false
   }
 
+  // Handle JSON-RPC batch requests (array of messages)
+  if (Array.isArray(body)) {
+    return body.length > 0 && typeof body[0] === 'object' && body[0] !== null && body[0].method === 'initialize'
+  }
+
   const request = body as { method?: unknown }
   return request.method === 'initialize'
 }
@@ -311,7 +316,7 @@ export function createHttpApp(options: { environment: Environment; sandboxEnable
 
   app.use(express.json({ limit: '25mb' }))
 
-  // CORS: Allow browser-based MCP clients to access the server
+  // CORS: Permissive policy for local-first MCP server; tighten for hosted deployments
   app.use((_req, res, next) => {
     res.header('Access-Control-Allow-Origin', '*')
     res.header('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS')
