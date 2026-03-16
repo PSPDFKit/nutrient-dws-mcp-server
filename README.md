@@ -250,16 +250,60 @@ When no API key is configured, the server opens a browser-based OAuth flow on th
 
 ## Troubleshooting
 
+### Reset authentication to a clean state
+
+If OAuth authentication stops working, delete the cached files to start fresh:
+
+```bash
+# Remove cached tokens — forces re-authentication on next tool call
+rm ~/.nutrient/credentials.json
+
+# Remove cached client registration — forces new DCR on next tool call
+rm ~/.nutrient/client.json
+
+# Or remove everything at once
+rm -rf ~/.nutrient
+```
+
+The server will automatically re-register a client and open the browser for consent on the next tool call.
+
+### FAQ
+
 **Server not appearing in Claude Desktop?**
 
 - Ensure Node.js 18+ is installed (`node --version`)
 - Check the config file path is correct for your OS
 - Restart Claude Desktop completely (check Task Manager/Activity Monitor)
 
+**Browser doesn't open for OAuth login?**
+
+- This happens in headless or remote environments (SSH, Docker, CI). Set `NUTRIENT_DWS_API_KEY` instead — the server skips the browser flow when an API key is configured.
+- On macOS, ensure a default browser is set in System Settings → Desktop & Dock → Default web browser.
+
+**"Token exchange failed" or "OAuth authorization failed"?**
+
+- Delete `~/.nutrient/credentials.json` and try again.
+- If using a custom `AUTH_SERVER_URL`, verify the server is reachable and its `/oauth/token` endpoint is working.
+
+**"Dynamic client registration failed"?**
+
+- Delete `~/.nutrient/client.json` to force a fresh registration.
+- Ensure the auth server supports RFC 7591 Dynamic Client Registration at its `/oauth/register` endpoint.
+- If using a custom `AUTH_SERVER_URL`, verify it is reachable.
+
+**Port 19423 already in use?**
+
+- The OAuth callback server listens on `localhost:19423`. If another process is using that port, the server will fail to start the OAuth flow.
+- Find and stop the conflicting process: `lsof -i :19423` (macOS/Linux).
+
 **"API key invalid" errors?**
 
 - Verify your API key at [dashboard.nutrient.io](https://dashboard.nutrient.io)
 - Ensure the key is set correctly in the `env` section (no extra spaces)
+
+**Token expired but refresh fails?**
+
+- The server automatically refreshes expired tokens using the cached refresh token. If refresh fails (e.g., the refresh token was revoked), delete `~/.nutrient/credentials.json` — the server will re-authenticate via the browser on the next call.
 
 **Files not found?**
 
