@@ -227,47 +227,26 @@ When sandbox mode is enabled:
 
 Processed files are saved to a location determined by the AI. To guide output placement, use natural language (e.g., "save the result to `output/result.pdf`") or create an `output` directory in your sandbox.
 
+### Authentication
+
+The server authenticates to the Nutrient DWS API (`https://api.nutrient.io`) using one of:
+
+| Method | When | Config |
+|--------|------|--------|
+| **API key** | `NUTRIENT_DWS_API_KEY` is set | Static key passed as Bearer token to DWS API |
+| **OAuth browser flow** | No API key set | Opens browser for Nutrient OAuth consent, caches token locally |
+
+When no API key is configured, the server opens a browser-based OAuth flow on the first tool call (similar to `gh auth login`). Tokens are cached at `~/.nutrient/credentials.json` and refreshed automatically.
+
 ### Environment Variables
 
-| Variable                 | Required           | Description                                                                        |
-| ------------------------ | ------------------ | ---------------------------------------------------------------------------------- |
-| `NUTRIENT_DWS_API_KEY`   | Yes (stdio/static) | Your Nutrient DWS API key ([get one free](https://dashboard.nutrient.io/sign_up/)) |
-| `SANDBOX_PATH`           | Recommended        | Directory to restrict file operations to                                           |
-| `MCP_TRANSPORT`          | No                 | `stdio` (default) or `http`                                                        |
-| `AUTH_MODE`              | No                 | `static` (default) or `jwt` (HTTP mode only)                                       |
-| `PORT`                   | No                 | HTTP port (default `3000`)                                                         |
-| `MCP_HOST`               | No                 | HTTP bind host (default `127.0.0.1`)                                               |
-| `MCP_ALLOWED_HOSTS`      | No                 | Comma/space-separated allowed hostnames                                            |
-| `MCP_DEBUG_LOGGING`      | No                 | Enable HTTP request/response logging (`true`/`1`/`on`)                             |
-| `LOG_LEVEL`              | No                 | Console log level for Winston logger (`debug` default)                             |
-| `MCP_BEARER_TOKEN`       | Yes (HTTP+static)  | Single bearer token for static auth                                                |
-| `MCP_BEARER_TOKENS_JSON` | Optional           | JSON map/array of static bearer principals                                         |
-| `RESOURCE_URL`           | No                 | Protected resource URL advertised to OAuth clients                                 |
-| `AUTH_SERVER_URL`        | No                 | Authorization server base URL                                                      |
-| `JWKS_URL`               | Yes (HTTP+jwt)     | JWKS endpoint for JWT signature validation                                         |
-| `ISSUER`                 | No                 | JWT issuer (defaults to `AUTH_SERVER_URL`)                                         |
+| Variable               | Required    | Description                                                                        |
+| ---------------------- | ----------- | ---------------------------------------------------------------------------------- |
+| `NUTRIENT_DWS_API_KEY` | No*         | Nutrient DWS API key ([get one free](https://dashboard.nutrient.io/sign_up/))      |
+| `SANDBOX_PATH`         | Recommended | Directory to restrict file operations to                                           |
+| `LOG_LEVEL`            | No          | Console log level for Winston logger (`debug` default)                             |
 
-### HTTP Transport
-
-Start the MCP server over Streamable HTTP:
-
-```bash
-MCP_TRANSPORT=http \
-AUTH_MODE=static \
-NUTRIENT_DWS_API_KEY=your_dws_api_key \
-MCP_BEARER_TOKEN=your_mcp_bearer_token \
-npx @nutrient-sdk/dws-mcp-server
-```
-
-Endpoints:
-
-- `POST /mcp` (MCP Streamable HTTP)
-- `GET /mcp` (SSE stream)
-- `DELETE /mcp` (session termination)
-- `GET /health`
-- `GET /.well-known/oauth-protected-resource`
-
-Unauthenticated HTTP requests receive `401` and a `WWW-Authenticate` header with `resource_metadata`.
+\* If omitted, the server uses an OAuth browser flow to authenticate with the Nutrient API.
 
 ## Troubleshooting
 

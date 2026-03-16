@@ -33,6 +33,7 @@ import { getVersion } from './version.js'
 import { parseSandboxPath } from './utils/sandbox.js'
 import { createApiClient } from './dws/api.js'
 import { DwsApiClient } from './dws/client.js'
+import { getToken, type NutrientOAuthConfig } from './auth/nutrient-oauth.js'
 import { createAuthMiddleware } from './http/authMiddleware.js'
 import { createProtectedResourceHandler } from './http/protectedResource.js'
 import { createRequestLoggerMiddleware, isMcpDebugLoggingEnabled } from './http/requestLogger.js'
@@ -515,20 +516,34 @@ async function prepareSandbox(sandboxDir: string | null) {
   )
 }
 
+function createStdioApiClient(environment: Environment): DwsApiClient {
+  if (environment.nutrientApiKey) {
+    return createApiClient({
+      apiKey: environment.nutrientApiKey,
+      baseUrl: environment.dwsApiBaseUrl,
+    })
+  }
+
+  const oauthConfig: NutrientOAuthConfig = {
+    authorizeUrl: `${environment.authServerUrl}/oauth2/authorize`,
+    tokenUrl: `${environment.authServerUrl}/oauth2/token`,
+    clientId: environment.clientId ?? 'nutrient-dws-mcp-server',
+    scopes: ['dws'],
+  }
+
+  return createApiClient({
+    tokenResolver: () => getToken(oauthConfig),
+    baseUrl: environment.dwsApiBaseUrl,
+  })
+}
+
 async function runStdioServer(options: {
   sandboxEnabled: boolean
   environment: Environment
 }): Promise<RunServerResult> {
   const { sandboxEnabled, environment } = options
 
-  if (!environment.nutrientApiKey) {
-    throw new Error('NUTRIENT_DWS_API_KEY is required in stdio mode')
-  }
-
-  const apiClient = createApiClient({
-    apiKey: environment.nutrientApiKey,
-    baseUrl: environment.dwsApiBaseUrl,
-  })
+  const apiClient = createStdioApiClient(environment)
 
   const server = createMcpServer({
     sandboxEnabled,

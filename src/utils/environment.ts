@@ -205,9 +205,7 @@ function parseEnvConfiguredPrincipals(raw: RawEnvironment, env: NodeJS.ProcessEn
 }
 
 function validateEnvironment(environment: Environment): Environment {
-  if (environment.transportMode === 'stdio' && !environment.nutrientApiKey) {
-    throw new Error('NUTRIENT_DWS_API_KEY is required when MCP_TRANSPORT=stdio')
-  }
+  // stdio mode: API key is optional when OAuth browser flow is available
 
   if (environment.transportMode === 'http' && environment.authMode === 'static') {
     if (environment.staticPrincipals.length === 0) {
