@@ -252,20 +252,13 @@ When no API key is configured, the server opens a browser-based OAuth flow on th
 
 ### Reset authentication to a clean state
 
-If OAuth authentication stops working, delete the cached files to start fresh:
+If OAuth authentication stops working, delete the cached token file to start fresh:
 
 ```bash
-# Remove cached tokens — forces re-authentication on next tool call
 rm ~/.nutrient/credentials.json
-
-# Remove cached client registration — forces new DCR on next tool call
-rm ~/.nutrient/client.json
-
-# Or remove everything at once
-rm -rf ~/.nutrient
 ```
 
-The server will automatically re-register a client and open the browser for consent on the next tool call.
+The server will automatically register a new client and open the browser for consent on the next tool call.
 
 ### FAQ
 
@@ -287,14 +280,8 @@ The server will automatically re-register a client and open the browser for cons
 
 **"Dynamic client registration failed"?**
 
-- Delete `~/.nutrient/client.json` to force a fresh registration.
 - Ensure the auth server supports RFC 7591 Dynamic Client Registration at its `/oauth/register` endpoint.
 - If using a custom `AUTH_SERVER_URL`, verify it is reachable.
-
-**Port 19423 already in use?**
-
-- The OAuth callback server listens on `localhost:19423`. If another process is using that port, the server will fail to start the OAuth flow.
-- Find and stop the conflicting process: `lsof -i :19423` (macOS/Linux).
 
 **"API key invalid" errors?**
 

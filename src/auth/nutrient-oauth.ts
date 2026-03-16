@@ -5,9 +5,6 @@ import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { logger } from '../logger.js'
 
-/** Fixed callback port for OAuth redirect URI. Must match the registered redirect_uri on the auth server. */
-const DEFAULT_CALLBACK_PORT = 19423
-
 export type NutrientOAuthConfig = {
   /** Nutrient OAuth authorize endpoint. */
   authorizeUrl: string
@@ -23,10 +20,6 @@ export type NutrientOAuthConfig = {
   scopes: string[]
   /** Path to cache credentials. Defaults to `~/.nutrient/credentials.json`. */
   credentialsPath?: string
-  /** Path to cache DCR client registration. Defaults to `~/.nutrient/client.json`. */
-  clientRegistrationPath?: string
-  /** Fixed port for the OAuth callback server. Defaults to 19423. */
-  callbackPort?: number
   /** OAuth resource parameter (RFC 8707). Identifies the target API. */
   resource?: string
 }
@@ -37,14 +30,7 @@ type CachedCredentials = {
   expiresAt?: number
 }
 
-type CachedClientRegistration = {
-  clientId: string
-  registrationUrl: string
-  registeredAt: string
-}
-
 const DEFAULT_CREDENTIALS_PATH = join(homedir(), '.nutrient', 'credentials.json')
-const DEFAULT_CLIENT_REGISTRATION_PATH = join(homedir(), '.nutrient', 'client.json')
 
 function generateCodeVerifier(): string {
   return randomBytes(32).toString('base64url')
@@ -69,28 +55,10 @@ async function writeCachedCredentials(credentialsPath: string, credentials: Cach
   await writeFile(credentialsPath, JSON.stringify(credentials, null, 2), { mode: 0o600 })
 }
 
-async function readCachedClientRegistration(path: string): Promise<CachedClientRegistration | null> {
-  try {
-    const content = await readFile(path, 'utf-8')
-    return JSON.parse(content) as CachedClientRegistration
-  } catch {
-    return null
-  }
-}
-
-async function writeCachedClientRegistration(path: string, registration: CachedClientRegistration): Promise<void> {
-  const dir = join(path, '..')
-  await mkdir(dir, { recursive: true, mode: 0o700 })
-  await writeFile(path, JSON.stringify(registration, null, 2), { mode: 0o600 })
-}
-
-async function registerClient(config: NutrientOAuthConfig): Promise<string> {
+async function registerClient(config: NutrientOAuthConfig, redirectUri: string): Promise<string> {
   if (!config.registrationUrl) {
     throw new Error('DCR requires registrationUrl when clientId is not configured')
   }
-
-  const callbackPort = config.callbackPort ?? DEFAULT_CALLBACK_PORT
-  const redirectUri = `http://localhost:${callbackPort}/callback`
 
   const registrationPayload = {
     client_name: config.clientName ?? 'Nutrient DWS MCP Server',
@@ -123,33 +91,6 @@ async function registerClient(config: NutrientOAuthConfig): Promise<string> {
 
   logger.info('OAuth client registered', { clientId: data.client_id })
   return data.client_id
-}
-
-/**
- * Resolves the OAuth client ID — either from config, cached DCR registration, or by registering a new client.
- */
-async function resolveClientId(config: NutrientOAuthConfig): Promise<string> {
-  if (config.clientId) {
-    return config.clientId
-  }
-
-  const registrationPath = config.clientRegistrationPath ?? DEFAULT_CLIENT_REGISTRATION_PATH
-
-  const cached = await readCachedClientRegistration(registrationPath)
-  if (cached && cached.registrationUrl === config.registrationUrl) {
-    logger.debug('Using cached DCR client', { clientId: cached.clientId })
-    return cached.clientId
-  }
-
-  const clientId = await registerClient(config)
-
-  await writeCachedClientRegistration(registrationPath, {
-    clientId,
-    registrationUrl: config.registrationUrl!,
-    registeredAt: new Date().toISOString(),
-  })
-
-  return clientId
 }
 
 function isTokenExpired(credentials: CachedCredentials): boolean {
@@ -262,13 +203,50 @@ function buildAuthorizeUrl(
   return url.toString()
 }
 
-async function performBrowserOAuthFlow(config: NutrientOAuthConfig, clientId: string): Promise<CachedCredentials> {
+/**
+ * Starts the callback server on a random available port and returns the server + assigned port.
+ */
+function startCallbackServer(): Promise<{ server: ReturnType<typeof createServer>; port: number }> {
+  return new Promise((resolve, reject) => {
+    const server = createServer()
+    server.listen(0, '127.0.0.1', () => {
+      const addr = server.address()
+      if (!addr || typeof addr === 'string') {
+        server.close()
+        reject(new Error('Failed to get callback server address'))
+        return
+      }
+      resolve({ server, port: addr.port })
+    })
+    server.on('error', reject)
+  })
+}
+
+async function performBrowserOAuthFlow(config: NutrientOAuthConfig): Promise<CachedCredentials> {
   const codeVerifier = generateCodeVerifier()
   const codeChallenge = generateCodeChallenge(codeVerifier)
   const state = randomBytes(16).toString('hex')
 
+  // 1. Start callback server on a random available port
+  const { server, port } = await startCallbackServer()
+  const redirectUri = `http://localhost:${port}/callback`
+
+  logger.info('OAuth callback server listening', { port, redirectUri })
+
+  // 2. Register client via DCR (or use static clientId) with the actual redirect URI
+  const clientId = config.clientId ?? await registerClient(config, redirectUri)
+
+  // 3. Open browser for authorization
+  const authorizeUrl = buildAuthorizeUrl(config, clientId, redirectUri, codeChallenge, state)
+  logger.debug('Authorize URL', { authorizeUrl })
+
+  const { default: open } = await import('open')
+  logger.info('Opening browser for Nutrient authentication...')
+  await open(authorizeUrl)
+
+  // 4. Wait for the OAuth callback
   return new Promise<CachedCredentials>((resolve, reject) => {
-    const server = createServer(async (req: IncomingMessage, res: ServerResponse) => {
+    server.on('request', async (req: IncomingMessage, res: ServerResponse) => {
       try {
         const url = new URL(req.url ?? '/', `http://localhost`)
         if (url.pathname !== '/callback') {
@@ -305,9 +283,6 @@ async function performBrowserOAuthFlow(config: NutrientOAuthConfig, clientId: st
           return
         }
 
-        const cbPort = config.callbackPort ?? DEFAULT_CALLBACK_PORT
-        const redirectUri = `http://localhost:${cbPort}/callback`
-
         const credentials = await exchangeCodeForToken(config, clientId, code, codeVerifier, redirectUri)
 
         res.writeHead(200, { 'Content-Type': 'text/html' })
@@ -321,23 +296,6 @@ async function performBrowserOAuthFlow(config: NutrientOAuthConfig, clientId: st
         reject(err)
       }
     })
-
-    const callbackPort = config.callbackPort ?? DEFAULT_CALLBACK_PORT
-
-    server.listen(callbackPort, '127.0.0.1', async () => {
-      const redirectUri = `http://localhost:${callbackPort}/callback`
-      const authorizeUrl = buildAuthorizeUrl(config, clientId, redirectUri, codeChallenge, state)
-
-      logger.info('OAuth callback server listening', { port: callbackPort, redirectUri })
-      logger.debug('Authorize URL', { authorizeUrl })
-
-      // Dynamic import to avoid bundling issues — `open` is an ESM-only package
-      const { default: open } = await import('open')
-      logger.info('Opening browser for Nutrient authentication...')
-      await open(authorizeUrl)
-    })
-
-    server.on('error', reject)
   })
 }
 
@@ -350,10 +308,7 @@ async function performBrowserOAuthFlow(config: NutrientOAuthConfig, clientId: st
 export async function getToken(config: NutrientOAuthConfig): Promise<string> {
   const credentialsPath = config.credentialsPath ?? DEFAULT_CREDENTIALS_PATH
 
-  // 0. Resolve client ID (from config, cached DCR, or fresh DCR registration)
-  const clientId = await resolveClientId(config)
-
-  logger.debug('getToken called', { clientId, credentialsPath })
+  logger.debug('getToken called', { credentialsPath })
 
   // 1. Check cached token
   const cached = await readCachedCredentials(credentialsPath)
@@ -368,9 +323,9 @@ export async function getToken(config: NutrientOAuthConfig): Promise<string> {
     logger.debug('Cached token expired', { expiresAt: cached.expiresAt ? new Date(cached.expiresAt).toISOString() : 'unknown' })
 
     // 3. Expired but has refresh token — try refresh
-    if (cached.refreshToken) {
+    if (cached.refreshToken && config.clientId) {
       logger.info('Attempting token refresh')
-      const refreshed = await refreshAccessToken(config, clientId, cached.refreshToken)
+      const refreshed = await refreshAccessToken(config, config.clientId, cached.refreshToken)
       if (refreshed) {
         logger.info('Token refreshed successfully')
         await writeCachedCredentials(credentialsPath, refreshed)
@@ -382,9 +337,9 @@ export async function getToken(config: NutrientOAuthConfig): Promise<string> {
     logger.info('No cached credentials found')
   }
 
-  // 4. No valid token — browser OAuth flow
-  logger.info('Starting browser OAuth flow', { authorizeUrl: config.authorizeUrl, clientId })
-  const credentials = await performBrowserOAuthFlow(config, clientId)
+  // 4. No valid token — browser OAuth flow (includes DCR if needed)
+  logger.info('Starting browser OAuth flow', { authorizeUrl: config.authorizeUrl })
+  const credentials = await performBrowserOAuthFlow(config)
   logger.info('Browser OAuth flow completed successfully')
   await writeCachedCredentials(credentialsPath, credentials)
   return credentials.accessToken
