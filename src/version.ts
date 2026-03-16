@@ -2,10 +2,16 @@ import fs, { readFileSync } from 'fs'
 import { dirname, resolve } from 'path'
 import { fileURLToPath } from 'url'
 
+let cachedVersion: string | undefined
+
 /**
  * Reliably gets the package.json contents even when the package is published
  */
 export function getVersion(): string {
+  if (cachedVersion !== undefined) {
+    return cachedVersion
+  }
+
   try {
     // Start from the current file's directory
     let currentDir = dirname(fileURLToPath(import.meta.url))
@@ -29,9 +35,12 @@ export function getVersion(): string {
     }
 
     const packageJSON = JSON.parse(readFileSync(packagePath, 'utf8'))
-    return packageJSON.version
+    const version = typeof packageJSON.version === 'string' ? packageJSON.version : 'unknown'
+    cachedVersion = version
+    return version
   } catch (error) {
     console.error('Failed to read package.json:', error instanceof Error ? error.message : error)
+    cachedVersion = 'unknown'
     return 'unknown'
   }
 }
