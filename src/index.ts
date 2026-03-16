@@ -283,31 +283,17 @@ function sendJsonRpcError(res: Response, code: number, message: string, id: stri
 function createSessionApiClient(options: {
   environment: Environment
   authInfo: AuthInfo
-  principalFingerprint: string
 }): DwsApiClient {
   const { environment, authInfo } = options
 
-  if (environment.authMode === 'jwt') {
-    return createApiClient({
-      baseUrl: environment.dwsApiBaseUrl,
-      tokenResolver: async () => authInfo.token,
-    })
-  }
-
-  if (!environment.nutrientApiKey) {
-    throw new Error('NUTRIENT_DWS_API_KEY is required in static auth mode')
-  }
-
   return createApiClient({
-    apiKey: environment.nutrientApiKey,
     baseUrl: environment.dwsApiBaseUrl,
+    tokenResolver: async () => authInfo.token,
   })
 }
 
 export function createHttpApp(options: { environment: Environment; sandboxEnabled: boolean }) {
   const { environment, sandboxEnabled } = options
-
-  
 
   const sessions = new Map<string, HttpSessionContext>()
 
@@ -405,7 +391,6 @@ export function createHttpApp(options: { environment: Environment; sandboxEnable
       const apiClient = createSessionApiClient({
         environment,
         authInfo,
-        principalFingerprint,
       })
 
       const server = createMcpServer({

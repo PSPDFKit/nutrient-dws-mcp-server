@@ -1,6 +1,5 @@
 import type { RequestHandler } from 'express'
 import { Environment } from '../utils/environment.js'
-import { createBearerAuthMiddleware } from './bearerAuth.js'
 import { createJwtAuthMiddleware } from './jwtAuth.js'
 
 function addAudienceWithTrailingSlashVariants(target: Set<string>, value: string) {
@@ -33,22 +32,15 @@ export function buildJwtAudiences(resourceUrl: string): string[] {
 }
 
 export function createAuthMiddleware(environment: Environment): RequestHandler {
-  if (environment.authMode === 'jwt') {
-    if (!environment.issuer) {
-      throw new Error('JWT auth mode requires ISSUER (defaults to AUTH_SERVER_URL)')
-    }
-
-    return createJwtAuthMiddleware({
-      jwksUrl: environment.jwksUrl,
-      issuer: environment.issuer,
-      audience: buildJwtAudiences(environment.resourceUrl),
-      requiredScope: 'mcp:invoke',
-      resourceMetadataUrl: environment.protectedResourceMetadataUrl,
-    })
+  if (!environment.issuer) {
+    throw new Error('JWT auth requires ISSUER (defaults to AUTH_SERVER_URL)')
   }
 
-  return createBearerAuthMiddleware({
-    principals: environment.staticPrincipals,
+  return createJwtAuthMiddleware({
+    jwksUrl: environment.jwksUrl,
+    issuer: environment.issuer,
+    audience: buildJwtAudiences(environment.resourceUrl),
+    requiredScope: 'mcp:invoke',
     resourceMetadataUrl: environment.protectedResourceMetadataUrl,
   })
 }

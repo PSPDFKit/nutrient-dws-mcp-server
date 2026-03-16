@@ -1,34 +1,83 @@
+import { createServer, type Server } from 'node:http'
 import request from 'supertest'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest'
+import { exportJWK, generateKeyPair, SignJWT } from 'jose'
 import { createHttpApp } from '../src/index.js'
 import { Environment } from '../src/utils/environment.js'
+
+// ── Test JWKS server ──────────────────────────────────────────────────────────
+
+let jwksServer: Server
+let jwksUrl: string
+let testKeyPair: Awaited<ReturnType<typeof generateKeyPair>>
+let testKid: string
+
+beforeAll(async () => {
+  testKid = 'test-key-1'
+  testKeyPair = await generateKeyPair('RS256')
+
+  const publicJwk = await exportJWK(testKeyPair.publicKey)
+  publicJwk.kid = testKid
+  publicJwk.use = 'sig'
+  publicJwk.alg = 'RS256'
+
+  const jwksPayload = JSON.stringify({ keys: [publicJwk] })
+
+  jwksServer = createServer((_req, res) => {
+    res.writeHead(200, { 'Content-Type': 'application/json' })
+    res.end(jwksPayload)
+  })
+
+  await new Promise<void>((resolve) => {
+    jwksServer.listen(0, '127.0.0.1', () => resolve())
+  })
+
+  const address = jwksServer.address()
+  if (!address || typeof address === 'string') {
+    throw new Error('JWKS server did not bind')
+  }
+
+  jwksUrl = `http://127.0.0.1:${address.port}/.well-known/jwks.json`
+})
+
+afterAll(async () => {
+  await new Promise<void>((resolve) => jwksServer.close(() => resolve()))
+})
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+const TEST_ISSUER = 'https://auth.example.com'
+const TEST_RESOURCE_URL = 'https://mcp.example.com/mcp'
+
+async function signTestJwt(overrides: Record<string, unknown> = {}, subject = 'user-1') {
+  const builder = new SignJWT({
+    scope: 'mcp:invoke',
+    azp: 'test-client',
+    ...overrides,
+  })
+    .setProtectedHeader({ alg: 'RS256', kid: testKid })
+    .setIssuer(TEST_ISSUER)
+    .setSubject(subject)
+    .setAudience(TEST_RESOURCE_URL)
+    .setIssuedAt()
+    .setExpirationTime('5m')
+
+  return builder.sign(testKeyPair.privateKey)
+}
 
 function createEnvironment(overrides: Partial<Environment> = {}): Environment {
   return {
     transportMode: 'http',
-    authMode: 'static',
     port: 3000,
     host: '127.0.0.1',
     allowedHosts: [],
     nutrientApiKey: 'dws-api-key',
     dwsApiBaseUrl: 'https://api.nutrient.io',
-    resourceUrl: 'https://mcp.example.com/mcp',
-    authServerUrl: 'https://auth.example.com',
+    resourceUrl: TEST_RESOURCE_URL,
+    authServerUrl: TEST_ISSUER,
     protectedResourceMetadataUrl: 'https://mcp.example.com/.well-known/oauth-protected-resource',
-    staticPrincipals: [
-      {
-        token: 'token-1',
-        clientId: 'client-1',
-        scopes: ['mcp:invoke'],
-      },
-      {
-        token: 'token-2',
-        clientId: 'client-2',
-        scopes: ['mcp:invoke'],
-      },
-    ],
-    jwksUrl: undefined,
-    issuer: undefined,
+    jwksUrl,
+    issuer: TEST_ISSUER,
     tokenEndpointAuthMethod: 'client_secret_basic',
     clientId: undefined,
     clientSecret: undefined,
@@ -54,6 +103,8 @@ const initializeRequest = {
     },
   },
 }
+
+// ── Tests ─────────────────────────────────────────────────────────────────────
 
 describe('http transport', () => {
   let closeApp: (() => Promise<void>) | undefined
@@ -102,8 +153,8 @@ describe('http transport', () => {
     const metadataResponse = await request(app).get('/.well-known/oauth-protected-resource')
     expect(metadataResponse.status).toBe(200)
     expect(metadataResponse.body).toEqual({
-      resource: 'https://mcp.example.com/mcp',
-      authorization_servers: ['https://auth.example.com'],
+      resource: TEST_RESOURCE_URL,
+      authorization_servers: [TEST_ISSUER],
     })
   })
 
@@ -121,11 +172,14 @@ describe('http transport', () => {
     const { app, close } = createHttpApp({ environment: createEnvironment(), sandboxEnabled: false })
     closeApp = close
 
-    const sessionId = await initializeSession(app, 'token-1')
+    const token1 = await signTestJwt({}, 'user-1')
+    const token2 = await signTestJwt({}, 'user-2')
+
+    const sessionId = await initializeSession(app, token1)
 
     const response = await request(app)
       .post('/mcp')
-      .set('authorization', 'Bearer token-2')
+      .set('authorization', `Bearer ${token2}`)
       .set('mcp-session-id', sessionId)
       .set('accept', 'application/json')
       .send({
@@ -139,26 +193,16 @@ describe('http transport', () => {
     expect(response.text).toContain('different principal')
   })
 
-  it('filters tools/list according to allowed tools', async () => {
-    const environment = createEnvironment({
-      staticPrincipals: [
-        {
-          token: 'token-1',
-          clientId: 'client-1',
-          scopes: ['mcp:invoke'],
-          allowedTools: ['check_credits'],
-        },
-      ],
-    })
-
-    const { app, close } = createHttpApp({ environment, sandboxEnabled: false })
+  it('filters tools/list according to allowed tools in JWT', async () => {
+    const { app, close } = createHttpApp({ environment: createEnvironment(), sandboxEnabled: false })
     closeApp = close
 
-    const sessionId = await initializeSession(app, 'token-1')
+    const token = await signTestJwt({ allowed_tools: ['check_credits'] })
+    const sessionId = await initializeSession(app, token)
 
     const response = await request(app)
       .post('/mcp')
-      .set('authorization', 'Bearer token-1')
+      .set('authorization', `Bearer ${token}`)
       .set('mcp-session-id', sessionId)
       .set('accept', 'application/json, text/event-stream')
       .send({
@@ -202,20 +246,19 @@ describe('http transport', () => {
     const { app, close } = createHttpApp({ environment: createEnvironment(), sandboxEnabled: false })
     closeApp = close
 
-    const sessionId = await initializeSession(app, 'token-1')
+    const token = await signTestJwt()
+    const sessionId = await initializeSession(app, token)
 
-    // DELETE the session
     const deleteResponse = await request(app)
       .delete('/mcp')
-      .set('authorization', 'Bearer token-1')
+      .set('authorization', `Bearer ${token}`)
       .set('mcp-session-id', sessionId)
 
     expect(deleteResponse.status).toBe(200)
 
-    // Subsequent request to the same session should fail with 404
     const postResponse = await request(app)
       .post('/mcp')
-      .set('authorization', 'Bearer token-1')
+      .set('authorization', `Bearer ${token}`)
       .set('mcp-session-id', sessionId)
       .set('accept', 'application/json')
       .send({
