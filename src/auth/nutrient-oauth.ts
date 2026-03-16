@@ -3,6 +3,10 @@ import { randomBytes, createHash } from 'node:crypto'
 import { readFile, writeFile, mkdir } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
+import { logger } from '../logger.js'
+
+/** Fixed callback port for OAuth redirect URI. Must match the registered redirect_uri on the auth server. */
+const DEFAULT_CALLBACK_PORT = 19423
 
 export type NutrientOAuthConfig = {
   /** Nutrient OAuth authorize endpoint. */
@@ -15,6 +19,10 @@ export type NutrientOAuthConfig = {
   scopes: string[]
   /** Path to cache credentials. Defaults to `~/.nutrient/credentials.json`. */
   credentialsPath?: string
+  /** Fixed port for the OAuth callback server. Defaults to 19423. */
+  callbackPort?: number
+  /** OAuth resource parameter (RFC 8707). Identifies the target API. */
+  resource?: string
 }
 
 type CachedCredentials = {
@@ -61,6 +69,7 @@ async function refreshAccessToken(
   refreshToken: string,
 ): Promise<CachedCredentials | null> {
   try {
+    logger.debug('Attempting token refresh', { tokenUrl: config.tokenUrl, clientId: config.clientId })
     const response = await fetch(config.tokenUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -72,6 +81,7 @@ async function refreshAccessToken(
     })
 
     if (!response.ok) {
+      logger.warn('Token refresh failed', { status: response.status, statusText: response.statusText })
       return null
     }
 
@@ -111,6 +121,7 @@ async function exchangeCodeForToken(
 
   if (!response.ok) {
     const errorText = await response.text()
+    logger.error('Token exchange failed', { status: response.status, body: errorText })
     throw new Error(`Token exchange failed (${response.status}): ${errorText}`)
   }
 
@@ -143,6 +154,10 @@ function buildAuthorizeUrl(
 
   if (config.scopes.length > 0) {
     url.searchParams.set('scope', config.scopes.join(' '))
+  }
+
+  if (config.resource) {
+    url.searchParams.set('resource', config.resource)
   }
 
   return url.toString()
@@ -191,9 +206,8 @@ async function performBrowserOAuthFlow(config: NutrientOAuthConfig): Promise<Cac
           return
         }
 
-        const address = server.address()
-        const port = typeof address === 'object' && address ? address.port : 0
-        const redirectUri = `http://localhost:${port}/callback`
+        const cbPort = config.callbackPort ?? DEFAULT_CALLBACK_PORT
+        const redirectUri = `http://localhost:${cbPort}/callback`
 
         const credentials = await exchangeCodeForToken(config, code, codeVerifier, redirectUri)
 
@@ -209,15 +223,18 @@ async function performBrowserOAuthFlow(config: NutrientOAuthConfig): Promise<Cac
       }
     })
 
-    server.listen(0, '127.0.0.1', async () => {
-      const address = server.address()
-      const port = typeof address === 'object' && address ? address.port : 0
-      const redirectUri = `http://localhost:${port}/callback`
+    const callbackPort = config.callbackPort ?? DEFAULT_CALLBACK_PORT
+
+    server.listen(callbackPort, '127.0.0.1', async () => {
+      const redirectUri = `http://localhost:${callbackPort}/callback`
       const authorizeUrl = buildAuthorizeUrl(config, redirectUri, codeChallenge, state)
+
+      logger.info('OAuth callback server listening', { port: callbackPort, redirectUri })
+      logger.debug('Authorize URL', { authorizeUrl })
 
       // Dynamic import to avoid bundling issues — `open` is an ESM-only package
       const { default: open } = await import('open')
-      console.error(`Opening browser for Nutrient authentication...`)
+      logger.info('Opening browser for Nutrient authentication...')
       await open(authorizeUrl)
     })
 
@@ -234,27 +251,39 @@ async function performBrowserOAuthFlow(config: NutrientOAuthConfig): Promise<Cac
 export async function getToken(config: NutrientOAuthConfig): Promise<string> {
   const credentialsPath = config.credentialsPath ?? DEFAULT_CREDENTIALS_PATH
 
+  logger.debug('getToken called', { clientId: config.clientId, credentialsPath })
+
   // 1. Check cached token
   const cached = await readCachedCredentials(credentialsPath)
 
   if (cached) {
     // 2. Valid token — return it
     if (!isTokenExpired(cached)) {
+      logger.debug('Using cached token (not expired)')
       return cached.accessToken
     }
 
+    logger.debug('Cached token expired', { expiresAt: cached.expiresAt ? new Date(cached.expiresAt).toISOString() : 'unknown' })
+
     // 3. Expired but has refresh token — try refresh
     if (cached.refreshToken) {
+      logger.info('Attempting token refresh')
       const refreshed = await refreshAccessToken(config, cached.refreshToken)
       if (refreshed) {
+        logger.info('Token refreshed successfully')
         await writeCachedCredentials(credentialsPath, refreshed)
         return refreshed.accessToken
       }
+      logger.warn('Token refresh failed, falling back to browser flow')
     }
+  } else {
+    logger.info('No cached credentials found')
   }
 
   // 4. No valid token — browser OAuth flow
+  logger.info('Starting browser OAuth flow', { authorizeUrl: config.authorizeUrl, clientId: config.clientId })
   const credentials = await performBrowserOAuthFlow(config)
+  logger.info('Browser OAuth flow completed successfully')
   await writeCachedCredentials(credentialsPath, credentials)
   return credentials.accessToken
 }

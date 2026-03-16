@@ -1,4 +1,6 @@
 import { AsyncLocalStorage } from 'node:async_hooks'
+import { join } from 'node:path'
+import { tmpdir } from 'node:os'
 import winston from 'winston'
 
 type RequestContext = {
@@ -37,11 +39,24 @@ const customMessageFormat = winston.format.printf(({ level, message, timestamp }
   return `${timestamp} [${level}]: ${serializedMessage}`
 })
 
-export const logger = winston.createLogger({
-  level: process.env.LOG_LEVEL || 'debug',
-  format: winston.format.json(),
-  defaultMeta: { service: 'dws-mcp-server' },
-  transports: [
+const isStdioMode = process.env.MCP_TRANSPORT !== 'http'
+const logFilePath = process.env.MCP_LOG_FILE || (isStdioMode ? join(tmpdir(), 'nutrient-dws-mcp-server.log') : undefined)
+
+function createTransports(): winston.transport[] {
+  // In stdio mode, Console transport interferes with MCP protocol — use file only
+  if (logFilePath) {
+    return [
+      new winston.transports.File({
+        filename: logFilePath,
+        format: winston.format.combine(
+          winston.format.timestamp({ format: 'HH:mm:ss.SSS' }),
+          customMessageFormat,
+        ),
+      }),
+    ]
+  }
+
+  return [
     new winston.transports.Console({
       format: winston.format.combine(
         winston.format.timestamp({ format: 'HH:mm:ss.SSS' }),
@@ -50,5 +65,12 @@ export const logger = winston.createLogger({
         customMessageFormat,
       ),
     }),
-  ],
+  ]
+}
+
+export const logger = winston.createLogger({
+  level: process.env.LOG_LEVEL || 'debug',
+  format: winston.format.json(),
+  defaultMeta: { service: 'dws-mcp-server' },
+  transports: createTransports(),
 })

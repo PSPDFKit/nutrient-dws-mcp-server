@@ -39,6 +39,7 @@ import { createProtectedResourceHandler } from './http/protectedResource.js'
 import { createRequestLoggerMiddleware, isMcpDebugLoggingEnabled } from './http/requestLogger.js'
 import { getAllowedTools, getPrincipalFingerprint, isToolAllowed, RequestWithAuth } from './http/types.js'
 import { Environment, getEnvironment } from './utils/environment.js'
+import { logger } from './logger.js'
 
 type ServerMode = 'stdio' | 'http'
 
@@ -525,10 +526,11 @@ function createStdioApiClient(environment: Environment): DwsApiClient {
   }
 
   const oauthConfig: NutrientOAuthConfig = {
-    authorizeUrl: `${environment.authServerUrl}/oauth2/authorize`,
-    tokenUrl: `${environment.authServerUrl}/oauth2/token`,
+    authorizeUrl: `${environment.authServerUrl}/oauth/authorize`,
+    tokenUrl: `${environment.authServerUrl}/oauth/token`,
     clientId: environment.clientId ?? 'nutrient-dws-mcp-server',
-    scopes: ['dws'],
+    scopes: ['mcp:invoke', 'offline_access'],
+    resource: environment.dwsApiBaseUrl,
   }
 
   return createApiClient({
@@ -543,6 +545,13 @@ async function runStdioServer(options: {
 }): Promise<RunServerResult> {
   const { sandboxEnabled, environment } = options
 
+  logger.info('Starting stdio transport', {
+    version: getVersion(),
+    authMethod: environment.nutrientApiKey ? 'api-key' : 'oauth-browser-flow',
+    sandboxEnabled,
+    dwsApiBaseUrl: environment.dwsApiBaseUrl,
+  })
+
   const apiClient = createStdioApiClient(environment)
 
   const server = createMcpServer({
@@ -552,6 +561,8 @@ async function runStdioServer(options: {
 
   const transport = new StdioServerTransport()
   await server.connect(transport)
+
+  logger.info('stdio transport connected')
 
   await server.server.sendLoggingMessage({
     level: 'info',
