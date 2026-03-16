@@ -1,31 +1,29 @@
-import FormData from 'form-data'
-import axios from 'axios'
-import { getApiKey } from './utils.js'
-import { getVersion } from '../version.js'
+import { DwsApiClient, createApiClientFromApiKey, createApiClientFromTokenResolver } from './client.js'
 
 /**
- * Makes an API call to the Nutrient API
- * @param endpoint The API endpoint to call (e.g., 'sign', 'build')
- * @param data The data to send (FormData or JSON object)
- * @returns The API response
+ * Discriminated union describing how to authenticate with the DWS API.
+ *
+ * - Provide `apiKey` for static API-key auth (stdio mode).
+ * - Provide `tokenResolver` for dynamic token auth (OAuth mode).
  */
-export async function callNutrientApi(endpoint: string, data: FormData | Record<string, unknown>) {
-  const apiKey = getApiKey()
-  const isFormData = data instanceof FormData
+export type ApiClientAuthContext =
+  | {
+      apiKey: string
+      baseUrl?: string
+    }
+  | {
+      tokenResolver: () => Promise<string>
+      baseUrl?: string
+    }
 
-  const defaultHeaders: Record<string, string> = {
-    Authorization: `Bearer ${apiKey}`,
-    'User-Agent': `NutrientDWSMCPServer/${getVersion()}`,
+/**
+ * Factory that creates a {@link DwsApiClient} from an auth context.
+ * Selects the appropriate authentication strategy based on the context shape.
+ */
+export function createApiClient(context: ApiClientAuthContext): DwsApiClient {
+  if ('apiKey' in context) {
+    return createApiClientFromApiKey(context.apiKey, context.baseUrl)
   }
 
-  const headers: Record<string, string> = isFormData
-    ? defaultHeaders
-    : {
-        ...defaultHeaders,
-        'Content-Type': 'application/json',
-      }
-  return axios.post(`https://api.nutrient.io/${endpoint}`, data, {
-    headers,
-    responseType: 'stream',
-  })
+  return createApiClientFromTokenResolver(context.tokenResolver, context.baseUrl)
 }
