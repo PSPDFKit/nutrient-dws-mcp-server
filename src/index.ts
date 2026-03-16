@@ -513,7 +513,8 @@ function createStdioApiClient(environment: Environment): DwsApiClient {
   const oauthConfig: NutrientOAuthConfig = {
     authorizeUrl: `${environment.authServerUrl}/oauth/authorize`,
     tokenUrl: `${environment.authServerUrl}/oauth/token`,
-    clientId: environment.clientId ?? 'nutrient-dws-mcp-server',
+    registrationUrl: `${environment.authServerUrl}/oauth/register`,
+    clientId: environment.clientId,
     scopes: ['mcp:invoke', 'offline_access'],
     resource: environment.dwsApiBaseUrl,
   }
