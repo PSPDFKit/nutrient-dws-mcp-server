@@ -5,14 +5,20 @@ import { performSignCall } from '../src/dws/sign.js'
 import { SignAPIArgs } from '../src/schemas.js'
 import path from 'path'
 import { setSandboxDirectory } from '../src/fs/sandbox.js'
+import { createApiClientFromApiKey, DwsApiClient } from '../src/dws/client.js'
 
 dotenvConfig()
 
 describe('performSignCall with signing-api-examples', () => {
   let outputDirectory: string
+  let apiClient: DwsApiClient
   beforeAll(async () => {
     const assetsDir = path.join(__dirname, `assets`)
     await setSandboxDirectory(assetsDir)
+
+    const apiKey = process.env.NUTRIENT_DWS_API_KEY
+    if (!apiKey) throw new Error('NUTRIENT_DWS_API_KEY is required for integration tests')
+    apiClient = createApiClientFromApiKey(apiKey)
 
     outputDirectory = `test-output-${new Date().toISOString().replace(/[:.]/g, '-')}`
   })
@@ -44,6 +50,7 @@ describe('performSignCall with signing-api-examples', () => {
     const result = await performSignCall(
       filePath,
       `${outputDirectory}/${outputPath}`,
+      apiClient,
       signatureOptions,
       watermarkImagePath,
       graphicImagePath,

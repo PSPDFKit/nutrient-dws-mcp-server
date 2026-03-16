@@ -5,14 +5,21 @@ import path from 'path'
 import { performBuildCall } from '../src/dws/build.js'
 import { BuildAPIArgs } from '../src/schemas.js'
 import { setSandboxDirectory } from '../src/fs/sandbox.js'
+import { createApiClientFromApiKey } from '../src/dws/client.js'
+import { DwsApiClient } from '../src/dws/client.js'
 
 dotenvConfig()
 
 describe('performBuildCall with build-api-examples', () => {
   let outputDirectory: string
+  let apiClient: DwsApiClient
   beforeAll(async () => {
     const assetsDir = path.join(__dirname, `assets`)
     await setSandboxDirectory(assetsDir)
+
+    const apiKey = process.env.NUTRIENT_DWS_API_KEY
+    if (!apiKey) throw new Error('NUTRIENT_DWS_API_KEY is required for integration tests')
+    apiClient = createApiClientFromApiKey(apiKey)
 
     outputDirectory = `test-output-${new Date().toISOString().replace(/[:.]/g, '-')}`
   })
@@ -80,7 +87,7 @@ describe('performBuildCall with build-api-examples', () => {
   it.each(fileOutputExamples)('should process $name', async ({ example }) => {
     const { instructions, outputPath } = example
 
-    const result = await performBuildCall(instructions, `${outputDirectory}/${outputPath}`)
+    const result = await performBuildCall(instructions, `${outputDirectory}/${outputPath}`, apiClient)
 
     expect(result).toEqual(
       expect.objectContaining({
@@ -98,7 +105,7 @@ describe('performBuildCall with build-api-examples', () => {
   it.each(jsonOutputExamples)('should process $name', async ({ example }) => {
     const { instructions } = example
 
-    const result = await performBuildCall(instructions, 'dummy_path.pdf')
+    const result = await performBuildCall(instructions, 'dummy_path.pdf', apiClient)
 
     expect(result).toEqual(
       expect.objectContaining({

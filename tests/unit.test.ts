@@ -9,12 +9,12 @@ import { performSignCall } from '../src/dws/sign.js'
 import { performAiRedactCall } from '../src/dws/ai-redact.js'
 import { performDirectoryTreeCall } from '../src/fs/directoryTree.js'
 import * as sandbox from '../src/fs/sandbox.js'
-import * as api from '../src/dws/api.js'
-import axios, { InternalAxiosRequestConfig } from 'axios'
+import axios from 'axios'
 import path from 'path'
 import { FileHandle } from 'fs/promises'
 import { parseSandboxPath } from '../src/utils/sandbox.js'
 import { CallToolResult, TextContent } from '@modelcontextprotocol/sdk/types.js'
+import { DwsApiClient } from '../src/dws/client.js'
 
 dotenvConfig()
 
@@ -29,7 +29,23 @@ function getTextContent(result: CallToolResult, index: number = 0): string {
 
 vi.mock('axios')
 vi.mock('node:fs', { spy: true })
-vi.mock('../src/dws/api.js')
+
+function createMockApiClient(mockResponse?: { data: Readable; status?: number }): DwsApiClient {
+  const defaultResponse = {
+    data: createMockStream('default mock response'),
+    status: 200,
+    statusText: 'OK',
+    headers: {},
+    config: {},
+  }
+
+  const response = mockResponse ? { ...defaultResponse, data: mockResponse.data, status: mockResponse.status ?? 200 } : defaultResponse
+
+  return {
+    post: vi.fn().mockResolvedValue(response),
+    get: vi.fn().mockResolvedValue(response),
+  } as unknown as DwsApiClient
+}
 
 function createMockStream(content: string | Buffer): Readable {
   const readable = new Readable()
@@ -65,17 +81,6 @@ describe('API Functions', () => {
     vi.spyOn(fs.promises, 'mkdir').mockReturnValue(Promise.resolve(undefined))
     vi.spyOn(fs.promises, 'unlink').mockImplementation(async () => {})
     vi.spyOn(fs.promises, 'rm').mockImplementation(async () => {})
-
-    vi.mocked(api.callNutrientApi).mockImplementation(async () => {
-      const mockStream = createMockStream('default mock response')
-      return {
-        data: mockStream,
-        status: 200,
-        statusText: 'OK',
-        headers: {},
-        config: {} as InternalAxiosRequestConfig,
-      }
-    })
   })
 
   afterEach(() => {
@@ -85,27 +90,28 @@ describe('API Functions', () => {
   describe('performBuildCall', () => {
     it('should throw an error if file does not exist', async () => {
       const resolvedPath = path.resolve('/test.pdf')
+      const mockClient = createMockApiClient()
 
       vi.spyOn(fs.promises, 'access').mockImplementation(async () => {
         throw new Error(`Path not found: ${resolvedPath}`)
       })
 
-      const buildCall = performBuildCall({ parts: [{ file: '/test.pdf' }] }, '/test_processed.pdf')
+      const buildCall = performBuildCall({ parts: [{ file: '/test.pdf' }] }, '/test_processed.pdf', mockClient)
 
       await expect(buildCall).rejects.toThrowError(
         `Error with referenced file /test.pdf: Path not found: ${resolvedPath}`,
       )
     })
 
-    it('should throw an error if API key is not set', async () => {
-      // Mock callNutrientApi to throw an error
-      vi.mocked(api.callNutrientApi).mockRejectedValue(
+    it('should return an error when the API client rejects', async () => {
+      const mockClient = createMockApiClient()
+      vi.mocked(mockClient.post).mockRejectedValue(
         new Error(
           'Error: NUTRIENT_DWS_API_KEY environment variable is required. Please visit https://www.nutrient.io/api/ to get your free API key.',
         ),
       )
 
-      const result = await performBuildCall({ parts: [{ file: '/test.pdf' }] }, '/test_processed.pdf')
+      const result = await performBuildCall({ parts: [{ file: '/test.pdf' }] }, '/test_processed.pdf', mockClient)
 
       expect(result.isError).toBe(true)
       expect(getTextContent(result)).toContain('NUTRIENT_DWS_API_KEY environment variable is required')
@@ -113,52 +119,31 @@ describe('API Functions', () => {
     })
 
     it('should use application/json when all inputs are URLs', async () => {
-      const mockStream = createMockStream('processed content')
-      vi.mocked(api.callNutrientApi).mockResolvedValueOnce({
-        data: mockStream,
-        status: 200,
-        statusText: 'OK',
-        headers: {},
-        config: {} as InternalAxiosRequestConfig,
-      })
+      const mockClient = createMockApiClient({ data: createMockStream('processed content') })
 
       const instructions = {
         parts: [{ file: 'https://example.com/test.pdf' }],
       }
 
-      await performBuildCall(instructions, '/test_processed.pdf')
+      await performBuildCall(instructions, '/test_processed.pdf', mockClient)
 
-      expect(api.callNutrientApi).toHaveBeenCalledWith('build', instructions)
+      expect(mockClient.post).toHaveBeenCalledWith('build', instructions)
     })
 
     it('should use multipart/form-data when local files are included', async () => {
-      const mockStream = createMockStream('processed content')
-      vi.mocked(api.callNutrientApi).mockResolvedValueOnce({
-        data: mockStream,
-        status: 200,
-        statusText: 'OK',
-        headers: {},
-        config: {} as InternalAxiosRequestConfig,
-      })
+      const mockClient = createMockApiClient({ data: createMockStream('processed content') })
 
       const instructions = {
         parts: [{ file: '/test.pdf' }],
       }
 
-      await performBuildCall(instructions, '/test_processed.pdf')
+      await performBuildCall(instructions, '/test_processed.pdf', mockClient)
 
-      expect(api.callNutrientApi).toHaveBeenCalledWith('build', expect.any(Object))
+      expect(mockClient.post).toHaveBeenCalledWith('build', expect.any(Object))
     })
 
     it('should handle json-content output type', async () => {
-      const mockStream = createMockStream('{"result": "success"}')
-      vi.mocked(api.callNutrientApi).mockResolvedValueOnce({
-        data: mockStream,
-        status: 200,
-        statusText: 'OK',
-        headers: {},
-        config: {} as InternalAxiosRequestConfig,
-      })
+      const mockClient = createMockApiClient({ data: createMockStream('{"result": "success"}') })
 
       const instructions: Instructions = {
         parts: [{ file: 'https://example.com/test.pdf' }],
@@ -170,7 +155,7 @@ describe('API Functions', () => {
         },
       }
 
-      const result = await performBuildCall(instructions, '/test_processed.pdf')
+      const result = await performBuildCall(instructions, '/test_processed.pdf', mockClient)
 
       expect(result.isError).toBe(false)
       expect(result.content[0].type).toBe('text')
@@ -178,35 +163,30 @@ describe('API Functions', () => {
     })
 
     it('should handle file output and save to disk', async () => {
-      const mockStream = createMockStream('processed content')
-      vi.mocked(api.callNutrientApi).mockResolvedValueOnce({
-        data: mockStream,
-        status: 200,
-        statusText: 'OK',
-        headers: {},
-        config: {} as InternalAxiosRequestConfig,
-      })
+      const mockClient = createMockApiClient({ data: createMockStream('processed content') })
 
-      await performBuildCall({ parts: [{ file: '/test.pdf' }] }, '/test_processed.pdf')
+      await performBuildCall({ parts: [{ file: '/test.pdf' }] }, '/test_processed.pdf', mockClient)
 
       expect(fs.promises.writeFile).toHaveBeenCalledWith(expect.stringContaining('_processed.pdf'), expect.any(Buffer))
     })
 
     it('should handle errors from the API', async () => {
+      const mockClient = createMockApiClient()
       const mockError = {
         response: {
           data: createMockStream('Error message from API'),
         },
       }
       vi.mocked(axios.isAxiosError).mockImplementation(() => true)
-      vi.mocked(api.callNutrientApi).mockRejectedValueOnce(mockError)
-      const result = await performBuildCall({ parts: [{ file: '/test.pdf' }] }, '/test_processed.pdf')
+      vi.mocked(mockClient.post).mockRejectedValueOnce(mockError)
+      const result = await performBuildCall({ parts: [{ file: '/test.pdf' }] }, '/test_processed.pdf', mockClient)
 
       expect(result.isError).toBe(true)
       expect(getTextContent(result)).toContain('Error processing API response: Error message from API')
     })
 
     it('should handle HostedErrorResponse format from the API', async () => {
+      const mockClient = createMockApiClient()
       const hostedErrorResponse = {
         details: 'The request is malformed',
         status: 400,
@@ -224,9 +204,9 @@ describe('API Functions', () => {
         },
       }
       vi.mocked(axios.isAxiosError).mockImplementation(() => true)
-      vi.mocked(api.callNutrientApi).mockRejectedValueOnce(mockError)
+      vi.mocked(mockClient.post).mockRejectedValueOnce(mockError)
 
-      const result = await performBuildCall({ parts: [{ file: '/test.pdf' }] }, '/test_processed.pdf')
+      const result = await performBuildCall({ parts: [{ file: '/test.pdf' }] }, '/test_processed.pdf', mockClient)
 
       expect(result.isError).toBe(true)
 
@@ -243,26 +223,28 @@ describe('API Functions', () => {
   describe('performSignCall', () => {
     it('should throw an error if file does not exist', async () => {
       const resolvedPath = path.resolve('/test.pdf')
+      const mockClient = createMockApiClient()
 
       vi.spyOn(fs.promises, 'access').mockImplementation(async () => {
         throw new Error(`Error with referenced file /test.pdf: Path not found: ${resolvedPath}`)
       })
 
-      const buildCall = performBuildCall({ parts: [{ file: '/test.pdf' }] }, '/test_processed.pdf')
+      const buildCall = performBuildCall({ parts: [{ file: '/test.pdf' }] }, '/test_processed.pdf', mockClient)
 
       await expect(buildCall).rejects.toThrowError(
         `Error with referenced file /test.pdf: Path not found: ${resolvedPath}`,
       )
     })
 
-    it('should throw an error if API key is not set', async () => {
-      vi.mocked(api.callNutrientApi).mockRejectedValueOnce(
+    it('should return an error when the API client rejects', async () => {
+      const mockClient = createMockApiClient()
+      vi.mocked(mockClient.post).mockRejectedValueOnce(
         new Error(
           'Error: NUTRIENT_DWS_API_KEY environment variable is required. Please visit https://www.nutrient.io/api/ to get your free API key.',
         ),
       )
 
-      const result = await performSignCall('/test.pdf', '/test_processed.pdf')
+      const result = await performSignCall('/test.pdf', '/test_processed.pdf', mockClient)
 
       expect(result.isError).toBe(true)
       expect(getTextContent(result)).toContain('NUTRIENT_DWS_API_KEY environment variable is required')
@@ -270,14 +252,7 @@ describe('API Functions', () => {
     })
 
     it('should send the file and signature options to the API', async () => {
-      const mockStream = createMockStream('signed content')
-      vi.mocked(api.callNutrientApi).mockResolvedValueOnce({
-        data: mockStream,
-        status: 200,
-        statusText: 'OK',
-        headers: {},
-        config: {} as InternalAxiosRequestConfig,
-      })
+      const mockClient = createMockApiClient({ data: createMockStream('signed content') })
 
       const signatureOptions: SignatureOptions = {
         signatureType: 'cms',
@@ -289,24 +264,18 @@ describe('API Functions', () => {
         },
       }
 
-      await performSignCall('/test.pdf', '/test_processed.pdf', signatureOptions)
+      await performSignCall('/test.pdf', '/test_processed.pdf', mockClient, signatureOptions)
 
-      expect(api.callNutrientApi).toHaveBeenCalledWith('sign', expect.any(Object))
+      expect(mockClient.post).toHaveBeenCalledWith('sign', expect.any(Object))
     })
 
     it('should include watermark image if provided', async () => {
-      const mockStream = createMockStream('signed content')
-      vi.mocked(api.callNutrientApi).mockResolvedValueOnce({
-        data: mockStream,
-        status: 200,
-        statusText: 'OK',
-        headers: {},
-        config: {} as InternalAxiosRequestConfig,
-      })
+      const mockClient = createMockApiClient({ data: createMockStream('signed content') })
 
       await performSignCall(
         '/test.pdf',
         '/test_processed.pdf',
+        mockClient,
         { signatureType: 'cms', flatten: false },
         '/watermark.png',
       )
@@ -315,18 +284,12 @@ describe('API Functions', () => {
     })
 
     it('should include graphic image if provided', async () => {
-      const mockStream = createMockStream('signed content')
-      vi.mocked(api.callNutrientApi).mockResolvedValueOnce({
-        data: mockStream,
-        status: 200,
-        statusText: 'OK',
-        headers: {},
-        config: {} as InternalAxiosRequestConfig,
-      })
+      const mockClient = createMockApiClient({ data: createMockStream('signed content') })
 
       await performSignCall(
         '/test.pdf',
         '/test_processed.pdf',
+        mockClient,
         { signatureType: 'cms', flatten: false },
         undefined,
         '/graphic.png',
@@ -336,30 +299,24 @@ describe('API Functions', () => {
     })
 
     it('should save the result to disk', async () => {
-      const mockStream = createMockStream('signed content')
-      vi.mocked(api.callNutrientApi).mockResolvedValueOnce({
-        data: mockStream,
-        status: 200,
-        statusText: 'OK',
-        headers: {},
-        config: {} as InternalAxiosRequestConfig,
-      })
+      const mockClient = createMockApiClient({ data: createMockStream('signed content') })
 
-      await performSignCall('/test.pdf', '/test_signed.pdf')
+      await performSignCall('/test.pdf', '/test_signed.pdf', mockClient)
 
       expect(fs.promises.writeFile).toHaveBeenCalledWith(expect.stringContaining('_signed.pdf'), expect.any(Buffer))
     })
 
     it('should handle errors from the API', async () => {
+      const mockClient = createMockApiClient()
       const mockError = {
         response: {
           data: createMockStream('Error message from API'),
         },
       }
       vi.mocked(axios.isAxiosError).mockImplementation(() => true)
-      vi.mocked(api.callNutrientApi).mockRejectedValueOnce(mockError)
+      vi.mocked(mockClient.post).mockRejectedValueOnce(mockError)
 
-      const result = await performSignCall('/test.pdf', '/test_processed.pdf')
+      const result = await performSignCall('/test.pdf', '/test_processed.pdf', mockClient)
 
       expect(result.isError).toBe(true)
       expect(getTextContent(result)).toContain('Error processing API response: Error message from API')
@@ -372,29 +329,39 @@ describe('API Functions', () => {
     })
 
     it('should return an error if file does not exist', async () => {
+      const mockClient = createMockApiClient()
       vi.spyOn(sandbox, 'resolveReadFilePath').mockRejectedValueOnce(new Error('Path not found: /missing.pdf'))
 
-      const result = await performAiRedactCall('/missing.pdf', 'All personally identifiable information', '/out.pdf')
+      const result = await performAiRedactCall('/missing.pdf', 'All personally identifiable information', '/out.pdf', mockClient)
 
       expect(result.isError).toBe(true)
       expect(getTextContent(result)).toContain('Error: Path not found: /missing.pdf')
     })
 
     it('should return an error when stage and apply are both true', async () => {
+      const mockClient = createMockApiClient()
       vi.spyOn(sandbox, 'resolveReadFilePath').mockResolvedValueOnce('/input.pdf')
       vi.spyOn(sandbox, 'resolveWriteFilePath').mockResolvedValueOnce('/output.pdf')
 
-      const result = await performAiRedactCall('/input.pdf', 'All personally identifiable information', '/output.pdf', true, true)
+      const result = await performAiRedactCall(
+        '/input.pdf',
+        'All personally identifiable information',
+        '/output.pdf',
+        mockClient,
+        true,
+        true,
+      )
 
       expect(result.isError).toBe(true)
       expect(getTextContent(result)).toBe('Error: stage and apply cannot both be true. Choose one mode.')
     })
 
     it('should return an error when output path equals input path', async () => {
+      const mockClient = createMockApiClient()
       vi.spyOn(sandbox, 'resolveReadFilePath').mockResolvedValueOnce('/same.pdf')
       vi.spyOn(sandbox, 'resolveWriteFilePath').mockResolvedValueOnce('/same.pdf')
 
-      const result = await performAiRedactCall('/same.pdf', 'All personally identifiable information', '/same.pdf')
+      const result = await performAiRedactCall('/same.pdf', 'All personally identifiable information', '/same.pdf', mockClient)
 
       expect(result.isError).toBe(true)
       expect(getTextContent(result)).toContain(
@@ -403,31 +370,20 @@ describe('API Functions', () => {
     })
 
     it('should call the API and save the result to disk', async () => {
+      const mockClient = createMockApiClient({ data: createMockStream('redacted content') })
       vi.spyOn(sandbox, 'resolveReadFilePath').mockResolvedValueOnce('/input.pdf')
       vi.spyOn(sandbox, 'resolveWriteFilePath').mockResolvedValueOnce('/redacted.pdf')
 
-      const mockStream = createMockStream('redacted content')
-      vi.mocked(api.callNutrientApi).mockResolvedValueOnce({
-        data: mockStream,
-        status: 200,
-        statusText: 'OK',
-        headers: {},
-        config: {} as InternalAxiosRequestConfig,
-      })
-
-      const result = await performAiRedactCall(
-        '/input.pdf',
-        'All personally identifiable information',
-        '/redacted.pdf',
-      )
+      const result = await performAiRedactCall('/input.pdf', 'All personally identifiable information', '/redacted.pdf', mockClient)
 
       expect(result.isError).toBe(false)
       expect(getTextContent(result)).toContain('AI redaction completed successfully')
       expect(fs.promises.writeFile).toHaveBeenCalledWith('/redacted.pdf', expect.any(Buffer))
-      expect(api.callNutrientApi).toHaveBeenCalledWith('ai/redact', expect.any(Object))
+      expect(mockClient.post).toHaveBeenCalledWith('ai/redact', expect.any(Object))
     })
 
     it('should handle errors from the API', async () => {
+      const mockClient = createMockApiClient()
       vi.spyOn(sandbox, 'resolveReadFilePath').mockResolvedValueOnce('/input.pdf')
       vi.spyOn(sandbox, 'resolveWriteFilePath').mockResolvedValueOnce('/redacted.pdf')
 
@@ -437,9 +393,9 @@ describe('API Functions', () => {
         },
       }
       vi.mocked(axios.isAxiosError).mockImplementation(() => true)
-      vi.mocked(api.callNutrientApi).mockRejectedValueOnce(mockError)
+      vi.mocked(mockClient.post).mockRejectedValueOnce(mockError)
 
-      const result = await performAiRedactCall('/input.pdf', 'All personally identifiable information', '/redacted.pdf')
+      const result = await performAiRedactCall('/input.pdf', 'All personally identifiable information', '/redacted.pdf', mockClient)
 
       expect(result.isError).toBe(true)
       expect(getTextContent(result)).toContain('Error processing API response: Error message from API')
@@ -888,12 +844,9 @@ describe('API Functions', () => {
         usage: { totalCredits: 100, usedCredits: 42 },
       }
 
-      vi.stubEnv('NUTRIENT_DWS_API_KEY', 'test-key')
-      vi.spyOn(axios, 'get').mockResolvedValue({
-        data: Readable.from([JSON.stringify(apiResponse)]),
-      })
+      const mockClient = createMockApiClient({ data: Readable.from([JSON.stringify(apiResponse)]) })
 
-      const result = await performCheckCreditsCall()
+      const result = await performCheckCreditsCall(mockClient)
 
       expect(result.isError).toBe(false)
       const text = (result.content[0] as TextContent).text
@@ -904,31 +857,15 @@ describe('API Functions', () => {
       expect(parsed.remainingCredits).toBe(58)
       // Must not contain the API key
       expect(text).not.toContain('sk_live_secret')
-
-      vi.restoreAllMocks()
     })
 
     it('should handle non-JSON API response', async () => {
-      vi.stubEnv('NUTRIENT_DWS_API_KEY', 'test-key')
-      vi.spyOn(axios, 'get').mockResolvedValue({
-        data: Readable.from(['not json']),
-      })
+      const mockClient = createMockApiClient({ data: Readable.from(['not json']) })
 
-      const result = await performCheckCreditsCall()
+      const result = await performCheckCreditsCall(mockClient)
 
       expect(result.isError).toBe(true)
       expect((result.content[0] as TextContent).text).toContain('Unexpected non-JSON response')
-
-      vi.restoreAllMocks()
-    })
-
-    it('should error when API key is not set', async () => {
-      vi.stubEnv('NUTRIENT_DWS_API_KEY', '')
-      delete process.env.NUTRIENT_DWS_API_KEY
-
-      await expect(performCheckCreditsCall()).rejects.toThrow('NUTRIENT_DWS_API_KEY not set')
-
-      vi.restoreAllMocks()
     })
   })
 })
