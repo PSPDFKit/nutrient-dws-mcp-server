@@ -14,8 +14,9 @@ pnpm install
 
 ## Run Commands
 
-- `pnpm run dev`: hot reload for local development (recommended)
-- `pnpm run build && pnpm start`: production-like local run from `dist/`
+```bash
+pnpm run build && pnpm start
+```
 
 ---
 
@@ -25,7 +26,7 @@ pnpm install
 
 ```bash
 export NUTRIENT_DWS_API_KEY=your_dws_api_key
-pnpm run dev
+pnpm run build && pnpm start
 ```
 
 ### With OAuth browser flow
@@ -33,7 +34,7 @@ pnpm run dev
 When no API key is set, the server opens a browser for Nutrient OAuth consent on the first tool call. Tokens are cached at `~/.nutrient/credentials.json`.
 
 ```bash
-pnpm run dev
+pnpm run build && pnpm start
 ```
 
 To test against a local DWS auth server instead of production:
@@ -41,7 +42,7 @@ To test against a local DWS auth server instead of production:
 ```bash
 export AUTH_SERVER_URL=http://localhost:4000
 export DWS_API_BASE_URL=http://localhost:4000
-pnpm run dev
+pnpm run build && pnpm start
 ```
 
 The OAuth flow will use `{AUTH_SERVER_URL}/oauth/authorize` and `{AUTH_SERVER_URL}/oauth/token`. The `CLIENT_ID` env var can override the default client ID (`nutrient-dws-mcp-server`).
