@@ -161,4 +161,32 @@ describe('jwt auth middleware', () => {
     expect(response.status).toBe(200)
     expect(response.body.allowedTools).toEqual(['check_credits', 'document_processor'])
   })
+
+  it('falls back to unknown-client when sub and azp are missing', async () => {
+    const token = await createToken({ sub: undefined, azp: undefined, sid: undefined })
+    const app = express()
+
+    app.use(
+      createJwtAuthMiddleware({
+        jwksUrl,
+        issuer,
+        audience: 'dws-mcp',
+        requiredScope: 'mcp:invoke',
+        resourceMetadataUrl: `${issuer}/.well-known/oauth-protected-resource`,
+      }),
+    )
+
+    app.get('/protected', (req, res) => {
+      const authInfo = (req as RequestWithAuth).auth
+      res.json({
+        clientId: authInfo?.clientId,
+        extra: authInfo?.extra,
+      })
+    })
+
+    const response = await request(app).get('/protected').set('authorization', `Bearer ${token}`)
+
+    expect(response.status).toBe(200)
+    expect(response.body.clientId).toBe('unknown-client')
+  })
 })
