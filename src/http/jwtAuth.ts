@@ -1,13 +1,9 @@
 import type { RequestHandler } from 'express'
-import { createHash } from 'node:crypto'
 import { AuthInfo } from '@modelcontextprotocol/sdk/server/auth/types.js'
 import { createRemoteJWKSet, jwtVerify, JWTPayload } from 'jose'
 import { RequestWithAuth } from './types.js'
 import { buildWwwAuthenticateHeader } from './protectedResource.js'
-
-function hashPrincipal(input: string): string {
-  return createHash('sha256').update(input).digest('hex')
-}
+import { hashPrincipal, parseBearerToken } from './authUtils.js'
 
 function parseScopes(payload: JWTPayload): string[] {
   if (typeof payload.scope !== 'string') {
@@ -38,19 +34,6 @@ function parseAllowedTools(payload: JWTPayload): string[] | undefined {
   }
 
   return undefined
-}
-
-function parseBearerToken(authHeader?: string): string | undefined {
-  if (!authHeader) {
-    return undefined
-  }
-
-  const [scheme, token] = authHeader.split(/\s+/, 2)
-  if (!scheme || !token || scheme.toLowerCase() !== 'bearer') {
-    return undefined
-  }
-
-  return token
 }
 
 function toAuthInfo(token: string, payload: JWTPayload): AuthInfo {

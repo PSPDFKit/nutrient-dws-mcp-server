@@ -4,38 +4,17 @@ import { AuthInfo } from '@modelcontextprotocol/sdk/server/auth/types.js'
 import { StaticPrincipal } from '../utils/environment.js'
 import { RequestWithAuth } from './types.js'
 import { buildWwwAuthenticateHeader } from './protectedResource.js'
-
-function hashPrincipal(input: string): string {
-  return createHash('sha256').update(input).digest('hex')
-}
+import { hashPrincipal, parseBearerToken } from './authUtils.js'
 
 function safeTokenEquals(left: string, right: string): boolean {
-  const leftBuffer = Buffer.from(left)
-  const rightBuffer = Buffer.from(right)
-
-  if (leftBuffer.length !== rightBuffer.length) {
-    return false
-  }
-
-  return timingSafeEqual(leftBuffer, rightBuffer)
-}
-
-function parseBearerToken(authHeader?: string): string | undefined {
-  if (!authHeader) {
-    return undefined
-  }
-
-  const [scheme, token] = authHeader.split(/\s+/, 2)
-  if (!scheme || !token || scheme.toLowerCase() !== 'bearer') {
-    return undefined
-  }
-
-  return token
+  const leftHash = createHash('sha256').update(left).digest()
+  const rightHash = createHash('sha256').update(right).digest()
+  return timingSafeEqual(leftHash, rightHash)
 }
 
 function buildAuthInfo(principal: StaticPrincipal): AuthInfo {
   return {
-    token: principal.token,
+    token: '[static]',
     clientId: principal.clientId,
     scopes: principal.scopes,
     extra: {
