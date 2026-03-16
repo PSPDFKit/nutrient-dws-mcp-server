@@ -41,7 +41,7 @@ const RawEnvironmentSchema = z.object({
   MCP_ALLOWED_HOSTS: z.string().optional(),
   NUTRIENT_DWS_API_KEY: z.string().optional(),
   DWS_API_BASE_URL: z.string().url().default('https://api.nutrient.io'),
-  RESOURCE_URL: z.string().url().default('https://mcp.nutrient.io/mcp'),
+  RESOURCE_URL: z.string().url().default('http://localhost:3000/mcp'),
   AUTH_SERVER_URL: z.string().url().default('https://api.nutrient.io'),
   JWKS_URL: z.string().url().default('https://api.nutrient.io/.well-known/jwks.json'),
   ISSUER: z.string().url().optional(),

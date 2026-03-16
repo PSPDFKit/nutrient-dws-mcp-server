@@ -122,7 +122,6 @@ All auth/JWKS settings default to `api.nutrient.io`, so minimal config is:
 ```bash
 export MCP_TRANSPORT=http
 export AUTH_MODE=jwt
-export RESOURCE_URL=http://localhost:3000/mcp
 export MCP_DEBUG_LOGGING=true
 
 pnpm run dev
@@ -141,7 +140,6 @@ export PORT=3000
 export MCP_HOST=127.0.0.1
 
 export DWS_API_BASE_URL=http://localhost:4000
-export RESOURCE_URL=http://localhost:3000/mcp
 export AUTH_SERVER_URL=http://localhost:4000
 export JWKS_URL=http://localhost:4000/.well-known/jwks.json
 export ISSUER=http://localhost:4000
@@ -194,7 +192,7 @@ curl -X POST http://127.0.0.1:3000/mcp \
 | `MCP_HOST`           | `127.0.0.1`                | HTTP bind host                           |
 | `MCP_ALLOWED_HOSTS`  | —                          | Comma/space-separated allowed hostnames  |
 | `DWS_API_BASE_URL`   | `https://api.nutrient.io`  | DWS API base URL                         |
-| `NUTRIENT_DWS_API_KEY` | —                        | DWS API key (optional in stdio/JWT mode) |
+| `NUTRIENT_DWS_API_KEY` | —                        | DWS API key (optional in stdio+OAuth mode) |
 | `SANDBOX_PATH`       | —                          | Filesystem sandbox root                  |
 | `MCP_DEBUG_LOGGING`  | —                          | Request/response logging (`true`/`1`)    |
 | `LOG_LEVEL`          | `debug`                    | Winston logger level                     |
@@ -219,7 +217,7 @@ curl -X POST http://127.0.0.1:3000/mcp \
 | `AUTH_MODE`           | `static`                                             | `static` or `jwt`                  |
 | `AUTH_SERVER_URL`     | `https://api.nutrient.io`                            | Authorization server base URL      |
 | `JWKS_URL`            | `https://api.nutrient.io/.well-known/jwks.json`      | JWKS endpoint                      |
-| `RESOURCE_URL`        | `https://mcp.nutrient.io/mcp`                        | Protected resource URL             |
+| `RESOURCE_URL`        | `http://localhost:3000/mcp`                          | Protected resource URL             |
 | `ISSUER`              | `AUTH_SERVER_URL`                                    | JWT issuer                         |
 | `CLIENT_ID`           | `nutrient-dws-mcp-server`                            | OAuth client ID (stdio OAuth flow) |
 
