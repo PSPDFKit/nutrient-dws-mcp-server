@@ -197,4 +197,34 @@ describe('http transport', () => {
 
     expect(toolNames).toEqual(['check_credits'])
   })
+
+  it('cleans up session on DELETE /mcp', async () => {
+    const { app, close } = createHttpApp({ environment: createEnvironment(), sandboxEnabled: false })
+    closeApp = close
+
+    const sessionId = await initializeSession(app, 'token-1')
+
+    // DELETE the session
+    const deleteResponse = await request(app)
+      .delete('/mcp')
+      .set('authorization', 'Bearer token-1')
+      .set('mcp-session-id', sessionId)
+
+    expect(deleteResponse.status).toBe(200)
+
+    // Subsequent request to the same session should fail with 404
+    const postResponse = await request(app)
+      .post('/mcp')
+      .set('authorization', 'Bearer token-1')
+      .set('mcp-session-id', sessionId)
+      .set('accept', 'application/json')
+      .send({
+        jsonrpc: '2.0',
+        id: 3,
+        method: 'tools/list',
+        params: {},
+      })
+
+    expect(postResponse.status).toBe(404)
+  })
 })
