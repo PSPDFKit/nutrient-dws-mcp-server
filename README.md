@@ -280,8 +280,8 @@ The server will automatically register a new client and open the browser for con
 
 **"Dynamic client registration failed"?**
 
-- Ensure the auth server supports RFC 7591 Dynamic Client Registration at its `/oauth/register` endpoint.
 - If using a custom `AUTH_SERVER_URL`, verify it is reachable.
+- Ensure the custom auth server supports RFC 7591 Dynamic Client Registration at its `/oauth/register` endpoint.
 
 **"API key invalid" errors?**
 
