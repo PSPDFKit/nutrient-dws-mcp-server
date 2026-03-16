@@ -5,7 +5,7 @@ import { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import { handleApiError, handleFileResponse } from './utils.js'
 import { createErrorResponse } from '../responses.js'
 import { resolveReadFilePath, resolveWriteFilePath } from '../fs/sandbox.js'
-import { callNutrientApi } from './api.js'
+import { DwsApiClient } from './client.js'
 
 /**
  * Performs an AI redaction call to the Nutrient DWS AI Redact API.
@@ -14,6 +14,7 @@ export async function performAiRedactCall(
   filePath: string,
   criteria: string,
   outputPath: string,
+  apiClient: DwsApiClient,
   stage?: boolean,
   apply?: boolean,
 ): Promise<CallToolResult> {
@@ -28,9 +29,7 @@ export async function performAiRedactCall(
 
     // Guard against output overwriting input
     if (resolvedInputPath === resolvedOutputPath) {
-      return createErrorResponse(
-        'Error: Output path must be different from input path to prevent data corruption.',
-      )
+      return createErrorResponse('Error: Output path must be different from input path to prevent data corruption.')
     }
 
     const fileBuffer = await fs.promises.readFile(resolvedInputPath)
@@ -51,7 +50,7 @@ export async function performAiRedactCall(
     formData.append('file1', fileBuffer, { filename: fileName })
     formData.append('data', JSON.stringify(dataPayload))
 
-    const response = await callNutrientApi('ai/redact', formData)
+    const response = await apiClient.post('ai/redact', formData)
 
     return handleFileResponse(response, resolvedOutputPath, 'AI redaction completed successfully. Output saved to')
   } catch (e: unknown) {

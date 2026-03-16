@@ -38,27 +38,39 @@
     "LICENSE"
   ],
   "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "start": "node dist/index.js",
     "build": "tsc && shx chmod +x dist/index.js",
     "format": "prettier --write .",
     "lint": "eslint .",
     "pretest": "tsc --project tsconfig.test.json --noEmit",
     "test": "vitest run",
+    "test:ci": "vitest run --exclude tests/build-api-examples.test.ts --exclude tests/signing-api-examples.test.ts",
+    "test:integration": "vitest run tests/build-api-examples.test.ts tests/signing-api-examples.test.ts",
     "test:watch": "vitest",
     "clean": "shx rm -rf dist"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.25.2",
     "axios": "^1.13.2",
+    "express": "^5.2.1",
     "form-data": "^4.0.5",
+    "jose": "^6.2.1",
+    "open": "^11.0.0",
+    "winston": "^3.19.0",
     "zod": "^3.25.76"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.2",
+    "@types/express": "^5.0.6",
     "@types/node": "^22.19.5",
+    "@types/supertest": "^7.2.0",
     "dotenv": "^16.6.1",
     "eslint": "^9.39.2",
     "prettier": "^3.7.4",
     "shx": "^0.4.0",
+    "supertest": "^7.2.2",
+    "tsx": "^4.21.0",
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.52.0",
     "vitest": "^4.0.16"

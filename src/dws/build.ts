@@ -7,12 +7,16 @@ import { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import { FileReference } from './types.js'
 import { createErrorResponse } from '../responses.js'
 import { resolveReadFilePath, resolveWriteFilePath } from '../fs/sandbox.js'
-import { callNutrientApi } from './api.js'
+import { DwsApiClient } from './client.js'
 
 /**
  * Performs a build call to the Nutrient DWS Processor API
  */
-export async function performBuildCall(instructions: Instructions, outputFilePath: string): Promise<CallToolResult> {
+export async function performBuildCall(
+  instructions: Instructions,
+  outputFilePath: string,
+  apiClient: DwsApiClient,
+): Promise<CallToolResult> {
   const { instructions: adjustedInstructions, fileReferences } = await processInstructions(instructions)
 
   if (fileReferences.size === 0) {
@@ -22,7 +26,7 @@ export async function performBuildCall(instructions: Instructions, outputFilePat
   try {
     // We resolve the output path first to fail early
     const resolvedOutputPath = await resolveWriteFilePath(outputFilePath)
-    const response = await makeApiBuildCall(adjustedInstructions, fileReferences)
+    const response = await makeApiBuildCall(adjustedInstructions, fileReferences, apiClient)
 
     if (adjustedInstructions.output?.type === 'json-content') {
       return handleJsonContentResponse(response)
@@ -131,11 +135,15 @@ async function processFileReference(reference: string): Promise<FileReference> {
 /**
  * Make the API call to the build endpoint
  */
-async function makeApiBuildCall(instructions: Instructions, fileReferences: Map<string, FileReference>) {
+async function makeApiBuildCall(
+  instructions: Instructions,
+  fileReferences: Map<string, FileReference>,
+  apiClient: DwsApiClient,
+) {
   const allInputsAreUrls = Array.from(fileReferences.values()).every((fileRef) => fileRef.url)
 
   if (allInputsAreUrls) {
-    return callNutrientApi('build', instructions)
+    return apiClient.post('build', instructions)
   } else {
     const formData = new FormData()
     formData.append('instructions', JSON.stringify(instructions))
@@ -146,6 +154,6 @@ async function makeApiBuildCall(instructions: Instructions, fileReferences: Map<
       }
     }
 
-    return callNutrientApi('build', formData)
+    return apiClient.post('build', formData)
   }
 }

@@ -23,5 +23,6 @@ COPY --from=builder /app/dist ./dist
 RUN chown -R appuser:appgroup /app
 USER appuser
 
-# MCP runs over stdio
+# MCP supports stdio and HTTP transports
+EXPOSE 3000
 ENTRYPOINT ["node", "dist/index.js"]

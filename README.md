@@ -16,20 +16,20 @@ A Model Context Protocol (MCP) server that connects AI assistants to the [Nutrie
 
 Once configured, you (or your AI agent) can process documents through natural language:
 
-**You:** *"Merge report-q1.pdf and report-q2.pdf into a single document"*
-**AI:** *"Done! I've merged both reports into combined-report.pdf (24 pages total)."*
+**You:** _"Merge report-q1.pdf and report-q2.pdf into a single document"_
+**AI:** _"Done! I've merged both reports into combined-report.pdf (24 pages total)."_
 
-**You:** *"Redact all social security numbers and email addresses from application.pdf"*
-**AI:** *"I found and redacted 5 SSNs and 3 email addresses. The redacted version is saved as application-redacted.pdf."*
+**You:** _"Redact all social security numbers and email addresses from application.pdf"_
+**AI:** _"I found and redacted 5 SSNs and 3 email addresses. The redacted version is saved as application-redacted.pdf."_
 
-**You:** *"Digitally sign this contract with a visible signature on page 3"*
-**AI:** *"I've applied a PAdES-compliant digital signature to contract.pdf. The signed document is saved as contract-signed.pdf."*
+**You:** _"Digitally sign this contract with a visible signature on page 3"_
+**AI:** _"I've applied a PAdES-compliant digital signature to contract.pdf. The signed document is saved as contract-signed.pdf."_
 
-**You:** *"Convert this PDF to markdown"*
-**AI:** *"Here's the markdown content extracted from your document..."*
+**You:** _"Convert this PDF to markdown"_
+**AI:** _"Here's the markdown content extracted from your document..."_
 
-**You:** *"OCR this scanned document in German and extract the text"*
-**AI:** *"I've processed the scan with German OCR. Here's the extracted text..."*
+**You:** _"OCR this scanned document in German and extract the text"_
+**AI:** _"I've processed the scan with German OCR. Here's the extracted text..."_
 
 ## Quick Start
 
@@ -57,11 +57,11 @@ Open Settings → Developer → Edit Config, then add:
       "args": ["-y", "@nutrient-sdk/dws-mcp-server"],
       "env": {
         "NUTRIENT_DWS_API_KEY": "YOUR_API_KEY_HERE",
-        "SANDBOX_PATH": "/your/sandbox/directory"
+        "SANDBOX_PATH": "/your/sandbox/directory",
         // "C:\\your\\sandbox\\directory" for Windows
-      }
-    }
-  }
+      },
+    },
+  },
 }
 ```
 
@@ -80,13 +80,14 @@ Create `.cursor/mcp.json` in your project root:
       "args": ["-y", "@nutrient-sdk/dws-mcp-server"],
       "env": {
         "NUTRIENT_DWS_API_KEY": "YOUR_API_KEY_HERE",
-        "SANDBOX_PATH": "/your/project/documents"
+        "SANDBOX_PATH": "/your/project/documents",
         // "C:\\your\\project\\documents" for Windows
-      }
-    }
-  }
+      },
+    },
+  },
 }
 ```
+
 </details>
 
 <details>
@@ -102,13 +103,14 @@ Add to `~/.codeium/windsurf/mcp_config.json`:
       "args": ["-y", "@nutrient-sdk/dws-mcp-server"],
       "env": {
         "NUTRIENT_DWS_API_KEY": "YOUR_API_KEY_HERE",
-        "SANDBOX_PATH": "/your/sandbox/directory"
+        "SANDBOX_PATH": "/your/sandbox/directory",
         // "C:\\your\\sandbox\\directory" for Windows
-      }
-    }
-  }
+      },
+    },
+  },
 }
 ```
+
 </details>
 
 <details>
@@ -132,6 +134,7 @@ Add to `.vscode/settings.json` in your project:
   }
 }
 ```
+
 </details>
 
 <details>
@@ -142,6 +145,7 @@ Any MCP-compatible client can connect using stdio transport:
 ```bash
 NUTRIENT_DWS_API_KEY=your_key SANDBOX_PATH=/your/path npx @nutrient-sdk/dws-mcp-server
 ```
+
 </details>
 
 ### 3. Restart Your AI Client
@@ -154,26 +158,26 @@ Drop documents into your sandbox directory and start giving instructions!
 
 ## Available Tools
 
-| Tool | Description |
-|------|-------------|
+| Tool                   | Description                                                                                                                                                           |
+| ---------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **document_processor** | All-in-one document processing: merge PDFs, convert formats, apply OCR, watermark, rotate, redact, flatten annotations, extract text/tables/key-value pairs, and more |
-| **document_signer** | Digitally sign PDFs with PAdES-compliant CMS or CAdES signatures, with customizable visible/invisible signature appearances |
-| **sandbox_file_tree** | Browse files in the sandbox directory (when sandbox mode is enabled) |
-| **directory_tree** | Browse directory contents (when sandbox mode is disabled) |
+| **document_signer**    | Digitally sign PDFs with PAdES-compliant CMS or CAdES signatures, with customizable visible/invisible signature appearances                                           |
+| **sandbox_file_tree**  | Browse files in the sandbox directory (when sandbox mode is enabled)                                                                                                  |
+| **directory_tree**     | Browse directory contents (when sandbox mode is disabled)                                                                                                             |
 
 ### Document Processor Capabilities
 
-| Feature | Description |
-|---------|-------------|
-| Document Creation | Merge PDFs, Office docs (DOCX, XLSX, PPTX), and images into a single document |
-| Format Conversion | PDF ↔ DOCX, images (PNG, JPEG, WebP), PDF/A, PDF/UA, HTML, Markdown |
-| Editing | Watermark (text/image), rotate pages, flatten annotations |
-| Security | Redact sensitive data (SSNs, credit cards, emails, etc.), password protection, permission control |
-| Data Extraction | Extract text, tables, or key-value pairs as structured JSON |
-| OCR | Multi-language optical character recognition for scanned documents |
-| Optimization | Compress and linearize PDFs without quality loss |
-| Annotations | Import XFDF annotations, flatten annotations |
-| Digital Signing | PAdES-compliant CMS and CAdES digital signatures (via document_signer tool) |
+| Feature           | Description                                                                                       |
+| ----------------- | ------------------------------------------------------------------------------------------------- |
+| Document Creation | Merge PDFs, Office docs (DOCX, XLSX, PPTX), and images into a single document                     |
+| Format Conversion | PDF ↔ DOCX, images (PNG, JPEG, WebP), PDF/A, PDF/UA, HTML, Markdown                               |
+| Editing           | Watermark (text/image), rotate pages, flatten annotations                                         |
+| Security          | Redact sensitive data (SSNs, credit cards, emails, etc.), password protection, permission control |
+| Data Extraction   | Extract text, tables, or key-value pairs as structured JSON                                       |
+| OCR               | Multi-language optical character recognition for scanned documents                                |
+| Optimization      | Compress and linearize PDFs without quality loss                                                  |
+| Annotations       | Import XFDF annotations, flatten annotations                                                      |
+| Digital Signing   | PAdES-compliant CMS and CAdES digital signatures (via document_signer tool)                       |
 
 ## Use with AI Agent Frameworks
 
@@ -212,6 +216,7 @@ npx @nutrient-sdk/dws-mcp-server
 ```
 
 When sandbox mode is enabled:
+
 - Relative paths resolve relative to the sandbox directory
 - All input file paths are validated to ensure they reside in the sandbox
 - Processed files are saved within the sandbox
@@ -222,25 +227,42 @@ When sandbox mode is enabled:
 
 Processed files are saved to a location determined by the AI. To guide output placement, use natural language (e.g., "save the result to `output/result.pdf`") or create an `output` directory in your sandbox.
 
+### Authentication
+
+The server authenticates to the Nutrient DWS API (`https://api.nutrient.io`) using one of:
+
+| Method | When | Config |
+|--------|------|--------|
+| **API key** | `NUTRIENT_DWS_API_KEY` is set | Static key passed as Bearer token to DWS API |
+| **OAuth browser flow** | No API key set | Opens browser for Nutrient OAuth consent, caches token locally |
+
+When no API key is configured, the server opens a browser-based OAuth flow on the first tool call (similar to `gh auth login`). Tokens are cached at `~/.nutrient/credentials.json` and refreshed automatically.
+
 ### Environment Variables
 
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `NUTRIENT_DWS_API_KEY` | Yes | Your Nutrient DWS API key ([get one free](https://dashboard.nutrient.io/sign_up/)) |
-| `SANDBOX_PATH` | Recommended | Directory to restrict file operations to |
+| Variable               | Required    | Description                                                                        |
+| ---------------------- | ----------- | ---------------------------------------------------------------------------------- |
+| `NUTRIENT_DWS_API_KEY` | No*         | Nutrient DWS API key ([get one free](https://dashboard.nutrient.io/sign_up/))      |
+| `SANDBOX_PATH`         | Recommended | Directory to restrict file operations to                                           |
+| `LOG_LEVEL`            | No          | Console log level for Winston logger (`debug` default)                             |
+
+\* If omitted, the server uses an OAuth browser flow to authenticate with the Nutrient API.
 
 ## Troubleshooting
 
 **Server not appearing in Claude Desktop?**
+
 - Ensure Node.js 18+ is installed (`node --version`)
 - Check the config file path is correct for your OS
 - Restart Claude Desktop completely (check Task Manager/Activity Monitor)
 
 **"API key invalid" errors?**
+
 - Verify your API key at [dashboard.nutrient.io](https://dashboard.nutrient.io)
 - Ensure the key is set correctly in the `env` section (no extra spaces)
 
 **Files not found?**
+
 - Check that `SANDBOX_PATH` points to an existing directory
 - Ensure your documents are inside the sandbox directory
 - Use the `sandbox_file_tree` tool to verify visible files

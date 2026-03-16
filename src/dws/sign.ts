@@ -2,10 +2,10 @@ import FormData from 'form-data'
 import { handleApiError, handleFileResponse } from './utils.js'
 import { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import { SignatureOptions } from '../schemas.js'
-import { callNutrientApi } from './api.js'
 import { resolveReadFilePath, resolveWriteFilePath } from '../fs/sandbox.js'
 import fs from 'fs'
 import path from 'path'
+import { DwsApiClient } from './client.js'
 
 /**
  * Performs a sign call to the Nutrient DWS API
@@ -13,6 +13,7 @@ import path from 'path'
 export async function performSignCall(
   filePath: string,
   outputFilePath: string,
+  apiClient: DwsApiClient,
   signatureOptions: SignatureOptions = { signatureType: 'cms', flatten: false },
   watermarkImagePath?: string,
   graphicImagePath?: string,
@@ -36,7 +37,7 @@ export async function performSignCall(
       await addFileToFormData(formData, 'graphic', graphicImagePath)
     }
 
-    const response = await callNutrientApi('sign', formData)
+    const response = await apiClient.post('sign', formData)
 
     return handleFileResponse(response, resolvedOutputPath, 'File signed successfully')
   } catch (e: unknown) {
