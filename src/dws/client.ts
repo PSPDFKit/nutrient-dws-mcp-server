@@ -25,6 +25,8 @@ export type DwsApiClientOptions = {
    * The client retries automatically with exponential backoff (max {@link MAX_RETRIES}).
    */
   onTokenRejected?: () => void | Promise<void>
+  /** @internal Initial backoff delay in ms for 401 retries. Exposed for testing. */
+  retryDelayMs?: number
 }
 
 /**
@@ -44,11 +46,11 @@ export class DwsApiClient {
     this.httpClient = options.httpClient ?? axios.create({ timeout: options.timeoutMs ?? 120_000 })
 
     if (options.onTokenRejected) {
-      this.installTokenRejectedInterceptor(options.onTokenRejected)
+      this.installTokenRejectedInterceptor(options.onTokenRejected, options.retryDelayMs ?? INITIAL_BACKOFF_MS)
     }
   }
 
-  private installTokenRejectedInterceptor(onTokenRejected: () => void | Promise<void>) {
+  private installTokenRejectedInterceptor(onTokenRejected: () => void | Promise<void>, initialDelayMs: number) {
     this.httpClient.interceptors.response.use(undefined, async (error) => {
       const status = (error as { response?: { status?: number } })?.response?.status
       if (status !== 401) {
@@ -64,7 +66,7 @@ export class DwsApiClient {
       }
 
       config._retryCount = retryCount + 1
-      const delay = Math.min(INITIAL_BACKOFF_MS * 2 ** retryCount, MAX_BACKOFF_MS)
+      const delay = Math.min(initialDelayMs * 2 ** retryCount, MAX_BACKOFF_MS)
       logger.info('401 response — invalidating token and retrying', { attempt: config._retryCount, delayMs: delay })
 
       await onTokenRejected()
