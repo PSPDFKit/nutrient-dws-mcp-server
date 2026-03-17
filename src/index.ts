@@ -192,6 +192,17 @@ async function prepareSandbox(sandboxDir: string | null) {
   )
 }
 
+function buildOAuthConfig(environment: Environment): NutrientOAuthConfig {
+  return {
+    authorizeUrl: `${environment.authServerUrl}/oauth/authorize`,
+    tokenUrl: `${environment.authServerUrl}/oauth/token`,
+    registrationUrl: `${environment.authServerUrl}/oauth/register`,
+    clientId: environment.clientId,
+    scopes: ['mcp:invoke', 'offline_access'],
+    resource: environment.dwsApiBaseUrl,
+  }
+}
+
 function createStdioApiClient(environment: Environment): DwsApiClient {
   if (environment.nutrientApiKey) {
     return createApiClient({
@@ -200,14 +211,7 @@ function createStdioApiClient(environment: Environment): DwsApiClient {
     })
   }
 
-  const oauthConfig: NutrientOAuthConfig = {
-    authorizeUrl: `${environment.authServerUrl}/oauth/authorize`,
-    tokenUrl: `${environment.authServerUrl}/oauth/token`,
-    registrationUrl: `${environment.authServerUrl}/oauth/register`,
-    clientId: environment.clientId,
-    scopes: ['mcp:invoke', 'offline_access'],
-    resource: environment.dwsApiBaseUrl,
-  }
+  const oauthConfig = buildOAuthConfig(environment)
 
   return createApiClient({
     tokenResolver: () => getToken(oauthConfig),
@@ -246,15 +250,7 @@ export async function runServer(): Promise<RunServerResult> {
   // no transport-level mechanism to pause while waiting for browser auth
   if (!environment.nutrientApiKey) {
     logger.info('No API key set, authenticating via OAuth before accepting connections...')
-    const oauthConfig: NutrientOAuthConfig = {
-      authorizeUrl: `${environment.authServerUrl}/oauth/authorize`,
-      tokenUrl: `${environment.authServerUrl}/oauth/token`,
-      registrationUrl: `${environment.authServerUrl}/oauth/register`,
-      clientId: environment.clientId,
-      scopes: ['mcp:invoke', 'offline_access'],
-      resource: environment.dwsApiBaseUrl,
-    }
-    await getToken(oauthConfig)
+    await getToken(buildOAuthConfig(environment))
     logger.info('OAuth authentication completed')
   }
 
