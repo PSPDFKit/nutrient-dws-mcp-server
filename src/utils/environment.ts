@@ -21,9 +21,7 @@ const RawEnvironmentSchema = z.object({
   CLIENT_ID: z.string().optional(),
 })
 
-let cachedEnvironment: Environment | undefined
-
-function parseEnvironment(rawEnv: NodeJS.ProcessEnv): Environment {
+export function getEnvironment(rawEnv: NodeJS.ProcessEnv = process.env): Environment {
   const raw = RawEnvironmentSchema.parse(rawEnv)
 
   return {
@@ -32,16 +30,4 @@ function parseEnvironment(rawEnv: NodeJS.ProcessEnv): Environment {
     authServerUrl: raw.AUTH_SERVER_URL,
     clientId: raw.CLIENT_ID,
   }
-}
-
-export function getEnvironment(): Environment {
-  if (!cachedEnvironment) {
-    cachedEnvironment = parseEnvironment(process.env)
-  }
-
-  return cachedEnvironment
-}
-
-export function resetEnvironmentForTests() {
-  cachedEnvironment = undefined
 }

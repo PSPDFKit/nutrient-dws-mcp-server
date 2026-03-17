@@ -224,13 +224,7 @@ type RunServerResult = {
   close: () => Promise<void>
 }
 
-export async function runServer(): Promise<RunServerResult> {
-  let environment: Environment
-  try {
-    environment = getEnvironment()
-  } catch (e) {
-    throw new Error(`Invalid environment configuration: ${e instanceof Error ? e.message : e}`)
-  }
+export async function runServer(environment: Environment): Promise<RunServerResult> {
   const { sandboxDir } = await parseCommandLineArgs()
 
   await prepareSandbox(sandboxDir)
@@ -288,7 +282,15 @@ function isMainModule() {
 if (isMainModule()) {
   let activeServer: RunServerResult | undefined
 
-  runServer()
+  let environment: Environment
+  try {
+    environment = getEnvironment()
+  } catch (e) {
+    console.error(`Invalid environment configuration: ${e instanceof Error ? e.message : e}`)
+    process.exit(1)
+  }
+
+  runServer(environment)
     .then((result) => {
       activeServer = result
     })
