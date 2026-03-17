@@ -112,9 +112,13 @@ async function registerClient(config: NutrientOAuthConfig, redirectUri: string):
   return data.client_id
 }
 
+const DEFAULT_TOKEN_TTL_MS = 60 * 60 * 1000 // 1 hour
+
 function isTokenExpired(credentials: CachedCredentials): boolean {
+  // Treat missing expiresAt as "unknown TTL" — assume 1 hour from now is generous
+  // but still requires re-auth rather than using a potentially stale token forever
   if (!credentials.expiresAt) {
-    return false
+    return true
   }
   // Consider expired 60 seconds early to avoid edge cases
   return Date.now() >= (credentials.expiresAt - 60_000)
@@ -152,7 +156,7 @@ async function refreshAccessToken(
     return {
       accessToken: data.access_token,
       refreshToken: data.refresh_token ?? refreshToken,
-      expiresAt: data.expires_in ? Date.now() + data.expires_in * 1000 : undefined,
+      expiresAt: Date.now() + (data.expires_in ? data.expires_in * 1000 : DEFAULT_TOKEN_TTL_MS),
     }
   } catch {
     return null
