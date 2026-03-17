@@ -1,4 +1,4 @@
-import { describe, expect, it, vi, afterEach, beforeEach } from 'vitest'
+import { describe, expect, it, vi, afterEach } from 'vitest'
 import { createServer, type Server } from 'node:http'
 import { DwsApiClient } from '../src/dws/client.js'
 
