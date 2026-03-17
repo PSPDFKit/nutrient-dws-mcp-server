@@ -251,6 +251,10 @@ When no API key is configured, the server opens a browser-based OAuth flow on th
 
 \* If omitted, the server uses an OAuth browser flow to authenticate with the Nutrient API.
 
+### Security Note: Token Storage
+
+When using the OAuth browser flow, access tokens and refresh tokens are cached in plaintext at `~/.nutrient/credentials.json` (permissions `0600`). This file contains credentials equivalent to your API key. Do not commit it to version control or include it in shared backups.
+
 ## Troubleshooting
 
 ### Reset authentication to a clean state
