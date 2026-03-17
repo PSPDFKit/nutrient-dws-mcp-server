@@ -47,7 +47,8 @@
     "test:ci": "vitest run --exclude tests/build-api-examples.test.ts --exclude tests/signing-api-examples.test.ts",
     "test:integration": "vitest run tests/build-api-examples.test.ts tests/signing-api-examples.test.ts",
     "test:watch": "vitest",
-    "clean": "shx rm -rf dist"
+    "clean": "shx rm -rf dist",
+    "prepublishOnly": "pnpm run build"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.25.2",
