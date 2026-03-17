@@ -32,6 +32,7 @@ type CachedCredentials = {
   accessToken: string
   refreshToken?: string
   expiresAt?: number
+  clientId?: string
 }
 
 const DEFAULT_CREDENTIALS_PATH = join(homedir(), '.nutrient', 'credentials.json')
@@ -301,6 +302,8 @@ async function performBrowserOAuthFlow(config: NutrientOAuthConfig): Promise<Cac
         }
 
         const credentials = await exchangeCodeForToken(config, clientId, code, codeVerifier, redirectUri)
+        // Persist the client ID (from DCR or static config) so token refresh works
+        credentials.clientId = clientId
 
         res.writeHead(200, { 'Content-Type': 'text/html' })
         res.end('<html><body><h1>Authenticated!</h1><p>You can close this tab and return to your terminal.</p></body></html>')
@@ -342,11 +345,13 @@ export async function getToken(config: NutrientOAuthConfig): Promise<string> {
     logger.debug('Cached token expired', { expiresAt: cached.expiresAt ? new Date(cached.expiresAt).toISOString() : 'unknown' })
 
     // 3. Expired but has refresh token — try refresh
-    if (cached.refreshToken && config.clientId) {
+    const effectiveClientId = config.clientId ?? cached.clientId
+    if (cached.refreshToken && effectiveClientId) {
       logger.info('Attempting token refresh')
-      const refreshed = await refreshAccessToken(config, config.clientId, cached.refreshToken)
+      const refreshed = await refreshAccessToken(config, effectiveClientId, cached.refreshToken)
       if (refreshed) {
         logger.info('Token refreshed successfully')
+        refreshed.clientId = effectiveClientId
         await writeCachedCredentials(credentialsPath, refreshed)
         return refreshed.accessToken
       }
