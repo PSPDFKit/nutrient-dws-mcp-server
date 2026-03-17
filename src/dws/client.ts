@@ -6,6 +6,10 @@ import { getVersion } from '../version.js'
 /** Async function that returns a bearer token for authenticating with the DWS API. */
 export type DwsTokenResolver = () => Promise<string>
 
+const MAX_RETRIES = 3
+const INITIAL_BACKOFF_MS = 1_000
+const MAX_BACKOFF_MS = 10_000
+
 export type DwsApiClientOptions = {
   /** DWS API base URL. Defaults to `https://api.nutrient.io`. */
   baseUrl?: string
@@ -15,7 +19,11 @@ export type DwsApiClientOptions = {
   httpClient?: AxiosInstance
   /** Request timeout in milliseconds. Defaults to 120000 (2 minutes). */
   timeoutMs?: number
-  /** Called when the API returns 401, before retrying with a fresh token. Use to invalidate cached credentials. */
+  /**
+   * Called when the API returns a 401 Unauthorized response. Use to invalidate
+   * cached credentials so `tokenResolver` returns a fresh token on retry.
+   * The client retries automatically with exponential backoff (max {@link MAX_RETRIES}).
+   */
   onTokenRejected?: () => void | Promise<void>
 }
 
@@ -36,27 +44,31 @@ export class DwsApiClient {
     this.httpClient = options.httpClient ?? axios.create({ timeout: options.timeoutMs ?? 120_000 })
 
     if (options.onTokenRejected) {
-      this.install401Interceptor(options.onTokenRejected)
+      this.installTokenRejectedInterceptor(options.onTokenRejected)
     }
   }
 
-  private install401Interceptor(onTokenRejected: () => void | Promise<void>) {
+  private installTokenRejectedInterceptor(onTokenRejected: () => void | Promise<void>) {
     this.httpClient.interceptors.response.use(undefined, async (error) => {
-      const config = error.config as InternalAxiosRequestConfig & { _retried?: boolean }
-      if (error.response?.status !== 401 || config._retried) {
+      const status = (error as { response?: { status?: number } })?.response?.status
+      if (status !== 401) {
         throw error
       }
 
-      // Don't retry requests with streaming/FormData bodies — they can't be replayed
-      if (config.data instanceof FormData) {
-        logger.warn('401 on FormData request — cannot retry, invalidating token for next call')
-        await onTokenRejected()
+      const config = error.config as InternalAxiosRequestConfig & { _retryCount?: number }
+      const retryCount = config._retryCount ?? 0
+
+      if (retryCount >= MAX_RETRIES) {
+        logger.warn('Max 401 retries reached, giving up', { retryCount })
         throw error
       }
 
-      logger.info('401 response — invalidating token and retrying with fresh credentials')
-      config._retried = true
+      config._retryCount = retryCount + 1
+      const delay = Math.min(INITIAL_BACKOFF_MS * 2 ** retryCount, MAX_BACKOFF_MS)
+      logger.info('401 response — invalidating token and retrying', { attempt: config._retryCount, delayMs: delay })
+
       await onTokenRejected()
+      await new Promise((resolve) => setTimeout(resolve, delay))
 
       const token = await this.tokenResolver()
       config.headers.Authorization = `Bearer ${token}`
