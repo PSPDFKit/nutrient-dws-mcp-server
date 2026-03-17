@@ -236,6 +236,22 @@ export async function runServer(): Promise<RunServerResult> {
 
   const apiClient = createStdioApiClient(environment)
 
+  // Authenticate eagerly before accepting tool calls — in stdio mode there's
+  // no transport-level mechanism to pause while waiting for browser auth
+  if (!environment.nutrientApiKey) {
+    logger.info('No API key set, authenticating via OAuth before accepting connections...')
+    const oauthConfig: NutrientOAuthConfig = {
+      authorizeUrl: `${environment.authServerUrl}/oauth/authorize`,
+      tokenUrl: `${environment.authServerUrl}/oauth/token`,
+      registrationUrl: `${environment.authServerUrl}/oauth/register`,
+      clientId: environment.clientId,
+      scopes: ['mcp:invoke', 'offline_access'],
+      resource: environment.dwsApiBaseUrl,
+    }
+    await getToken(oauthConfig)
+    logger.info('OAuth authentication completed')
+  }
+
   const server = createMcpServer({
     sandboxEnabled,
     apiClient,
