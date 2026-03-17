@@ -35,6 +35,8 @@ type CachedCredentials = {
 }
 
 const DEFAULT_CREDENTIALS_PATH = join(homedir(), '.nutrient', 'credentials.json')
+const FETCH_TIMEOUT_MS = 15_000
+const CALLBACK_TIMEOUT_MS = 5 * 60 * 1000
 
 function generateCodeVerifier(): string {
   return randomBytes(32).toString('base64url')
@@ -79,6 +81,7 @@ async function registerClient(config: NutrientOAuthConfig, redirectUri: string):
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(registrationPayload),
+    signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
   })
 
   if (!response.ok) {
@@ -120,6 +123,7 @@ async function refreshAccessToken(
         client_id: clientId,
         refresh_token: refreshToken,
       }),
+      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
     })
 
     if (!response.ok) {
@@ -160,6 +164,7 @@ async function exchangeCodeForToken(
       redirect_uri: redirectUri,
       code_verifier: codeVerifier,
     }),
+    signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
   })
 
   if (!response.ok) {
@@ -248,8 +253,13 @@ async function performBrowserOAuthFlow(config: NutrientOAuthConfig): Promise<Cac
   logger.info('Opening browser for Nutrient authentication...')
   await open(authorizeUrl)
 
-  // 4. Wait for the OAuth callback
+  // 4. Wait for the OAuth callback (with timeout)
   return new Promise<CachedCredentials>((resolve, reject) => {
+    const timeout = setTimeout(() => {
+      server.close()
+      reject(new Error('OAuth authentication timed out after 5 minutes'))
+    }, CALLBACK_TIMEOUT_MS)
+
     server.on('request', async (req: IncomingMessage, res: ServerResponse) => {
       try {
         const url = new URL(req.url ?? '/', `http://localhost`)
@@ -264,6 +274,7 @@ async function performBrowserOAuthFlow(config: NutrientOAuthConfig): Promise<Cac
           const description = url.searchParams.get('error_description') ?? error
           res.writeHead(400, { 'Content-Type': 'text/html' })
           res.end(`<html><body><h1>Authorization Failed</h1><p>${escapeHtml(description)}</p><p>You can close this tab.</p></body></html>`)
+          clearTimeout(timeout)
           server.close()
           reject(new Error(`OAuth authorization failed: ${description}`))
           return
@@ -273,6 +284,7 @@ async function performBrowserOAuthFlow(config: NutrientOAuthConfig): Promise<Cac
         if (returnedState !== state) {
           res.writeHead(400, { 'Content-Type': 'text/html' })
           res.end('<html><body><h1>Invalid State</h1><p>OAuth state mismatch. Please try again.</p></body></html>')
+          clearTimeout(timeout)
           server.close()
           reject(new Error('OAuth state mismatch'))
           return
@@ -282,6 +294,7 @@ async function performBrowserOAuthFlow(config: NutrientOAuthConfig): Promise<Cac
         if (!code) {
           res.writeHead(400, { 'Content-Type': 'text/html' })
           res.end('<html><body><h1>Missing Code</h1><p>No authorization code received.</p></body></html>')
+          clearTimeout(timeout)
           server.close()
           reject(new Error('No authorization code received'))
           return
@@ -291,11 +304,13 @@ async function performBrowserOAuthFlow(config: NutrientOAuthConfig): Promise<Cac
 
         res.writeHead(200, { 'Content-Type': 'text/html' })
         res.end('<html><body><h1>Authenticated!</h1><p>You can close this tab and return to your terminal.</p></body></html>')
+        clearTimeout(timeout)
         server.close()
         resolve(credentials)
       } catch (err) {
         res.writeHead(500, { 'Content-Type': 'text/html' })
         res.end('<html><body><h1>Error</h1><p>Something went wrong during authentication.</p></body></html>')
+        clearTimeout(timeout)
         server.close()
         reject(err)
       }
