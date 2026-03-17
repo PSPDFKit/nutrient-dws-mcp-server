@@ -2,7 +2,8 @@ import { createServer, type IncomingMessage, type ServerResponse } from 'node:ht
 import { randomBytes, createHash } from 'node:crypto'
 import { readFile, writeFile, mkdir } from 'node:fs/promises'
 import { homedir } from 'node:os'
-import { join } from 'node:path'
+import { join, dirname } from 'node:path'
+import { z } from 'zod'
 import { logger } from '../logger.js'
 
 function escapeHtml(s: string): string {
@@ -28,12 +29,14 @@ export type NutrientOAuthConfig = {
   resource?: string
 }
 
-type CachedCredentials = {
-  accessToken: string
-  refreshToken?: string
-  expiresAt?: number
-  clientId?: string
-}
+const CachedCredentialsSchema = z.object({
+  accessToken: z.string(),
+  refreshToken: z.string().optional(),
+  expiresAt: z.number().optional(),
+  clientId: z.string().optional(),
+})
+
+type CachedCredentials = z.infer<typeof CachedCredentialsSchema>
 
 const DEFAULT_CREDENTIALS_PATH = join(homedir(), '.nutrient', 'credentials.json')
 const FETCH_TIMEOUT_MS = 15_000
@@ -50,14 +53,22 @@ function generateCodeChallenge(verifier: string): string {
 async function readCachedCredentials(credentialsPath: string): Promise<CachedCredentials | null> {
   try {
     const content = await readFile(credentialsPath, 'utf-8')
-    return JSON.parse(content) as CachedCredentials
-  } catch {
+    const result = CachedCredentialsSchema.safeParse(JSON.parse(content))
+    if (!result.success) {
+      logger.warn('Cached credentials file is malformed, ignoring', { path: credentialsPath })
+      return null
+    }
+    return result.data
+  } catch (err: unknown) {
+    if ((err as NodeJS.ErrnoException).code !== 'ENOENT') {
+      logger.warn('Failed to read cached credentials, ignoring', { path: credentialsPath, err })
+    }
     return null
   }
 }
 
 async function writeCachedCredentials(credentialsPath: string, credentials: CachedCredentials): Promise<void> {
-  const dir = join(credentialsPath, '..')
+  const dir = dirname(credentialsPath)
   await mkdir(dir, { recursive: true, mode: 0o700 })
   await writeFile(credentialsPath, JSON.stringify(credentials, null, 2), { mode: 0o600 })
 }
