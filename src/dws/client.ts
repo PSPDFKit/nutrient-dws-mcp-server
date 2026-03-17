@@ -12,6 +12,8 @@ export type DwsApiClientOptions = {
   tokenResolver: DwsTokenResolver
   /** Optional custom Axios instance (useful for testing or proxy configuration). */
   httpClient?: AxiosInstance
+  /** Request timeout in milliseconds. Defaults to 120000 (2 minutes). */
+  timeoutMs?: number
 }
 
 /**
@@ -28,7 +30,7 @@ export class DwsApiClient {
   constructor(options: DwsApiClientOptions) {
     this.baseUrl = options.baseUrl ?? 'https://api.nutrient.io'
     this.tokenResolver = options.tokenResolver
-    this.httpClient = options.httpClient ?? axios.create()
+    this.httpClient = options.httpClient ?? axios.create({ timeout: options.timeoutMs ?? 120_000 })
   }
 
   private async buildHeaders(payload?: FormData | Record<string, unknown>) {
