@@ -58,7 +58,7 @@ The OAuth flow will use `{AUTH_SERVER_URL}/oauth/authorize` and `{AUTH_SERVER_UR
 | `AUTH_SERVER_URL`      | `https://api.nutrient.io`  | Authorization server base URL (for OAuth)        |
 | `CLIENT_ID`           | —                          | OAuth client ID (stdio OAuth flow)               |
 | `SANDBOX_PATH`        | —                          | Filesystem sandbox root                          |
-| `LOG_LEVEL`           | `debug`                    | Winston logger level                             |
+| `LOG_LEVEL`           | `info`                     | Winston logger level                             |
 | `MCP_LOG_FILE`        | auto (tmpdir)              | Override log file path                           |
 
 ---

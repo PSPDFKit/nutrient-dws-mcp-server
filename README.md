@@ -240,11 +240,14 @@ When no API key is configured, the server opens a browser-based OAuth flow on th
 
 ### Environment Variables
 
-| Variable               | Required    | Description                                                                        |
-| ---------------------- | ----------- | ---------------------------------------------------------------------------------- |
-| `NUTRIENT_DWS_API_KEY` | No*         | Nutrient DWS API key ([get one free](https://dashboard.nutrient.io/sign_up/))      |
-| `SANDBOX_PATH`         | Recommended | Directory to restrict file operations to                                           |
-| `LOG_LEVEL`            | No          | Console log level for Winston logger (`debug` default)                             |
+| Variable               | Required    | Description                                                                                  |
+| ---------------------- | ----------- | -------------------------------------------------------------------------------------------- |
+| `NUTRIENT_DWS_API_KEY` | No*         | Nutrient DWS API key ([get one free](https://dashboard.nutrient.io/sign_up/))                |
+| `SANDBOX_PATH`         | Recommended | Directory to restrict file operations to                                                     |
+| `CLIENT_ID`            | No          | OAuth client ID. Skips DCR and enables token refresh when set                                |
+| `DWS_API_BASE_URL`     | No          | DWS API base URL (default: `https://api.nutrient.io`)                                       |
+| `LOG_LEVEL`            | No          | Winston logger level (`info` default). Logs are written to `MCP_LOG_FILE` in stdio mode      |
+| `MCP_LOG_FILE`         | No          | Override log file path (default: system temp directory)                                      |
 
 \* If omitted, the server uses an OAuth browser flow to authenticate with the Nutrient API.
 
