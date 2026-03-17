@@ -67,11 +67,17 @@ The OAuth flow will use `{AUTH_SERVER_URL}/oauth/authorize` and `{AUTH_SERVER_UR
 
 The [MCP Inspector](https://github.com/modelcontextprotocol/inspector) is a browser-based tool for interactively testing and debugging MCP servers.
 
+For stdio transport, pass the server as a subprocess directly:
+
 ```bash
-npx @modelcontextprotocol/inspector
+npx @modelcontextprotocol/inspector -- npx @nutrient-sdk/dws-mcp-server
 ```
 
-Opens at `http://localhost:6274`. Point it at `http://localhost:3000/mcp`.
+Or when developing locally:
+
+```bash
+npx @modelcontextprotocol/inspector -- node dist/index.js
+```
 
 ---
 
