@@ -28,7 +28,7 @@ import { getVersion } from './version.js'
 import { parseSandboxPath } from './utils/sandbox.js'
 import { createApiClient } from './dws/api.js'
 import { DwsApiClient } from './dws/client.js'
-import { getToken, type NutrientOAuthConfig } from './auth/nutrient-oauth.js'
+import { getToken, invalidateCachedToken, type NutrientOAuthConfig } from './auth/nutrient-oauth.js'
 import { Environment, getEnvironment } from './utils/environment.js'
 import { logger } from './logger.js'
 
@@ -211,6 +211,7 @@ function createStdioApiClient(environment: Environment): DwsApiClient {
 
   return createApiClient({
     tokenResolver: () => getToken(oauthConfig),
+    onTokenRejected: () => invalidateCachedToken(oauthConfig),
     baseUrl: environment.dwsApiBaseUrl,
   })
 }

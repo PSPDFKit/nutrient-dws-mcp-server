@@ -13,6 +13,7 @@ export type ApiClientAuthContext =
     }
   | {
       tokenResolver: () => Promise<string>
+      onTokenRejected?: () => void | Promise<void>
       baseUrl?: string
     }
 
@@ -25,5 +26,5 @@ export function createApiClient(context: ApiClientAuthContext): DwsApiClient {
     return createApiClientFromApiKey(context.apiKey, context.baseUrl)
   }
 
-  return createApiClientFromTokenResolver(context.tokenResolver, context.baseUrl)
+  return createApiClientFromTokenResolver(context.tokenResolver, context.baseUrl, context.onTokenRejected)
 }

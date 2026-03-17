@@ -1,6 +1,6 @@
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http'
 import { randomBytes, createHash } from 'node:crypto'
-import { readFile, writeFile, mkdir } from 'node:fs/promises'
+import { readFile, writeFile, mkdir, unlink } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { join, dirname } from 'node:path'
 import { z } from 'zod'
@@ -199,6 +199,7 @@ async function exchangeCodeForToken(
     accessToken: data.access_token,
     refreshToken: data.refresh_token,
     expiresAt: data.expires_in ? Date.now() + data.expires_in * 1000 : undefined,
+    clientId
   }
 }
 
@@ -317,8 +318,6 @@ async function performBrowserOAuthFlow(config: NutrientOAuthConfig): Promise<Cac
         }
 
         const credentials = await exchangeCodeForToken(config, clientId, code, codeVerifier, redirectUri)
-        // Persist the client ID (from DCR or static config) so token refresh works
-        credentials.clientId = clientId
 
         res.writeHead(200, { 'Content-Type': 'text/html' })
         res.end('<html><body><h1>Authenticated!</h1><p>You can close this tab and return to your terminal.</p></body></html>')
@@ -334,6 +333,22 @@ async function performBrowserOAuthFlow(config: NutrientOAuthConfig): Promise<Cac
       }
     })
   })
+}
+
+/**
+ * Deletes the cached credentials file so the next `getToken` call
+ * is forced to refresh or re-authenticate.
+ */
+export async function invalidateCachedToken(config: NutrientOAuthConfig): Promise<void> {
+  const credentialsPath = config.credentialsPath ?? DEFAULT_CREDENTIALS_PATH
+  try {
+    await unlink(credentialsPath)
+    logger.info('Invalidated cached token', { credentialsPath })
+  } catch (err: unknown) {
+    if ((err as NodeJS.ErrnoException).code !== 'ENOENT') {
+      logger.warn('Failed to delete cached credentials', { credentialsPath, err })
+    }
+  }
 }
 
 /**
