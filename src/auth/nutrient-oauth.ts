@@ -5,6 +5,10 @@ import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { logger } from '../logger.js'
 
+function escapeHtml(s: string): string {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+}
+
 export type NutrientOAuthConfig = {
   /** Nutrient OAuth authorize endpoint. */
   authorizeUrl: string
@@ -259,7 +263,7 @@ async function performBrowserOAuthFlow(config: NutrientOAuthConfig): Promise<Cac
         if (error) {
           const description = url.searchParams.get('error_description') ?? error
           res.writeHead(400, { 'Content-Type': 'text/html' })
-          res.end(`<html><body><h1>Authorization Failed</h1><p>${description}</p><p>You can close this tab.</p></body></html>`)
+          res.end(`<html><body><h1>Authorization Failed</h1><p>${escapeHtml(description)}</p><p>You can close this tab.</p></body></html>`)
           server.close()
           reject(new Error(`OAuth authorization failed: ${description}`))
           return
