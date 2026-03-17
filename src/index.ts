@@ -220,7 +220,12 @@ type RunServerResult = {
 }
 
 export async function runServer(): Promise<RunServerResult> {
-  const environment = getEnvironment()
+  let environment: Environment
+  try {
+    environment = getEnvironment()
+  } catch (e) {
+    throw new Error(`Invalid environment configuration: ${e instanceof Error ? e.message : e}`)
+  }
   const { sandboxDir } = await parseCommandLineArgs()
 
   await prepareSandbox(sandboxDir)
