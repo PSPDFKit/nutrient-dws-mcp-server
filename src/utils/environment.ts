@@ -10,7 +10,14 @@ export type Environment = {
 const RawEnvironmentSchema = z.object({
   NUTRIENT_DWS_API_KEY: z.string().optional(),
   DWS_API_BASE_URL: z.string().url().default('https://api.nutrient.io'),
-  AUTH_SERVER_URL: z.string().url().default('https://api.nutrient.io'),
+  AUTH_SERVER_URL: z
+    .string()
+    .url()
+    .refine(
+      (u) => u.startsWith('https://') || u.startsWith('http://localhost'),
+      'AUTH_SERVER_URL must use https:// (except localhost for local development)',
+    )
+    .default('https://api.nutrient.io'),
   CLIENT_ID: z.string().optional(),
 })
 
