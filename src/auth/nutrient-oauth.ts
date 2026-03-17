@@ -42,15 +42,15 @@ const DEFAULT_CREDENTIALS_PATH = join(homedir(), '.nutrient', 'credentials.json'
 const FETCH_TIMEOUT_MS = 15_000
 const CALLBACK_TIMEOUT_MS = 5 * 60 * 1000
 
-function generateCodeVerifier(): string {
+export function generateCodeVerifier(): string {
   return randomBytes(32).toString('base64url')
 }
 
-function generateCodeChallenge(verifier: string): string {
+export function generateCodeChallenge(verifier: string): string {
   return createHash('sha256').update(verifier).digest('base64url')
 }
 
-async function readCachedCredentials(credentialsPath: string): Promise<CachedCredentials | null> {
+export async function readCachedCredentials(credentialsPath: string): Promise<CachedCredentials | null> {
   try {
     const content = await readFile(credentialsPath, 'utf-8')
     const result = CachedCredentialsSchema.safeParse(JSON.parse(content))
@@ -114,7 +114,7 @@ async function registerClient(config: NutrientOAuthConfig, redirectUri: string):
 
 const DEFAULT_TOKEN_TTL_MS = 60 * 60 * 1000 // 1 hour
 
-function isTokenExpired(credentials: CachedCredentials): boolean {
+export function isTokenExpired(credentials: CachedCredentials): boolean {
   // Treat missing expiresAt as "unknown TTL" — assume 1 hour from now is generous
   // but still requires re-auth rather than using a potentially stale token forever
   if (!credentials.expiresAt) {

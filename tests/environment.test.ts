@@ -55,4 +55,24 @@ describe('environment', () => {
 
     expect(environment.nutrientApiKey).toBeUndefined()
   })
+
+  it('throws when DWS_API_BASE_URL is not a valid URL', () => {
+    process.env.DWS_API_BASE_URL = 'not-a-url'
+
+    expect(() => getEnvironment()).toThrow()
+  })
+
+  it('rejects non-HTTPS AUTH_SERVER_URL', () => {
+    process.env.AUTH_SERVER_URL = 'http://example.com'
+
+    expect(() => getEnvironment()).toThrow(/https/)
+  })
+
+  it('allows http://localhost AUTH_SERVER_URL for local development', () => {
+    process.env.AUTH_SERVER_URL = 'http://localhost:4000'
+
+    const environment = getEnvironment()
+
+    expect(environment.authServerUrl).toBe('http://localhost:4000')
+  })
 })
