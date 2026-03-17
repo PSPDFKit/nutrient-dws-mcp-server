@@ -69,7 +69,7 @@ function createTransports(): winston.transport[] {
 }
 
 export const logger = winston.createLogger({
-  level: process.env.LOG_LEVEL || 'debug',
+  level: process.env.LOG_LEVEL ?? 'info',
   format: winston.format.json(),
   defaultMeta: { service: 'dws-mcp-server' },
   transports: createTransports(),
