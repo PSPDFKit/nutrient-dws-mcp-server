@@ -88,7 +88,7 @@ async function registerClient(config: NutrientOAuthConfig, redirectUri: string):
   if (!response.ok) {
     const errorText = await response.text()
     logger.error('DCR failed', { status: response.status, body: errorText })
-    throw new Error(`Dynamic client registration failed (${response.status}): ${errorText}`)
+    throw new Error(`Dynamic client registration failed (${response.status})`)
   }
 
   const data = (await response.json()) as { client_id: string }
@@ -171,7 +171,7 @@ async function exchangeCodeForToken(
   if (!response.ok) {
     const errorText = await response.text()
     logger.error('Token exchange failed', { status: response.status, body: errorText })
-    throw new Error(`Token exchange failed (${response.status}): ${errorText}`)
+    throw new Error(`Token exchange failed (${response.status})`)
   }
 
   const data = (await response.json()) as {
