@@ -28,15 +28,16 @@ function getRequestId() {
   return store?.requestId ?? null
 }
 
-const customMessageFormat = winston.format.printf(({ level, message, timestamp }) => {
+const customMessageFormat = winston.format.printf(({ level, message, timestamp, service: _service, ...meta }) => {
   const requestId = getRequestId()
   const serializedMessage = typeof message === 'string' ? message : JSON.stringify(message)
+  const metaStr = Object.keys(meta).length > 0 ? ' ' + JSON.stringify(meta) : ''
 
   if (requestId) {
-    return `${timestamp} [${level}]: ${serializedMessage} requestId=${requestId}`
+    return `${timestamp} [${level}]: ${serializedMessage}${metaStr} requestId=${requestId}`
   }
 
-  return `${timestamp} [${level}]: ${serializedMessage}`
+  return `${timestamp} [${level}]: ${serializedMessage}${metaStr}`
 })
 
 const isStdioMode = process.env.MCP_TRANSPORT !== 'http'
