@@ -7,6 +7,7 @@ import { createServer, type Server } from 'node:http'
 import {
   generateCodeVerifier,
   generateCodeChallenge,
+  getDefaultCredentialsPath,
   isTokenExpired,
   readCachedCredentials,
 } from '../src/auth/nutrient-oauth.js'
@@ -111,6 +112,20 @@ describe('readCachedCredentials', () => {
     await writeFile(testPath, JSON.stringify(creds))
     const result = await readCachedCredentials(testPath)
     expect(result?.clientId).toBe('my-client')
+  })
+})
+
+describe('getDefaultCredentialsPath', () => {
+  it('uses XDG_CONFIG_HOME when set', () => {
+    const path = getDefaultCredentialsPath({ XDG_CONFIG_HOME: '/tmp/xdg-config' }, '/home/tester')
+
+    expect(path).toBe('/tmp/xdg-config/nutrient/credentials.json')
+  })
+
+  it('falls back to ~/.config when XDG_CONFIG_HOME is not set', () => {
+    const path = getDefaultCredentialsPath({}, '/home/tester')
+
+    expect(path).toBe('/home/tester/.config/nutrient/credentials.json')
   })
 })
 
