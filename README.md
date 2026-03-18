@@ -236,7 +236,7 @@ The server authenticates to the Nutrient DWS API (`https://api.nutrient.io`) usi
 | **API key** | `NUTRIENT_DWS_API_KEY` is set | Static key passed as Bearer token to DWS API |
 | **OAuth browser flow** | No API key set | Opens browser for Nutrient OAuth consent, caches token locally |
 
-When no API key is configured, the server opens a browser-based OAuth flow on the first tool call (similar to `gh auth login`). Tokens are cached at `~/.nutrient/credentials.json` and refreshed automatically.
+When no API key is configured, the server opens a browser-based OAuth flow on the first tool call (similar to `gh auth login`). Tokens are cached at `$XDG_CONFIG_HOME/nutrient/credentials.json` or `~/.config/nutrient/credentials.json` and refreshed automatically.
 
 ### Environment Variables
 
@@ -253,7 +253,7 @@ When no API key is configured, the server opens a browser-based OAuth flow on th
 
 ### Security Note: Token Storage
 
-When using the OAuth browser flow, access tokens and refresh tokens are cached in plaintext at `~/.nutrient/credentials.json` (permissions `0600`). This file contains credentials equivalent to your API key. Do not commit it to version control or include it in shared backups.
+When using the OAuth browser flow, access tokens and refresh tokens are cached in plaintext at `$XDG_CONFIG_HOME/nutrient/credentials.json` or `~/.config/nutrient/credentials.json` (permissions `0600`). This file contains credentials equivalent to your API key. Do not commit it to version control or include it in shared backups.
 
 ## Troubleshooting
 
@@ -262,7 +262,7 @@ When using the OAuth browser flow, access tokens and refresh tokens are cached i
 If OAuth authentication stops working, delete the cached token file to start fresh:
 
 ```bash
-rm ~/.nutrient/credentials.json
+rm "${XDG_CONFIG_HOME:-$HOME/.config}/nutrient/credentials.json"
 ```
 
 The server will automatically register a new client and open the browser for consent on the next tool call.
@@ -282,7 +282,7 @@ The server will automatically register a new client and open the browser for con
 
 **"Token exchange failed" or "OAuth authorization failed"?**
 
-- Delete `~/.nutrient/credentials.json` and try again.
+- Delete `${XDG_CONFIG_HOME:-$HOME/.config}/nutrient/credentials.json` and try again.
 - If using a custom `AUTH_SERVER_URL`, verify the server is reachable and its `/oauth/token` endpoint is working.
 
 **"Dynamic client registration failed"?**
@@ -297,7 +297,7 @@ The server will automatically register a new client and open the browser for con
 
 **Token expired but refresh fails?**
 
-- The server automatically refreshes expired tokens using the cached refresh token. If refresh fails (e.g., the refresh token was revoked), delete `~/.nutrient/credentials.json` — the server will re-authenticate via the browser on the next call.
+- The server automatically refreshes expired tokens using the cached refresh token. If refresh fails (e.g., the refresh token was revoked), delete `${XDG_CONFIG_HOME:-$HOME/.config}/nutrient/credentials.json` — the server will re-authenticate via the browser on the next call.
 
 **Files not found?**
 

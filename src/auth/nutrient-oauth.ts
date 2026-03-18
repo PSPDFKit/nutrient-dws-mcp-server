@@ -23,7 +23,7 @@ export type NutrientOAuthConfig = {
   clientName?: string
   /** OAuth scopes to request. */
   scopes: string[]
-  /** Path to cache credentials. Defaults to `~/.nutrient/credentials.json`. */
+  /** Path to cache credentials. Defaults to `$XDG_CONFIG_HOME/nutrient/credentials.json` or `~/.config/nutrient/credentials.json`. */
   credentialsPath?: string
   /** OAuth resource parameter (RFC 8707). Identifies the target API. */
   resource?: string
@@ -38,9 +38,16 @@ const CachedCredentialsSchema = z.object({
 
 type CachedCredentials = z.infer<typeof CachedCredentialsSchema>
 
-const DEFAULT_CREDENTIALS_PATH = join(homedir(), '.nutrient', 'credentials.json')
 const FETCH_TIMEOUT_MS = 15_000
 const CALLBACK_TIMEOUT_MS = 5 * 60 * 1000
+
+export function getDefaultCredentialsPath(
+  env: NodeJS.ProcessEnv = process.env,
+  homeDirectory: string = homedir(),
+): string {
+  const configHome = env.XDG_CONFIG_HOME || join(homeDirectory, '.config')
+  return join(configHome, 'nutrient', 'credentials.json')
+}
 
 export function generateCodeVerifier(): string {
   return randomBytes(32).toString('base64url')
@@ -340,7 +347,7 @@ async function performBrowserOAuthFlow(config: NutrientOAuthConfig): Promise<Cac
  * is forced to refresh or re-authenticate.
  */
 export async function invalidateCachedToken(config: NutrientOAuthConfig): Promise<void> {
-  const credentialsPath = config.credentialsPath ?? DEFAULT_CREDENTIALS_PATH
+  const credentialsPath = config.credentialsPath ?? getDefaultCredentialsPath()
   try {
     await unlink(credentialsPath)
     logger.info('Invalidated cached token', { credentialsPath })
@@ -358,7 +365,7 @@ export async function invalidateCachedToken(config: NutrientOAuthConfig): Promis
  * and falls back to a browser-based OAuth flow if no valid token is available.
  */
 export async function getToken(config: NutrientOAuthConfig): Promise<string> {
-  const credentialsPath = config.credentialsPath ?? DEFAULT_CREDENTIALS_PATH
+  const credentialsPath = config.credentialsPath ?? getDefaultCredentialsPath()
 
   logger.debug('getToken called', { credentialsPath })
 
