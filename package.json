@@ -38,18 +38,24 @@
     "LICENSE"
   ],
   "scripts": {
+    "start": "node dist/index.js",
     "build": "tsc && shx chmod +x dist/index.js",
     "format": "prettier --write .",
     "lint": "eslint .",
     "pretest": "tsc --project tsconfig.test.json --noEmit",
     "test": "vitest run",
+    "test:ci": "vitest run --exclude tests/build-api-examples.test.ts --exclude tests/signing-api-examples.test.ts",
+    "test:integration": "vitest run tests/build-api-examples.test.ts tests/signing-api-examples.test.ts",
     "test:watch": "vitest",
-    "clean": "shx rm -rf dist"
+    "clean": "shx rm -rf dist",
+    "prepublishOnly": "pnpm run build"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.25.2",
     "axios": "^1.13.2",
     "form-data": "^4.0.5",
+    "open": "^11.0.0",
+    "winston": "^3.19.0",
     "zod": "^3.25.76"
   },
   "devDependencies": {
