@@ -240,14 +240,6 @@ export async function runServer(environment: Environment): Promise<RunServerResu
 
   const apiClient = createStdioApiClient(environment)
 
-  // Authenticate eagerly before accepting tool calls — in stdio mode there's
-  // no transport-level mechanism to pause while waiting for browser auth
-  if (!environment.nutrientApiKey) {
-    logger.info('No API key set, authenticating via OAuth before accepting connections...')
-    await getToken(buildOAuthConfig(environment))
-    logger.info('OAuth authentication completed')
-  }
-
   const server = createMcpServer({
     sandboxEnabled,
     apiClient,

@@ -136,7 +136,7 @@ async function runBenchmark() {
 
 try {
   const totalMs = await runBenchmark()
-  console.log(`METRIC total_ms=${totalMs}`)
+  globalThis.console.log(`METRIC total_ms=${totalMs}`)
 } finally {
   await setSandboxDirectory(null)
   await fs.rm(fixtureRoot, { recursive: true, force: true })

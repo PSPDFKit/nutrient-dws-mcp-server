@@ -40,6 +40,7 @@ type CachedCredentials = z.infer<typeof CachedCredentialsSchema>
 
 const FETCH_TIMEOUT_MS = 15_000
 const CALLBACK_TIMEOUT_MS = 5 * 60 * 1000
+const pendingTokenRequests = new Map<string, Promise<string>>()
 
 export function getDefaultCredentialsPath(
   env: NodeJS.ProcessEnv = process.env,
@@ -367,7 +368,24 @@ export async function invalidateCachedToken(config: NutrientOAuthConfig): Promis
 export async function getToken(config: NutrientOAuthConfig): Promise<string> {
   const credentialsPath = config.credentialsPath ?? getDefaultCredentialsPath()
 
-  logger.debug('getToken called', { credentialsPath })
+  const pendingRequest = pendingTokenRequests.get(credentialsPath)
+  if (pendingRequest) {
+    logger.debug('Awaiting in-flight token acquisition', { credentialsPath })
+    return pendingRequest
+  }
+
+  const tokenRequest = getTokenUncached(config, credentialsPath).finally(() => {
+    if (pendingTokenRequests.get(credentialsPath) === tokenRequest) {
+      pendingTokenRequests.delete(credentialsPath)
+    }
+  })
+
+  pendingTokenRequests.set(credentialsPath, tokenRequest)
+  return tokenRequest
+}
+
+async function getTokenUncached(config: NutrientOAuthConfig, credentialsPath: string): Promise<string> {
+  logger.debug('Starting token acquisition', { credentialsPath })
 
   // 1. Check cached token
   const cached = await readCachedCredentials(credentialsPath)

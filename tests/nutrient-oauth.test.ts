@@ -325,10 +325,29 @@ describe('getToken integration', () => {
       expect(token).toBe('concurrent-new-token')
     }
 
-    // NOTE: Without dedup, each call makes its own refresh request.
-    // This test documents the current behavior. If dedup is added,
-    // change the assertion to: expect(refreshCallCount).toBe(1)
-    expect(refreshCallCount).toBeGreaterThanOrEqual(1)
+    expect(refreshCallCount).toBe(1)
+  })
+
+  it('concurrent calls start the browser flow only once when no credentials exist', async () => {
+    const { getToken } = await import('../src/auth/nutrient-oauth.js')
+    const config = makeConfig({
+      tokenUrl: 'http://localhost:1/token',
+      credentialsPath: join(testDir, 'nonexistent.json'),
+      clientId: 'fresh-client',
+    })
+
+    const openMock = (await import('open')).default as ReturnType<typeof vi.fn>
+    openMock.mockClear()
+
+    const first = getToken(config)
+    const second = getToken(config)
+
+    await vi.waitFor(() => {
+      expect(openMock).toHaveBeenCalledOnce()
+    }, { timeout: 5_000 })
+
+    first.catch(() => {})
+    second.catch(() => {})
   })
 
   it('goes straight to browser flow when no refresh token is cached', async () => {
