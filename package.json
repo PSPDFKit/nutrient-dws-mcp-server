@@ -42,6 +42,8 @@
     "build": "tsc && shx chmod +x dist/index.js",
     "format": "prettier --write .",
     "lint": "eslint .",
+    "mcpb:validate": "npx -y @anthropic-ai/mcpb validate manifest.json",
+    "mcpb:pack": "pnpm run build && node scripts/build-mcpb.mjs",
     "pretest": "tsc --project tsconfig.test.json --noEmit",
     "test": "vitest run",
     "test:ci": "vitest run --exclude tests/build-api-examples.test.ts --exclude tests/signing-api-examples.test.ts",

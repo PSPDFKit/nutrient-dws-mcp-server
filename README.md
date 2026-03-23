@@ -3,14 +3,24 @@
 ![Document workflows using natural language](https://raw.githubusercontent.com/PSPDFKit/nutrient-dws-mcp-server/main/resources/readme-header.png)
 
 <a href="https://glama.ai/mcp/servers/@PSPDFKit/nutrient-dws-mcp-server">
-  <img width="380" height="200" src="https://glama.ai/mcp/servers/@PSPDFKit/nutrient-dws-mcp-server/badge" alt="Nutrient DWS Server MCP server" />
+  <img width="380" height="200" src="https://glama.ai/mcp/servers/@PSPDFKit/nutrient-dws-mcp-server/badge" alt="Nutrient DWS MCP Server" />
 </a>
 
 [![npm](https://img.shields.io/npm/v/%40nutrient-sdk/dws-mcp-server)](https://www.npmjs.com/package/@nutrient-sdk/dws-mcp-server)
 
 **Give AI agents the power to process, sign, and transform documents.**
 
+## Description
+
 A Model Context Protocol (MCP) server that connects AI assistants to the [Nutrient Document Web Service (DWS) Processor API](https://www.nutrient.io/api) — enabling document creation, editing, conversion, digital signing, OCR, redaction, and more through natural language.
+
+## Features
+
+- Local stdio MCP server for Claude Desktop and other MCP-compatible clients
+- Browser-based OAuth on the first request that uses the Nutrient API, with optional API-key fallback for CI and headless environments
+- Document conversion, OCR, extraction, redaction, watermarking, annotation flattening, and digital signing
+- Sandbox-aware local file handling with explicit output paths
+- Read-only account lookup for DWS credits and usage
 
 ## What You Can Do
 
@@ -31,11 +41,15 @@ Once configured, you (or your AI agent) can process documents through natural la
 **You:** _"OCR this scanned document in German and extract the text"_
 **AI:** _"I've processed the scan with German OCR. Here's the extracted text..."_
 
-## Quick Start
+## Installation
 
-### 1. Get a Nutrient API Key
+Once this extension is listed, install it from Claude Desktop Settings -> Extensions. Until the directory listing is live, use the manual setup below.
+
+### 1. Create a Nutrient Account
 
 Sign up for free at [nutrient.io/api](https://dashboard.nutrient.io/sign_up/).
+
+For local desktop use, the recommended path is to omit `NUTRIENT_DWS_API_KEY` and complete the browser sign-in flow on the first request that uses the Nutrient API. For CI, headless environments, or scripted setups, create an API key in the dashboard and set `NUTRIENT_DWS_API_KEY`.
 
 ### 2. Configure Your AI Client
 
@@ -56,12 +70,13 @@ Open Settings → Developer → Edit Config, then add:
       "command": "npx",
       "args": ["-y", "@nutrient-sdk/dws-mcp-server"],
       "env": {
-        "NUTRIENT_DWS_API_KEY": "YOUR_API_KEY_HERE",
         "SANDBOX_PATH": "/your/sandbox/directory",
         // "C:\\your\\sandbox\\directory" for Windows
-      },
-    },
-  },
+        // Optional for CI or headless usage:
+        // "NUTRIENT_DWS_API_KEY": "YOUR_API_KEY_HERE"
+      }
+    }
+  }
 }
 ```
 
@@ -79,12 +94,13 @@ Create `.cursor/mcp.json` in your project root:
       "command": "npx",
       "args": ["-y", "@nutrient-sdk/dws-mcp-server"],
       "env": {
-        "NUTRIENT_DWS_API_KEY": "YOUR_API_KEY_HERE",
         "SANDBOX_PATH": "/your/project/documents",
         // "C:\\your\\project\\documents" for Windows
-      },
-    },
-  },
+        // Optional for CI or headless usage:
+        // "NUTRIENT_DWS_API_KEY": "YOUR_API_KEY_HERE"
+      }
+    }
+  }
 }
 ```
 
@@ -102,12 +118,13 @@ Add to `~/.codeium/windsurf/mcp_config.json`:
       "command": "npx",
       "args": ["-y", "@nutrient-sdk/dws-mcp-server"],
       "env": {
-        "NUTRIENT_DWS_API_KEY": "YOUR_API_KEY_HERE",
         "SANDBOX_PATH": "/your/sandbox/directory",
         // "C:\\your\\sandbox\\directory" for Windows
-      },
-    },
-  },
+        // Optional for CI or headless usage:
+        // "NUTRIENT_DWS_API_KEY": "YOUR_API_KEY_HERE"
+      }
+    }
+  }
 }
 ```
 
@@ -116,19 +133,19 @@ Add to `~/.codeium/windsurf/mcp_config.json`:
 <details>
 <summary><strong>VS Code (GitHub Copilot)</strong></summary>
 
-Add to `.vscode/settings.json` in your project:
+Create `.vscode/mcp.json` in your project, or add the same server definition to your user `mcp.json` profile:
 
-```json
+```jsonc
 {
-  "mcp": {
-    "servers": {
-      "nutrient-dws": {
-        "command": "npx",
-        "args": ["-y", "@nutrient-sdk/dws-mcp-server"],
-        "env": {
-          "NUTRIENT_DWS_API_KEY": "YOUR_API_KEY_HERE",
-          "SANDBOX_PATH": "${workspaceFolder}"
-        }
+  "servers": {
+    "nutrient-dws": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "@nutrient-sdk/dws-mcp-server"],
+      "env": {
+        "SANDBOX_PATH": "${workspaceFolder}",
+        // Optional for CI or headless usage:
+        // "NUTRIENT_DWS_API_KEY": "YOUR_API_KEY_HERE"
       }
     }
   }
@@ -143,6 +160,9 @@ Add to `.vscode/settings.json` in your project:
 Any MCP-compatible client can connect using stdio transport:
 
 ```bash
+SANDBOX_PATH=/your/path npx @nutrient-sdk/dws-mcp-server
+
+# Optional for CI or headless usage:
 NUTRIENT_DWS_API_KEY=your_key SANDBOX_PATH=/your/path npx @nutrient-sdk/dws-mcp-server
 ```
 
@@ -154,16 +174,18 @@ Restart the application to pick up the new MCP server configuration.
 
 ### 4. Start Processing Documents
 
-Drop documents into your sandbox directory and start giving instructions!
+Place documents in your sandbox directory and use explicit file names or paths in prompts. Explicit paths are safer and more reliable than vague file-browsing requests.
 
 ## Available Tools
 
-| Tool                   | Description                                                                                                                                                           |
-| ---------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **document_processor** | All-in-one document processing: merge PDFs, convert formats, apply OCR, watermark, rotate, redact, flatten annotations, extract text/tables/key-value pairs, and more |
-| **document_signer**    | Digitally sign PDFs with PAdES-compliant CMS or CAdES signatures, with customizable visible/invisible signature appearances                                           |
-| **sandbox_file_tree**  | Browse files in the sandbox directory (when sandbox mode is enabled)                                                                                                  |
-| **directory_tree**     | Browse directory contents (when sandbox mode is disabled)                                                                                                             |
+| Tool | Description |
+| ---- | ----------- |
+| `document_processor` | Document processing for conversions, OCR, extraction, watermarking, rotation, annotation flattening, and redaction workflows |
+| `document_signer` | PDF signing with CMS / PKCS#7 and CAdES signatures plus visible or invisible appearance options |
+| `ai_redactor` | AI redaction for detecting and permanently removing sensitive content such as names, addresses, SSNs, emails, and custom criteria |
+| `check_credits` | Read-only account lookup for current DWS credits and usage. No document content is uploaded |
+| `sandbox_file_tree` | Read-only view of files inside the configured sandbox directory |
+| `directory_tree` | Read-only view of local files when sandbox mode is disabled. Sandbox mode is strongly recommended |
 
 ### Document Processor Capabilities
 
@@ -178,6 +200,28 @@ Drop documents into your sandbox directory and start giving instructions!
 | Optimization      | Compress and linearize PDFs without quality loss                                                  |
 | Annotations       | Import XFDF annotations, flatten annotations                                                      |
 | Digital Signing   | PAdES-compliant CMS and CAdES digital signatures (via document_signer tool)                       |
+
+## Usage Examples
+
+These examples assume your files live inside the configured sandbox and that you use explicit paths.
+
+### Example 1: HTML -> PDF -> signing
+
+**User prompt:** `Convert /path/to/sandbox/invoice.html to PDF and save it as /path/to/sandbox/invoice.pdf. Then digitally sign /path/to/sandbox/invoice.pdf with a visible signature and save it as /path/to/sandbox/invoice-signed.pdf.`
+
+**What happens:** The server uploads the HTML file to Nutrient, saves the generated PDF in the sandbox, then signs that PDF and writes the signed result back to the requested output path.
+
+### Example 2: OCR extraction
+
+**User prompt:** `Run OCR on /path/to/sandbox/scanned-contract.pdf, return the extracted text, and save the OCR'd file as /path/to/sandbox/scanned-contract-ocr.pdf.`
+
+**What happens:** The server sends the scanned PDF to Nutrient for OCR, returns the extracted text in Claude, and writes the OCR-processed file back to the sandbox for later use.
+
+### Example 3: Check credits -> process -> inspect output
+
+**User prompt:** `Check my Nutrient credits, convert /path/to/sandbox/report.docx to PDF, save it as /path/to/sandbox/report.pdf, and then tell me where the output file was written.`
+
+**What happens:** The server first performs a read-only account lookup, then converts the DOCX file to PDF, saves the result in the sandbox, and tells the user exactly where the output file was written.
 
 ## Use with AI Agent Frameworks
 
@@ -215,6 +259,8 @@ export SANDBOX_PATH=/path/to/sandbox/directory
 npx @nutrient-sdk/dws-mcp-server
 ```
 
+Supported CLI flags are `--sandbox <dir>` and `-s <dir>`. Unrecognized flags cause a startup error.
+
 When sandbox mode is enabled:
 
 - Relative paths resolve relative to the sandbox directory
@@ -225,7 +271,7 @@ When sandbox mode is enabled:
 
 ### Output Location
 
-Processed files are saved to a location determined by the AI. To guide output placement, use natural language (e.g., "save the result to `output/result.pdf`") or create an `output` directory in your sandbox.
+Processed files are saved to a location determined by the AI. To guide output placement, use explicit output paths such as `save the result to /path/to/sandbox/output/result.pdf` or create an `output` directory in your sandbox.
 
 ### Authentication
 
@@ -234,26 +280,53 @@ The server authenticates to the Nutrient DWS API (`https://api.nutrient.io`) usi
 | Method | When | Config |
 |--------|------|--------|
 | **API key** | `NUTRIENT_DWS_API_KEY` is set | Static key passed as Bearer token to DWS API |
-| **OAuth browser flow** | No API key set | Opens browser for Nutrient OAuth consent, caches token locally |
+| **OAuth browser flow** | No API key set | Opens browser for Nutrient OAuth consent on the first request that uses the Nutrient API, caches token locally |
 
-When no API key is configured, the server opens a browser-based OAuth flow on the first tool call (similar to `gh auth login`). Tokens are cached at `$XDG_CONFIG_HOME/nutrient/credentials.json` or `~/.config/nutrient/credentials.json` and refreshed automatically.
+When no API key is configured, the server stays connected and opens a browser-based OAuth flow on the first request that uses the Nutrient API (similar to `gh auth login`). Tokens are cached at `$XDG_CONFIG_HOME/nutrient/credentials.json` or `~/.config/nutrient/credentials.json` and refreshed automatically.
 
 ### Environment Variables
 
 | Variable               | Required    | Description                                                                                  |
 | ---------------------- | ----------- | -------------------------------------------------------------------------------------------- |
-| `NUTRIENT_DWS_API_KEY` | No*         | Nutrient DWS API key ([get one free](https://dashboard.nutrient.io/sign_up/))                |
-| `SANDBOX_PATH`         | Recommended | Directory to restrict file operations to                                                     |
-| `CLIENT_ID`            | No          | OAuth client ID. Skips DCR and enables token refresh when set                                |
-| `DWS_API_BASE_URL`     | No          | DWS API base URL (default: `https://api.nutrient.io`)                                       |
-| `LOG_LEVEL`            | No          | Winston logger level (`info` default). Logs are written to `MCP_LOG_FILE` in stdio mode      |
-| `MCP_LOG_FILE`         | No          | Override log file path (default: system temp directory)                                      |
+| `NUTRIENT_DWS_API_KEY` | No*         | Nutrient DWS API key ([get one free](https://dashboard.nutrient.io/sign_up/))               |
+| `SANDBOX_PATH`         | Recommended | Directory to restrict file operations to                                                    |
+| `AUTH_SERVER_URL`      | No          | OAuth server base URL (default: `https://api.nutrient.io`)                                 |
+| `CLIENT_ID`            | No          | OAuth client ID. Skips DCR and enables refresh token reuse when set                         |
+| `DWS_API_BASE_URL`     | No          | DWS API base URL (default: `https://api.nutrient.io`)                                      |
+| `LOG_LEVEL`            | No          | Winston logger level (`info` default). Logs are written to `MCP_LOG_FILE` in stdio mode     |
+| `MCP_LOG_FILE`         | No          | Override log file path (default: system temp directory)                                     |
 
 \* If omitted, the server uses an OAuth browser flow to authenticate with the Nutrient API.
+
+## Data Handling
+
+### What Stays Local
+
+- The MCP server process, sandbox enforcement, and file path resolution run on the local machine.
+- `sandbox_file_tree` and `directory_tree` inspect local files only. They do not upload document contents to Nutrient.
+- API keys and OAuth credentials are stored locally on the machine running the MCP server.
+
+### What Gets Sent to Nutrient
+
+- `document_processor`, `document_signer`, and `ai_redactor` upload the document files and processing instructions to the Nutrient DWS API so the requested operation can run.
+- `check_credits` sends an authenticated account lookup but does not upload document files.
+- Processed results are written back to the local output path you request.
 
 ### Security Note: Token Storage
 
 When using the OAuth browser flow, access tokens and refresh tokens are cached in plaintext at `$XDG_CONFIG_HOME/nutrient/credentials.json` or `~/.config/nutrient/credentials.json` (permissions `0600`). This file contains credentials equivalent to your API key. Do not commit it to version control or include it in shared backups.
+
+## Privacy Policy
+
+This extension reads files from the local sandbox, sends document contents and processing instructions to Nutrient when you invoke document tools, and stores API keys or OAuth credentials locally on the machine running the MCP server.
+
+Nutrient's privacy policy is available at [nutrient.io/legal/privacy](https://www.nutrient.io/legal/privacy/).
+
+## Support
+
+For product or account support, contact Nutrient at [nutrient.io/company/contact](https://www.nutrient.io/company/contact/).
+
+For bugs or feature requests specific to this MCP package, use [GitHub issues](https://github.com/PSPDFKit/nutrient-dws-mcp-server/issues).
 
 ## Troubleshooting
 
@@ -303,7 +376,7 @@ The server will automatically register a new client and open the browser for con
 
 - Check that `SANDBOX_PATH` points to an existing directory
 - Ensure your documents are inside the sandbox directory
-- Use the `sandbox_file_tree` tool to verify visible files
+- Ask the assistant to inspect the configured sandbox, or inspect the sandbox directory directly
 
 ## Contributing
 

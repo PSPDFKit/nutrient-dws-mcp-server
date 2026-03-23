@@ -1,0 +1,84 @@
+{
+  "manifest_version": "0.3",
+  "name": "nutrient-dws-mcp-server",
+  "display_name": "Nutrient DWS",
+  "version": "0.0.5",
+  "description": "Process, sign, redact, and transform documents from Claude Desktop using Nutrient.",
+  "long_description": "A local Claude Desktop extension for document processing with Nutrient. It runs as a stdio MCP server, reads files from a user-selected sandbox directory, opens a browser for OAuth on the first request that uses the Nutrient API, and writes processed results back to local output paths.",
+  "author": {
+    "name": "Nutrient",
+    "url": "https://www.nutrient.io/"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/PSPDFKit/nutrient-dws-mcp-server.git"
+  },
+  "homepage": "https://www.nutrient.io/mcp-server-pdf-automation-llm/",
+  "documentation": "https://www.nutrient.io/guides/dws-processor/getting-started/mcp-server/",
+  "support": "https://github.com/PSPDFKit/nutrient-dws-mcp-server/issues",
+  "keywords": [
+    "mcp",
+    "pdf",
+    "document-processing",
+    "ocr",
+    "redaction",
+    "digital-signature"
+  ],
+  "license": "MIT",
+  "privacy_policies": [
+    "https://www.nutrient.io/legal/privacy/"
+  ],
+  "server": {
+    "type": "node",
+    "entry_point": "dist/index.js",
+    "mcp_config": {
+      "command": "node",
+      "args": [
+        "${__dirname}/dist/index.js",
+        "--sandbox",
+        "${user_config.sandbox_path}"
+      ],
+      "env": {}
+    }
+  },
+  "tools": [
+    {
+      "name": "document_processor",
+      "description": "Convert, OCR, extract, watermark, rotate, flatten annotations, and process documents."
+    },
+    {
+      "name": "document_signer",
+      "description": "Digitally sign PDF files with CMS or CAdES signatures."
+    },
+    {
+      "name": "ai_redactor",
+      "description": "Detect and permanently redact sensitive content such as names, addresses, SSNs, and emails."
+    },
+    {
+      "name": "check_credits",
+      "description": "Check the current Nutrient DWS credit balance and usage."
+    },
+    {
+      "name": "sandbox_file_tree",
+      "description": "Browse files available in the configured sandbox directory."
+    }
+  ],
+  "compatibility": {
+    "claude_desktop": ">=0.10.0",
+    "platforms": [
+      "darwin",
+      "win32"
+    ],
+    "runtimes": {
+      "node": ">=18.0.0"
+    }
+  },
+  "user_config": {
+    "sandbox_path": {
+      "type": "directory",
+      "title": "Sandbox Directory",
+      "description": "Directory the extension can read from and write to for document processing.",
+      "required": true
+    }
+  }
+}
