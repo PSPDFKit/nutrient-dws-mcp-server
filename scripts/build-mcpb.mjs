@@ -13,6 +13,9 @@ const rootDir = path.resolve(__dirname, '..')
 const outputPath = path.resolve(process.argv[2] ?? path.join(rootDir, 'dist', 'nutrient-dws.mcpb'))
 const cleanEnv = { ...process.env }
 
+// pnpm injects npm_config_* environment variables that make npm print warnings
+// and can influence staging installs. Strip the known noisy ones for a clean,
+// reproducible npm install in the temporary bundle directory.
 for (const key of [
   'npm_config_supported_architectures',
   'npm_config_npm_globalconfig',

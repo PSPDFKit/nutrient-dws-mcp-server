@@ -43,7 +43,7 @@ Once configured, you (or your AI agent) can process documents through natural la
 
 ## Installation
 
-Once this extension is listed, install it from Claude Desktop Settings -> Extensions. Until the directory listing is live, use the manual setup below.
+Install it from Claude Desktop Settings -> Extensions if you are using Claude Desktop. If you are developing locally, use the manual setup below.
 
 ### 1. Create a Nutrient Account
 
