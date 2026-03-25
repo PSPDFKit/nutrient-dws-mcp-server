@@ -41,7 +41,7 @@ function addToolsToServer(options: {
 
   server.tool(
     'document_processor',
-    `Processes documents using Nutrient DWS Processor API. Reads from and writes to file system or sandbox (if enabled).
+    `Process, convert, and transform documents using the Nutrient API. Reads input files from the local file system or sandbox (if enabled) and writes results back locally.
 
 Features:
 • Import XFDF annotations
@@ -53,6 +53,13 @@ Features:
 
 Output formats: PDF, PDF/A, images (PNG, JPEG, WebP), JSON extraction, Office (DOCX, XLSX, PPTX)`,
     BuildAPIArgsSchema.shape,
+    {
+      title: 'Nutrient Document Processor',
+      readOnlyHint: false,
+      destructiveHint: true,
+      idempotentHint: false,
+      openWorldHint: true,
+    },
     async ({ instructions, outputPath }) => {
       try {
         return await performBuildCall(instructions, outputPath, apiClient)
@@ -64,7 +71,7 @@ Output formats: PDF, PDF/A, images (PNG, JPEG, WebP), JSON extraction, Office (D
 
   server.tool(
     'document_signer',
-    `Digitally signs PDF files using Nutrient DWS Sign API. Reads from and writes to file system or sandbox (if enabled).
+    `Digitally sign PDF files using the Nutrient Sign API. Reads input files from the local file system or sandbox (if enabled) and writes signed output back locally.
 
 Signature types:
 • CMS/PKCS#7 (standard digital signatures)
@@ -80,6 +87,13 @@ Positioning:
 • Place on specific page coordinates
 • Use existing signature form fields`,
     SignAPIArgsSchema.shape,
+    {
+      title: 'Nutrient Document Signer',
+      readOnlyHint: false,
+      destructiveHint: true,
+      idempotentHint: false,
+      openWorldHint: true,
+    },
     async ({ filePath, signatureOptions, watermarkImagePath, graphicImagePath, outputPath }) => {
       try {
         return await performSignCall(
@@ -98,7 +112,7 @@ Positioning:
 
   server.tool(
     'ai_redactor',
-    `AI-powered document redaction using Nutrient DWS AI Redaction API. Reads from and writes to file system or sandbox (if enabled).
+    `Detect and permanently redact sensitive content using the Nutrient AI Redaction API. Reads input files from the local file system or sandbox (if enabled) and writes redacted output back locally.
 
 Automatically detects and permanently removes sensitive information from documents using AI analysis.
 Detected content types include:
@@ -110,6 +124,13 @@ Detected content types include:
 
 By default (when neither stage nor apply is set), redactions are detected and immediately applied. Set stage to true to detect and stage redactions without applying them. Set apply to true to apply previously staged redactions.`,
     AiRedactArgsSchema.shape,
+    {
+      title: 'Nutrient AI Redactor',
+      readOnlyHint: false,
+      destructiveHint: true,
+      idempotentHint: false,
+      openWorldHint: true,
+    },
     async ({ filePath, criteria, outputPath, stage, apply }) => {
       try {
         return await performAiRedactCall(filePath, criteria, outputPath, apiClient, stage, apply)
@@ -123,8 +144,17 @@ By default (when neither stage nor apply is set), redactions are detected and im
     'check_credits',
     `Check your Nutrient DWS API credit balance and usage for the current billing period.
 
+This is a read-only account lookup. It does not upload any document content.
+
 Returns: subscription type, total credits, used credits, and remaining credits.`,
     CheckCreditsArgsSchema.shape,
+    {
+      title: 'Nutrient Credit Balance',
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: true,
+    },
     async () => {
       try {
         return await performCheckCreditsCall(apiClient)
@@ -137,21 +167,35 @@ Returns: subscription type, total credits, used credits, and remaining credits.`
   if (sandboxEnabled) {
     server.tool(
       'sandbox_file_tree',
-      'Returns the file tree of the sandbox directory. It will recurse into subdirectories and return a list of files and directories.',
+      'Browse files already available in the configured sandbox directory. This is a read-only local filesystem operation and does not upload documents to Nutrient.',
       {},
+      {
+        title: 'Nutrient Sandbox Files',
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: false,
+      },
       async () => performDirectoryTreeCall('.'),
     )
   } else {
     server.tool(
       'directory_tree',
-      'Returns the directory tree of a given path. All paths are resolved relative to root directory.',
+      'Browse local files when sandbox mode is disabled. This is a read-only local filesystem operation, but it can inspect any path visible to the current user. Sandbox mode is strongly recommended.',
       DirectoryTreeArgsSchema.shape,
+      {
+        title: 'Nutrient Directory Tree',
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: false,
+      },
       async ({ path }) => performDirectoryTreeCall(path),
     )
   }
 }
 
-function createMcpServer(options: { sandboxEnabled: boolean; apiClient: DwsApiClient }) {
+export function createMcpServer(options: { sandboxEnabled: boolean; apiClient: DwsApiClient }) {
   const server = new McpServer(
     {
       name: 'nutrient-dws-mcp-server',
@@ -239,14 +283,6 @@ export async function runServer(environment: Environment): Promise<RunServerResu
   })
 
   const apiClient = createStdioApiClient(environment)
-
-  // Authenticate eagerly before accepting tool calls — in stdio mode there's
-  // no transport-level mechanism to pause while waiting for browser auth
-  if (!environment.nutrientApiKey) {
-    logger.info('No API key set, authenticating via OAuth before accepting connections...')
-    await getToken(buildOAuthConfig(environment))
-    logger.info('OAuth authentication completed')
-  }
 
   const server = createMcpServer({
     sandboxEnabled,

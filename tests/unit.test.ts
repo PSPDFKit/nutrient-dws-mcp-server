@@ -766,10 +766,19 @@ describe('API Functions', () => {
       expect(() => parseSandboxPath(args, undefined)).toThrow('--sandbox flag requires a directory path')
     })
 
-    it('should handle multiple arguments and find sandbox flag', () => {
-      const args = ['--help', '--sandbox', '/path/to/sandbox', '--verbose']
-      const result = parseSandboxPath(args, undefined)
-      expect(result).toBe('/path/to/sandbox')
+    it('should throw on unknown flags', () => {
+      const args = ['--sandbox-dir', '/path/to/sandbox']
+      expect(() => parseSandboxPath(args, undefined)).toThrow('Unknown CLI flag: --sandbox-dir')
+    })
+
+    it('should throw on unexpected positional arguments', () => {
+      const args = ['/path/to/sandbox']
+      expect(() => parseSandboxPath(args, undefined)).toThrow('Unexpected argument: /path/to/sandbox')
+    })
+
+    it('should throw when known and unknown flags are mixed', () => {
+      const args = ['--sandbox', '/path/to/sandbox', '--verbose']
+      expect(() => parseSandboxPath(args, undefined)).toThrow('Unknown CLI flag: --verbose')
     })
 
     it('should return undefined when empty env var provided', () => {

@@ -7,40 +7,31 @@
  * @returns The sandbox directory path or undefined if none specified
  */
 export function parseSandboxPath(args: string[], envVar?: string): string | undefined {
-  const argsLength = args.length
-  if (argsLength === 2) {
-    const firstArg = args[0]
-    if (firstArg === '--sandbox') {
-      return args[1]
-    }
-    if (firstArg === '-s') {
-      return args[1]
-    }
-  } else if (argsLength === 0) {
+  if (args.length === 0) {
     return envVar || undefined
   }
 
-  const firstArg = args[0]
-  if (firstArg === '--sandbox' || firstArg === '-s') {
-    if (argsLength > 1) {
-      return args[1]
-    }
+  let sandboxPath: string | undefined
 
-    throw new Error('--sandbox flag requires a directory path')
-  }
-
-  // Check command line arguments first (higher precedence)
-  for (let i = 1; i < argsLength; i++) {
+  for (let i = 0; i < args.length; i++) {
     const arg = args[i]
+
     if (arg === '--sandbox' || arg === '-s') {
-      if (i + 1 < argsLength) {
-        return args[i + 1]
+      if (i + 1 < args.length) {
+        sandboxPath = args[i + 1]
+        i += 1
+        continue
       }
 
       throw new Error('--sandbox flag requires a directory path')
     }
+
+    if (arg.startsWith('-')) {
+      throw new Error(`Unknown CLI flag: ${arg}`)
+    }
+
+    throw new Error(`Unexpected argument: ${arg}`)
   }
 
-  // Fall back to environment variable
-  return envVar || undefined
+  return sandboxPath || envVar || undefined
 }
