@@ -14,6 +14,10 @@
 
 A Model Context Protocol (MCP) server that connects AI assistants to the [Nutrient Document Web Service (DWS) Processor API](https://www.nutrient.io/api) — enabling document creation, editing, conversion, digital signing, OCR, redaction, and more through natural language.
 
+## Hosted deployment
+
+A hosted deployment is available on [Fronteir AI](https://fronteir.ai/mcp/pspdfkit-nutrient-dws-mcp-server).
+
 ## Features
 
 - Local stdio MCP server for Claude Desktop and other MCP-compatible clients
