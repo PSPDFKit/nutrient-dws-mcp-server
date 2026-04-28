@@ -1,3 +1,5 @@
+[![MseeP.ai Security Assessment Badge](https://mseep.net/pr/pspdfkit-nutrient-dws-mcp-server-badge.png)](https://mseep.ai/app/pspdfkit-nutrient-dws-mcp-server)
+
 # Nutrient DWS MCP Server
 
 ![Document workflows using natural language](https://raw.githubusercontent.com/PSPDFKit/nutrient-dws-mcp-server/main/resources/readme-header.png)
