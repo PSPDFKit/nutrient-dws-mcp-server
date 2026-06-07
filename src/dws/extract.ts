@@ -93,7 +93,9 @@ export async function performExtractCall(
   const format = resolveFormat(mode, args.format)
 
   if (mode === 'text' && format === 'spatial') {
-    return createErrorResponse('Error: text mode only supports markdown output. Use a different mode for spatial output.')
+    return createErrorResponse(
+      'Error: text mode only supports markdown output. Use a different mode for spatial output.',
+    )
   }
 
   if (format === 'spatial' && !outputPath) {
@@ -120,7 +122,9 @@ export async function performExtractCall(
     fileBuffer = await fs.promises.readFile(resolvedInputPath)
     fileName = path.basename(resolvedInputPath)
   } catch (error) {
-    return createErrorResponse(`Error with input file ${filePath}: ${error instanceof Error ? error.message : String(error)}`)
+    return createErrorResponse(
+      `Error with input file ${filePath}: ${error instanceof Error ? error.message : String(error)}`,
+    )
   }
 
   const instructions: Record<string, unknown> = {
@@ -171,10 +175,7 @@ export async function performExtractCall(
 }
 
 /** Does element `bounds` intersect the query `region`? */
-function intersects(
-  bounds: SpatialElement['bounds'],
-  region: NonNullable<QueryExtractionArgs['region']>,
-): boolean {
+function intersects(bounds: SpatialElement['bounds'], region: NonNullable<QueryExtractionArgs['region']>): boolean {
   if (!bounds) {
     return false
   }
@@ -221,7 +222,10 @@ export async function performQueryCall(args: QueryExtractionArgs): Promise<CallT
     if (typeSet && (typeof element.type !== 'string' || !typeSet.has(element.type))) {
       return false
     }
-    if (typeof minConfidence === 'number' && !(typeof element.confidence === 'number' && element.confidence >= minConfidence)) {
+    if (
+      typeof minConfidence === 'number' &&
+      !(typeof element.confidence === 'number' && element.confidence >= minConfidence)
+    ) {
       return false
     }
     if (region && !intersects(element.bounds, region)) {

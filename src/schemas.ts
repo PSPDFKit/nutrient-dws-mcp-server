@@ -639,10 +639,7 @@ export const QueryExtractionArgsSchema = z.object({
     .max(1)
     .optional()
     .describe('Only return elements with confidence greater than or equal to this value (0-1).'),
-  elementTypes: z
-    .array(ExtractionElementTypeSchema)
-    .optional()
-    .describe('Only return elements of these types.'),
+  elementTypes: z.array(ExtractionElementTypeSchema).optional().describe('Only return elements of these types.'),
   limit: z
     .number()
     .int()
