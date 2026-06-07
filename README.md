@@ -223,6 +223,8 @@ Use `query_extraction` to pull just the elements you need from a saved spatial f
 
 > **Note:** Extracted content returned inline (Markdown output, or `query_extraction` results) enters the conversation and may be logged by the host. For sensitive documents, prefer spatial output to a file plus scoped `query_extraction` calls.
 
+For a worked extract → query → act walkthrough, see [examples/invoice-extraction-workflow.md](examples/invoice-extraction-workflow.md).
+
 ## Usage Examples
 
 These examples assume your files live inside the configured sandbox and that you use explicit paths.
