@@ -601,8 +601,10 @@ export const DataExtractorArgsSchema = z.object({
   language: z
     .union([z.string(), z.array(z.string())])
     .optional()
-    .describe('OCR language(s) — ISO code or alias — for scanned or image documents.'),
-  pages: PageRangeSchema.optional().describe('Page range to process (0-based indexing).'),
+    .describe(
+      'OCR language(s) — full name (e.g. "german"), ISO code (e.g. "deu"), or array for multilingual docs. ' +
+        'Only applies to structure/understand/agentic modes; ignored for text mode.',
+    ),
   outputPath: z
     .string()
     .optional()
