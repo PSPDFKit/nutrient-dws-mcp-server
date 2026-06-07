@@ -1,65 +1,70 @@
 ---
-title: "feat: data_extractor + query_extraction tools and a dynamic-workflow example"
+title: "feat: data_extractor + query_extraction tools (DWS Data Extraction API) and a workflow example"
 status: active
 date: 2026-06-07
 type: feat
 target_repo: nutrient-dws-mcp-server
 base_branch: main
-supersedes: 2026-06-07-001-feat-dws-extraction-accessibility-plan.md
 ---
 
 # feat: `data_extractor` + `query_extraction` + a dynamic-workflow example
 
 ## Summary
 
-Ship the **data-extraction workflow primitive** for the Nutrient DWS MCP server — the single highest-leverage move toward the "AI agents using documents" keystone — plus a runnable example that demonstrates it end to end.
+Add the **Data Extraction workflow primitive** to the Nutrient DWS MCP server, targeting the **new standalone DWS Data Extraction API** (`POST https://api.nutrient.io/extraction/parse`) — a separate product with its own key, **not** a `json-content` output of the Processor `/build` endpoint.
 
-- **`data_extractor`** — typed JSON / Markdown extraction (text, key-value pairs, tables, and structured/positional text with **coordinates + confidence**). Because structured output is large, it is written to a file; the inline response is a *decision-grade summary* (per-page element/table/KVP counts, low-confidence flags, bbox ranges) — never raw document content.
-- **`query_extraction`** — reads that extraction file back and returns **filtered slices inline** (by page, region, or minimum confidence), so the agent can pull *actionable* coordinates into context on demand instead of being handed a file it cannot read. This is what makes the primitive genuinely agent-native rather than a context-problem relocation.
-- **A worked dynamic-workflow example** (`examples/` + README walkthrough): extract → branch on low confidence → act with the existing `ai_redactor` / `document_signer` tools. This is the GTM-legible artifact a keystone needs.
+- **`data_extractor`** — calls `/extraction/parse` with a `mode` (`text`/`structure`/`understand`/`agentic`) and output `format` (`spatial` elements or `markdown`). Spatial output (typed elements with `bounds`, `confidence`, `readingOrder`, `page`) can be large, so it is written to a file with a decision-grade summary returned inline; markdown is returned inline.
+- **`query_extraction`** — reads a saved spatial-extraction file and returns **filtered element slices inline** (by page, region/bbox, minimum confidence, element type), so an agent can pull actionable coordinates into context on demand.
+- **A dynamic-workflow example** — extract → query low-confidence elements → act with the existing `ai_redactor` / `document_signer`.
 
-Both tools are thin wrappers over the existing `/build` path, reusing the current auth, sandbox, and response patterns ("copy what exists").
+Architecture fit: main already has a `DwsApiClient` abstraction (`baseUrl` + `tokenResolver`, `.post(endpoint, data)`). `data_extractor` uses a **second client instance** authenticated with the Data Extraction key (`pdf_live_…`) — no new HTTP plumbing.
 
-**Deferred to their own PRs:** `accessibility_tagger` (PDF/UA auto-tagging — breadth, a one-shot transform, weak fit for the workflow narrative; ready to lift from this plan's history when wanted), Viewer, and accessibility validation.
-
-> **Scope change from the original plan** (`…-extraction-accessibility-plan.md`, superseded): accessibility was dropped in favor of the `query_extraction` affordance + example, on the product judgment that a demonstrable workflow beats tool-count growth.
+**Deferred to their own PRs:** `accessibility_tagger` (the DWS **Accessibility API** is also now standalone and includes auto-tag *and* validation), Viewer.
 
 ---
 
 ## Problem Frame
 
-The DWS Processor API already returns *"typed JSON or Markdown … with tables, key-value pairs, coordinates, and confidence scores"* where *"each document element … includes bounding-box coordinates, reading order index, element type, and confidence scores."* Today an agent can only reach this by hand-constructing a full Build `instructions` object with the right `output` block on the generic `document_processor` tool — poor ergonomics for the one operation a dynamic workflow leans on most.
+DWS is now four separate APIs, each with its own key: **Processor** (`/build`, `NUTRIENT_DWS_API_KEY`), **Data Extraction** (`/extraction/parse`, `pdf_live_…`), **Accessibility**, **Viewer**. The MCP server today only speaks Processor `/build`. Extraction was *previously* reachable as a `json-content` Build output; the dedicated Data Extraction API supersedes that with richer typed elements, confidence, coordinates, and four cost/quality modes.
 
-Three in-repo realities shape the design — each surfaced by the plan review and verified against code:
+Authoritative spec (verified on disk at `~/projects/nutrient-website/src/content/guides/dws-data-extraction/`):
 
-1. **Coordinates overflow context.** `src/schemas.ts` disables `structuredText` with: *"Structure text uses many chars, and often overflows the context length of an LLM. We will not support this for now."* Writing it to a file solves overflow but, on its own, just **moves** the problem — an agent cannot branch on coordinates it cannot read. Hence `query_extraction`: the agent retrieves only the slices it needs.
-2. **`performBuildCall` cannot serve the inline case.** `performBuildCall(instructions, outputFilePath)` requires `outputFilePath` and calls `resolveWriteFilePath` *before* the API call (`src/dws/build.ts:24`). The reusable core is the currently-**private** `processInstructions` + `makeApiBuildCall`. These must be exported, not wrapped.
-3. **One endpoint.** Everything goes through `callNutrientApi('build', …)` → `https://api.nutrient.io/build`. No new endpoint plumbing.
+- **Endpoint:** `POST https://api.nutrient.io/extraction/parse`. Auth: `Authorization: Bearer pdf_live_…` (separate dashboard key; `pdf_test_…` for testing).
+- **Request:** multipart `file` + `instructions={"mode":…,"output":{"format":…,"includeWords":…}}` (also supports JSON-body-with-URL and raw-binary).
+- **Modes:** `text` (1 cr/pg, markdown only, no OCR), `structure` (1.5 cr/pg, OCR spatial), `understand` (default, 9 cr/pg, AI-augmented), `agentic` (18 cr/pg, VLM).
+- **Output:** `spatial` → `output.elements[]`; `markdown` → `output.markdown`. `text` mode defaults to markdown; others default to spatial.
+- **Spatial element:** `{id, type, role, text, confidence, readingOrder, bounds:{x,y,width,height}, page:{pageIndex,pageNumber,width,height}}`. Types: `paragraph`, `table` (rows/cols/cells w/ per-cell bounds), `formula` (LaTeX), `picture` (alt text), `keyValueRegion`, `handwriting`. Optional `includeWords` adds word-level bounds.
+- **Coordinates:** top-left origin, render-space pixels, `0 ≤ x+width ≤ page.width`.
+- **Response envelope:** `{status, requestId, output:{elements|markdown}, metrics:{processingTimeMs,pagesProcessed}, configuration:{mode,outputFormat}}` — returned as JSON (the client streams it; the handler parses).
+
+Because the schema is fully documented, the build proceeds against it directly; one live call (U0) is **confirmation**, not discovery.
 
 ---
 
 ## Requirements
 
-- **R1.** `data_extractor` exposes text / key-value-pair / table / structured (coordinate+confidence) extraction, output as JSON or Markdown.
-- **R2.** Structured/positional results are written to `outputPath`; the inline response is a decision-grade summary containing **no extracted document content**. `structuredText: true` requires `outputPath`.
-- **R3.** `query_extraction` reads an extraction JSON file and returns filtered element slices inline, filterable by page, region (bbox), and minimum confidence.
-- **R4.** Both tools reuse existing patterns: `getApiKey()` auth, sandbox path resolution (`resolveReadFilePath`/`resolveWriteFilePath`), the shared build core, and the `createErrorResponse`/`handleFileResponse` helpers.
-- **R5.** Both tools respect the sandbox vs. non-sandbox registration model in `addToolsToServer`.
-- **R6.** `outputPath`/file paths, when supplied, are **always** validated through the sandbox resolver before any routing branch or API call.
-- **R7.** Ship one runnable dynamic-workflow example demonstrating extract → branch → act.
-- **R8.** Update README (Available Tools + Features) and amend `document_processor`'s description to point extraction users at `data_extractor` (remove the duplicate affordance).
-- **R9.** Tests cover instruction construction, inline-vs-file routing, query filtering, and error/PII paths.
+- **R1.** `data_extractor` calls `/extraction/parse` exposing `mode`, `output.format`, `includeWords`, `language`, and page selection.
+- **R2.** Spatial results are written to `outputPath`; the inline response is a decision-grade summary with **no extracted document content**. Markdown results return inline. `format: spatial` requires `outputPath`.
+- **R3.** `query_extraction` reads a saved spatial-extraction file and returns filtered element slices inline (page, region/bbox, minConfidence, elementTypes).
+- **R4.** Reuse main's `DwsApiClient`; add a Data Extraction client authenticated by `NUTRIENT_EXTRACTION_API_KEY`. Reuse sandbox path resolution and response/error helpers.
+- **R5.** Respect the sandbox vs. non-sandbox registration model in `addToolsToServer`.
+- **R6.** Any `outputPath`/`filePath` is validated through the sandbox resolver before the API call or file read.
+- **R7.** Surface per-mode **credit cost** in the `data_extractor` description (`understand` = 9 cr/pg) so agents/users don't run up cost unknowingly.
+- **R8.** Ship one runnable dynamic-workflow example (extract → query → act).
+- **R9.** Update README (Available Tools + Features + the new env var) and amend `document_processor`'s description so it no longer advertises standalone extraction.
+- **R10.** Tests cover request construction, spatial→file vs markdown→inline routing, query filtering, sandbox rejection, and key/PII safety — mocked against the documented response shape.
 
 ---
 
 ## Key Technical Decisions
 
-- **KTD1 — Compose the shared build core, don't wrap `performBuildCall`.** Export `processInstructions` and `makeApiBuildCall` (package-internal) from `src/dws/build.ts`; `data_extractor` calls them directly so the inline path needs no `outputPath`. *(Review: Feasibility + Scope-guardian, 0.9 — `performBuildCall` resolves a write path before the call and cannot serve inline extraction.)*
-- **KTD2 — Structured output to file; summary inline; query for slices.** `structuredText` (or an explicit `outputPath`) ⇒ write JSON to the resolved path, return a decision-grade summary. **No size-threshold branch** in v1 — route purely on the boolean. The agent uses `query_extraction` to pull actionable elements back. *(Review: 4 reviewers — the size threshold had no defined value, was unmeasurable pre-stream, and created a "needs a file but has no path" hole.)*
-- **KTD3 — Decision-grade summary, not content.** The inline summary is restricted to: per-page element-type counts (`{tables, keyValuePairs, textBlocks}`), low-confidence element counts/flags, bbox ranges, page count, output path, byte size. It must **never** include extracted text/values (PII boundary). If expected fields aren't derivable from the live response, degrade gracefully to page-count + path + bytes and say so inline. *(Review: Security 0.75 + Feasibility 0.7.)*
-- **KTD4 — Markdown is a plain string, routed separately.** `format: markdown` returns inline text (it's a single small blob, not `{pages}`); the count-summary logic applies only to `json-content`. *(Review: Feasibility 0.85 — existing code routes non-`json-content` to a file; markdown has no `{pages}` to summarize.)*
-- **KTD5 — Verify the API contract in a spike BEFORE committing the schema (U0).** Public docs confirm confidence+coordinates exist but don't pin: (a) whether `structuredText` is a `json-content` sub-option vs. a separate output type/endpoint, (b) the confidence/coordinate field names, (c) whether `plainText`/`keyValuePairs`/`tables`/`structuredText` combine or are mutually exclusive (the existing schema says *"use one at a time"* yet defaults two on). One live `/build` call resolves all three and produces a recorded fixture that `query_extraction` and tests build on. If `structuredText` is *not* a `json-content` sub-option, U1/U3 schema shape changes — which is exactly why this is blocking. *(Review: Adversarial 0.75, Feasibility 0.7.)*
-- **KTD6 — Inline data is transcript-visible; treat as sensitive.** Both the `data_extractor` inline path (when no `outputPath`) and every `query_extraction` result place extracted content into the agent transcript, which the MCP host / LLM provider may log. Tool descriptions must state this plainly; recommend `outputPath` + scoped queries for sensitive documents. *(Review: Security 0.88.)*
+- **KTD1 — Target the Data Extraction API via a second `DwsApiClient`.** `data_extractor` builds a multipart form (`file` + `instructions`) and calls `extractionClient.post('extraction/parse', form)`, where `extractionClient = createApiClientFromApiKey(getExtractionApiKey())`. Same `baseUrl` (`https://api.nutrient.io`), different token. *(Supersedes the original "wrap /build" decision — Data Extraction is a separate API.)*
+- **KTD2 — Spatial → file + summary; markdown → inline; query for slices.** Spatial `elements[]` can be large; write the parsed JSON to `outputPath`, return a decision-grade summary, and let the agent retrieve slices via `query_extraction`. Markdown is a single blob → inline.
+- **KTD3 — Decision-grade summary, never content.** Inline summary = per-page counts by element `type`/`role`, low-confidence element count (e.g. `confidence < 0.6`), bbox coverage, page count, output path, byte size. No `text` values. (PII boundary; the field names are now known, so counts are reliable.)
+- **KTD4 — Mode + format surface with cost transparency.** Expose all four modes and both formats; default `mode: understand`, `format: spatial`. Validate `text`-mode ⇒ markdown-only. Put credit costs in the tool description (R7).
+- **KTD5 — Separate key + env var.** `getExtractionApiKey()` reads `NUTRIENT_EXTRACTION_API_KEY` (distinct from Processor `NUTRIENT_DWS_API_KEY`); fail with a clear message if unset. Document both keys.
+- **KTD6 — Inline data is transcript-visible.** `data_extractor` markdown/inline output and all `query_extraction` results enter the agent transcript (host/provider may log). Tool descriptions say so; recommend `outputPath` + scoped queries for sensitive docs.
+- **KTD7 — Response is streamed then parsed.** `DwsApiClient.post` uses `responseType: 'stream'`; the extraction handler pipes to a string (`pipeToString`) and `JSON.parse`s, since extraction returns JSON (unlike Build's file streams).
 
 ---
 
@@ -67,188 +72,186 @@ Three in-repo realities shape the design — each surfaced by the plan review an
 
 ```mermaid
 flowchart TD
-    A[Agent: data_extractor\nfile + toggles + format] --> V[validate outputPath via\nresolveWriteFilePath FIRST]
-    V --> B[build Instructions\noutput=json-content or markdown]
-    B --> C[shared build core:\nprocessInstructions → makeApiBuildCall → /build]
-    C --> D{structuredText set?}
-    D -- no, json --> E[handleJsonContentResponse\n→ JSON inline]
-    D -- no, markdown --> M[markdown string inline]
-    D -- yes --> F[write JSON to outputPath\n→ decision-grade summary inline\n(counts, low-conf flags, bbox ranges; NO content)]
-    F -.-> G[Agent: query_extraction\nfile + page/region/minConfidence]
-    G --> H[resolveReadFilePath → parse → filter\n→ matching elements inline]
-    H -.-> I[Agent branches → ai_redactor / document_signer]
+    A[Agent: data_extractor\nfile + mode + format] --> V[validate outputPath via\nresolveWriteFilePath FIRST]
+    V --> B[multipart form: file + instructions\n mode/output.format/includeWords]
+    B --> C[extractionClient.post\n'extraction/parse']
+    C --> P[pipe stream -> string -> JSON.parse]
+    P --> D{format}
+    D -- markdown --> E[output.markdown inline]
+    D -- spatial --> F[write output.elements to outputPath\n-> decision-grade summary inline\n(per-page type counts, low-conf, page dims; NO text)]
+    F -.-> G[Agent: query_extraction\nfile + page/region/minConfidence/type]
+    G --> H[resolveReadFilePath -> parse -> filter\n-> matching elements inline]
+    H -.-> I[Agent branches -> ai_redactor / document_signer]
 ```
 
-*Directional — routing gates and the extract→query→act loop are the design intent; field-level shapes are settled by the U0 spike and in code.*
+*Directional — routing gates and the extract→query→act loop are the design intent; field shapes follow the documented schema and are confirmed in U0.*
 
 ---
 
 ## Implementation Units
 
-### U0. Spike: verify the `/build` extraction contract + capture a fixture
+### U0. Verify `/extraction/parse` against the documented schema + capture fixture
 
-**Goal:** Resolve the unconfirmed API shape before any schema is committed.
-**Requirements:** KTD5 (enables R1–R3).
-**Dependencies:** none. **Blocking** for U1, U3, U4.
-**Files:** `tests/fixtures/extraction-sample.json` (new, recorded response); a throwaway script (not committed) or a documented `curl`/node snippet.
-**Approach:** With a real `NUTRIENT_DWS_API_KEY`, call `/build` against `tests/assets/example.pdf` requesting `json-content` with `plainText`, `keyValuePairs`, `tables`, and structured/positional text. Record: (a) is `structuredText` a `json-content` sub-option or separate? (b) exact field names for elements, bbox/coordinates, confidence, page, reading order; (c) whether multiple toggles can combine. Save the response as a fixture for U4/U7. Document findings in the U0 commit message / a short note in `docs/`.
-**Test scenarios:** none — investigation. Output is the fixture + recorded findings.
-**Verification:** Fixture exists; the three KTD5 questions are answered in writing. If `structuredText` is not a `json-content` sub-option, update U1/U3 before proceeding.
+**Goal:** Confirm the documented response shape with one live call and record a fixture for tests.
+**Requirements:** KTD7 (de-risks U3/U4).
+**Dependencies:** none for building; the live call needs `NUTRIENT_EXTRACTION_API_KEY`. **Deferred until the user confirms a key** — building proceeds against the documented schema meanwhile.
+**Files:** `tests/fixtures/extraction-spatial-sample.json`, `tests/fixtures/extraction-markdown-sample.json`
+**Approach:** `text` mode (1 credit) for the markdown fixture and `structure` mode (1.5 cr) for a small spatial fixture against `tests/assets/example.pdf`. Save responses verbatim. Confirm field names match `bounds/confidence/page/readingOrder/type/role`.
+**Test scenarios:** none — produces fixtures.
+**Verification:** Fixtures saved; field names match the docs (if any drift, adjust U1/U3/U4).
 
-### U1. Arg schemas for both tools
+### U1. Arg schemas
 
-**Goal:** Define `DataExtractorArgsSchema` and `QueryExtractionArgsSchema`.
+**Goal:** `DataExtractorArgsSchema` + `QueryExtractionArgsSchema`.
 **Requirements:** R1, R2, R3, R6.
-**Dependencies:** U0.
+**Dependencies:** none (documented schema).
 **Files:** `src/schemas.ts`
-**Approach:** `DataExtractorArgsSchema`: `filePath`, optional `password`/`pages`, extraction toggles, `language` (string|string[]), `format` (`json`|`markdown`, default `json`), optional `outputPath` — required when `structuredText` is true (`.superRefine`, mirroring `AiRedactArgsSchema`'s stage/apply precedent). If U0 finds the toggles are mutually exclusive, model them as an enum + refine and drop the misleading "use one at a time" wording; if combinable, keep booleans and fix the inherited descriptions. `QueryExtractionArgsSchema`: `filePath` (the extraction JSON, sandbox-resolved read), optional `pages`, optional `region` (bbox: x/y/width/height), optional `minConfidence` (0–1), optional `elementTypes` (filter to tables/kv/text). Reuse `PageRangeSchema`.
-**Patterns to follow:** `BuildAPIArgsSchema`, `JSONContentOutputSchema`, `AiRedactArgsSchema`.
+**Approach:** `DataExtractorArgsSchema`: `filePath` (sandbox read), `mode` enum (default `understand`), `format` enum `spatial|markdown` (default by mode), `includeWords` bool, `language` (string|string[]), `pages` (`PageRangeSchema`), `outputPath` — required when `format: spatial` (`.superRefine`); also refine `text` mode ⇒ `format` must be `markdown`. `QueryExtractionArgsSchema`: `filePath` (the saved spatial JSON), optional `pages`, `region` (`{x,y,width,height}` all required together), `minConfidence` (0–1), `elementTypes` (enum array), `limit` (default cap).
+**Patterns to follow:** `BuildAPIArgsSchema`, `AiRedactArgsSchema` (`.superRefine`), `PageRangeSchema`.
 **Test scenarios:**
-- `data_extractor`: valid `plainText`-only parses, `format` defaults `json`.
-- `structuredText: true` without `outputPath` → rejected with a clear message.
+- spatial without `outputPath` → rejected.
+- `text` mode with `format: spatial` → rejected.
 - `language` accepts string and array.
-- (if U0 ⇒ exclusive) two toggles set → rejected.
-- `query_extraction`: `minConfidence` out of 0–1 → rejected; `region` requires all four bbox fields.
-**Verification:** `pnpm pretest` passes; schema unit tests green.
+- query: `minConfidence` outside 0–1 → rejected; partial `region` → rejected.
+**Verification:** `pnpm pretest`; schema unit tests green.
 
-### U2. Export the shared build core
+### U2. Data Extraction API client wiring
 
-**Goal:** Make the inline extraction path possible without a write path.
-**Requirements:** R4, KTD1.
-**Dependencies:** none (independent enabling refactor).
-**Files:** `src/dws/build.ts`
-**Approach:** Export `processInstructions` and `makeApiBuildCall` as package-internal symbols (no public/tool surface change). Leave `performBuildCall` intact and refactor it to consume the now-exported core so behavior is unchanged. No signature change to `performBuildCall`.
-**Patterns to follow:** existing `build.ts` structure.
+**Goal:** Provide a `DwsApiClient` authenticated with the Data Extraction key.
+**Requirements:** R4, KTD1, KTD5.
+**Dependencies:** none.
+**Files:** `src/dws/utils.ts` or `src/utils/environment.ts` (add `getExtractionApiKey()`), `src/index.ts` (build the extraction client and thread it into `addToolsToServer` options alongside `apiClient`)
+**Approach:** `getExtractionApiKey()` reads `NUTRIENT_EXTRACTION_API_KEY`, throws a clear error if unset. In the server bootstrap, `const extractionApiClient = createApiClientFromApiKey(getExtractionApiKey())`. Extend the `addToolsToServer`/`createMcpServer` options type with `extractionApiClient: DwsApiClient`. Only construct it lazily/when the key exists so the Processor-only path still boots (extraction tools can surface a clear "set NUTRIENT_EXTRACTION_API_KEY" error if missing).
+**Patterns to follow:** `createStdioApiClient`, `createApiClientFromApiKey`, the existing `apiClient` threading in `src/index.ts`.
 **Test scenarios:**
-- Existing `tests/build-api-examples.test.ts` still green (regression — the refactor is behavior-preserving).
-- Exported `processInstructions` returns the same `{instructions, fileReferences}` shape for a sample input.
-**Execution note:** Characterization-first — confirm the existing build tests pass before and after the extract, since this refactors a shipped path.
-**Verification:** `pnpm test` green; no diff in `document_processor` behavior.
+- `getExtractionApiKey()` throws when env unset; returns the key when set.
+**Verification:** `pnpm pretest`; server boots with and without the extraction key (tools register; calling without key errors clearly).
 
 ### U3. `data_extractor` handler
 
-**Goal:** Build instructions, call the core, route inline vs. file, summarize safely.
-**Requirements:** R1, R2, R4, R6, KTD2, KTD3, KTD4, KTD6.
-**Dependencies:** U0, U1, U2.
-**Files:** `src/dws/extract.ts` (new; includes a module-private `summarizeExtraction` helper — not exported to `utils.ts`)
-**Approach:** `performExtractCall(args)`. Validate `outputPath` via `resolveWriteFilePath` **first** (R6), before building instructions or calling the API — fail early on sandbox escape regardless of branch. Construct `Instructions` with `output: json-content` (toggles + language) or `markdown`. Call the exported core. Routing: `structuredText` set ⇒ write JSON to resolved path + return `summarizeExtraction` output (KTD3 fields only, no content); `format: markdown` ⇒ inline string; else ⇒ `handleJsonContentResponse` inline. `summarizeExtraction` parses the JSON using field names confirmed in U0; on missing fields, degrade to page-count + path + bytes. Audit the error path: ensure `handleApiError` never serializes the `Authorization` header (strip `e.config` if needed).
-**Patterns to follow:** `src/dws/build.ts`, `handleJsonContentResponse`/`handleFileResponse`/`pipeToBuffer`, `createErrorResponse`.
+**Goal:** Call `/extraction/parse`, route spatial→file / markdown→inline, summarize safely.
+**Requirements:** R1, R2, R6, R7, KTD2, KTD3, KTD7.
+**Dependencies:** U1, U2 (and U0 fixture for tests).
+**Files:** `src/dws/extract.ts` (new; module-private `summarizeSpatial` helper), reuse `pipeToString` from `src/dws/utils.ts`
+**Approach:** `performExtractCall(args, extractionApiClient)`. If `format: spatial`, validate `outputPath` via `resolveWriteFilePath` **first**. Resolve `filePath` via `resolveReadFilePath`, read buffer, build `FormData` (`file` + `instructions` JSON). `await extractionApiClient.post('extraction/parse', form)`; `pipeToString` → `JSON.parse`. Markdown → return `output.markdown` inline. Spatial → write `output` (or `output.elements`) to the resolved path; return `summarizeSpatial(output)` (KTD3 fields only). Errors → `createErrorResponse`; ensure no `Authorization`/key leaks (axios error `config` stripped).
+**Patterns to follow:** `performBuildCall` structure, `processFileReference` file-read approach, `handleApiError`, `createSuccessResponse`/`createErrorResponse`.
 **Test scenarios:**
-- `plainText` only → JSON inline (mocked stream).
-- `structuredText: true` + `outputPath` → file written; response is a summary string with counts/flags/path and **no document text** (assert a known PII token from the fixture is absent inline).
-- `format: markdown` → `output.type: 'markdown'`, inline string, no count-summary.
-- `outputPath` outside sandbox → rejected before the API call (assert no network call).
-- API error → `createErrorResponse`; assert the returned text contains no `Bearer`/key.
+- markdown mode → inline string from `output.markdown` (mocked).
+- spatial mode + `outputPath` → file written; summary string has counts + path, and asserts a known text value from the fixture is **absent** inline.
+- `outputPath` outside sandbox → rejected before any network call.
+- API error → `createErrorResponse`; assert no `Bearer`/key in the message.
+- missing extraction key → clear "set NUTRIENT_EXTRACTION_API_KEY" error.
 **Verification:** `pnpm test` green.
 
 ### U4. `query_extraction` handler
 
-**Goal:** Return actionable filtered slices inline from an extraction file.
+**Goal:** Return filtered element slices inline from a saved spatial file.
 **Requirements:** R3, R6, KTD6.
-**Dependencies:** U0 (fixture/field shape), U1.
+**Dependencies:** U0 fixture, U1.
 **Files:** `src/dws/extract.ts` (or `src/dws/query.ts`)
-**Approach:** `performQueryCall(args)`. Resolve `filePath` via `resolveReadFilePath` (sandbox), read + `JSON.parse`. Filter elements by `pages`, `region` (bbox intersection), `minConfidence`, `elementTypes`. Return matched elements inline (bounded count; if a query still matches a very large set, return the first N + a note to narrow). Field access uses the U0-confirmed names with a defensive fallback. Tool description states results enter the transcript (KTD6).
+**Approach:** `performQueryCall(args)`. `resolveReadFilePath(filePath)`, read + parse. Filter `output.elements` by `pages` (`element.page.pageIndex`), `region` (bbox intersection with `element.bounds`), `minConfidence` (`element.confidence`), `elementTypes` (`element.type`). Return up to `limit` matches inline; if more matched, note the truncation and suggest narrowing. Defensive field access with a clear error if the file isn't a recognized extraction document.
 **Patterns to follow:** `resolveReadFilePath`, `createSuccessResponse`/`createErrorResponse`.
 **Test scenarios:**
-- `minConfidence: 0.9` → only high-confidence elements returned (against the U0 fixture).
+- `minConfidence: 0.9` → only high-confidence elements (against fixture).
 - `region` bbox → only intersecting elements.
 - `pages: [0]` → only page-0 elements.
-- Missing/малformed file → `createErrorResponse`.
-- Oversized match set → truncated with a "narrow your query" note.
-- File outside sandbox → rejected.
+- `elementTypes: ['table']` → only tables.
+- malformed/non-extraction file → `createErrorResponse`.
+- match set > `limit` → truncated with guidance.
+- file outside sandbox → rejected.
 **Verification:** `pnpm test` green.
 
-### U5. Register both tools
+### U5. Register tools + de-advertise extraction on `document_processor`
 
-**Goal:** Wire `data_extractor` + `query_extraction` into the server.
-**Requirements:** R1, R3, R5, R8.
+**Goal:** Wire both tools into the server.
+**Requirements:** R1, R3, R5, R7, R9.
 **Dependencies:** U3, U4.
 **Files:** `src/index.ts`
-**Approach:** Two `server.tool(...)` registrations mirroring `document_processor`, with descriptions that (a) note structured output goes to a file and is queried via `query_extraction`, and (b) carry the KTD6 transcript warning. Confirm both work in sandbox and non-sandbox modes. Also amend `document_processor`'s description to drop the standalone "JSON extraction" affordance and point to `data_extractor` (R8).
-**Patterns to follow:** existing `server.tool` blocks.
+**Approach:** Two `server.tool(...)` registrations passing `extractionApiClient` (data_extractor) and none (query_extraction reads files). Descriptions note: spatial output → file + `query_extraction`; per-mode credit cost; transcript caveat (KTD6). Amend `document_processor`'s description to drop standalone "JSON extraction" and point to `data_extractor`.
+**Patterns to follow:** existing `server.tool` blocks and the `addToolsToServer` options threading.
 **Test scenarios:**
-- Test expectation: none beyond handler tests — registration is wiring; behavior covered by U3/U4.
-**Verification:** `pnpm build`; launch server; both tools register and the `document_processor` description no longer double-advertises extraction.
+- Test expectation: none beyond handler tests — registration is wiring.
+**Verification:** `pnpm build`; server registers both tools; `document_processor` no longer double-advertises extraction.
 
 ### U6. Dynamic-workflow example
 
-**Goal:** One runnable artifact demonstrating extract → branch → act.
-**Requirements:** R7.
+**Goal:** One runnable artifact: extract → query → act.
+**Requirements:** R8.
 **Dependencies:** U5.
-**Files:** `examples/invoice-extraction-workflow/` (a documented script + sample doc reference), `README.md` (a "Dynamic workflows" walkthrough section)
-**Approach:** Show an agent calling `data_extractor` (structured → file) → `query_extraction` with `minConfidence` to find low-confidence fields → branching (e.g., flag for human review) and acting via the existing `ai_redactor` / `document_signer`. Keep it copy-pasteable; reference `tests/assets/example.pdf`.
-**Test scenarios:**
-- Test expectation: none — documentation/example. If a smoke script is included, gate it behind a real key and exclude from `pnpm test`.
-**Verification:** Walkthrough steps run end-to-end manually against a live key once.
+**Files:** `examples/invoice-extraction-workflow/` (script + notes), `README.md` ("Dynamic workflows" section)
+**Approach:** `data_extractor` (spatial → file) → `query_extraction` (`minConfidence` to find shaky fields) → branch → act via `ai_redactor`/`document_signer`. Live "act" steps use the **Processor** key; gate the runnable script behind both keys and exclude from `pnpm test`.
+**Test scenarios:** none — example/doc.
+**Verification:** Walkthrough runs once end-to-end against live keys.
 
 ### U7. Tests
 
-**Goal:** Cover both handlers per the repo convention.
-**Requirements:** R9.
-**Dependencies:** U3, U4.
-**Files:** `tests/extract.test.ts` (new), `tests/query.test.ts` (new), reuse `tests/fixtures/extraction-sample.json` (from U0) and `tests/assets/example.pdf`. Inline example objects (the feature has few cases — no separate `*-api-examples.ts` data file).
-**Approach:** Follow `tests/unit.test.ts`/`tests/build-api-examples.test.ts` conventions; mock API streams; assert routing, summary-without-content, query filtering, sandbox rejection, and key-redaction in errors.
-**Execution note:** Start from a failing test asserting the structured→file summary contains no document content (the riskiest + security-critical path).
-**Test scenarios:** the scenarios enumerated in U1/U3/U4 live here.
+**Goal:** Cover both handlers against the documented/fixture schema.
+**Requirements:** R10.
+**Dependencies:** U3, U4 (U0 fixtures).
+**Files:** `tests/extract.test.ts`, `tests/query.test.ts`; reuse `tests/fixtures/extraction-*-sample.json`, `tests/assets/example.pdf`. Inline example objects.
+**Approach:** Mock `DwsApiClient.post` to return a stream of the fixture; assert routing, summary-without-content, key-redaction, sandbox rejection, and query filters.
+**Execution note:** Start from a failing test asserting the spatial→file summary contains no element `text` (security-critical).
 **Verification:** `pnpm test`, `pnpm lint`, `pnpm format` clean.
 
 ### U8. Docs
 
-**Goal:** Document the new tools and workflow.
-**Requirements:** R8.
+**Goal:** Document tools, the new env var, and costs.
+**Requirements:** R7, R9.
 **Dependencies:** U5, U6.
-**Files:** `README.md`
-**Approach:** Add `data_extractor` + `query_extraction` rows to "Available Tools"; update the "Data Extraction" feature row (coordinates/confidence, file output + query). Ensure the `document_processor` row no longer implies it's the extraction path. Note the transcript-visibility caveat for extracted content.
-**Test scenarios:** Test expectation: none — documentation only.
-**Verification:** Tool names/descriptions match the registered tools exactly (grep parity).
+**Files:** `README.md`, `.env.example`
+**Approach:** Add `data_extractor` + `query_extraction` to Available Tools; add a Data Extraction feature row (modes, spatial/markdown, coords+confidence, file+query); add `NUTRIENT_EXTRACTION_API_KEY` to the env table + `.env.example`; note per-mode credits; ensure `document_processor` row no longer implies it's the extraction path.
+**Test scenarios:** none — docs.
+**Verification:** Tool names/descriptions match registrations (grep parity).
 
 ---
 
 ## Scope Boundaries
 
-**In scope:** `data_extractor`, `query_extraction`, one dynamic-workflow example, tests, README + `document_processor` description fix.
+**In scope:** `data_extractor`, `query_extraction`, the Data Extraction client wiring, one workflow example, tests, README/.env updates, `document_processor` description fix.
 
 ### Deferred to Follow-Up Work
-- **`accessibility_tagger` (PDF/UA auto-tagging)** — own PR; design is ready in this plan's git history (maps to `output.type: 'pdfua'` + `metadata`). Dropped here to keep the workflow narrative sharp.
-- **Accessibility validation / compliance reporting** — not a confirmed DWS capability.
-- **Viewer tool** — low value for headless workflows.
-- **Re-enabling `structuredText` on `document_processor`** — kept off there; only `data_extractor` exposes it (behind file output).
-- **Extension-allowlist / hardened non-sandbox output paths** — see System-Wide Impact; revisit if needed.
-- **npm publish / version bump** — separate release step.
+- **`accessibility_tagger`** — DWS **Accessibility API** is now standalone (auto-tag *and* validation, own key); own PR.
+- **Viewer tool** — own key; low value for headless workflows.
+- **JSON-body-with-URL / raw-binary inputs** to `/extraction/parse` — start with multipart file upload; add URL input if needed.
+- **`agentic` cost guardrails** beyond surfacing cost in the description.
 
 ---
 
 ## System-Wide Impact
 
-- **No auth/transport change** — reuses `NUTRIENT_DWS_API_KEY` and stdio. No new env vars.
-- **Additive** — no breaking change to existing tools; `document_processor` keeps full capability (only its description changes to reduce extraction overlap).
-- **Sandbox** covers all new reads/writes via `resolveReadFilePath`/`resolveWriteFilePath`. **Known limitation (pre-existing):** in non-sandbox mode, any absolute `outputPath` is writable — call this out in the tool descriptions; an extension allowlist is deferred.
-- **Transcript exposure:** `data_extractor` inline results and all `query_extraction` results place extracted content in the agent transcript (KTD6) — documented, not silently introduced.
-- **Credits:** extraction is a billable Build op; existing `check_credits` applies.
+- **New env var** `NUTRIENT_EXTRACTION_API_KEY` (separate from `NUTRIENT_DWS_API_KEY`). Documented; extraction tools error clearly if unset, Processor tools unaffected.
+- **Additive** — no breaking change; `document_processor` keeps capability (description-only change).
+- **Sandbox** covers the new file read (`query_extraction`, source PDF) and write (`data_extractor` spatial output).
+- **Transcript exposure** (KTD6) documented.
+- **Cost:** `understand` (default) = 9 credits/page; surfaced in the description (R7).
 
 ---
 
 ## Risks & Dependencies
 
-- **R-A (high → mitigated): API contract unconfirmed.** *Mitigation:* U0 spike is blocking and produces a fixture before schemas are committed (KTD5).
-- **R-B (medium): structured field names drive both the summary and the query.** If U0 reveals an unexpected shape, `summarizeExtraction` + `query_extraction` field access change. *Mitigation:* single source of truth = U0 fixture; defensive fallbacks; both consume the same confirmed names.
-- **R-C (medium): PII in transcript.** *Mitigation:* KTD3 (no content in summaries) + KTD6 (documented warning) + a test asserting no document content leaks inline on the structured path.
-- **R-D (low): shared-core refactor regresses `document_processor`.** *Mitigation:* U2 is characterization-first; existing build tests gate it.
-- **R-E (low): query returns too much.** *Mitigation:* bounded result count + "narrow your query" guidance.
+- **R-A (low, mitigated): live response drift from docs.** *Mitigation:* U0 fixture confirms before relying on it; defensive field access.
+- **R-B (medium): default mode cost.** `understand` at 9 cr/pg can surprise. *Mitigation:* cost in description (R7); consider defaulting to `structure` — open question below.
+- **R-C (medium): PII in transcript** via markdown/inline and query results. *Mitigation:* KTD3 (no content in summaries) + KTD6 warning + a test asserting no element `text` leaks in the spatial summary.
+- **R-D (low): two keys confuse setup.** *Mitigation:* clear env table, `.env.example`, and unset-key errors.
+
+## Open Questions (resolve during execution)
+
+- Default mode: `understand` (richest, 9 cr/pg, matches API default) vs `structure` (1.5 cr/pg) for a cheaper default? Leaning toward honoring the API default (`understand`) but surfacing cost.
 
 ---
 
 ## Verification Strategy
 
-No GitHub Actions in this repo — verification is local:
-- `pnpm pretest` (tsc), `pnpm test` (vitest), `pnpm lint`, `pnpm format`.
-- `pnpm build`, launch the server, run the U6 walkthrough once against a live key (extract → query → act).
-- Per project AGENTS rules: branch off `main` → Conventional Commits → PR into `main`; never push to `main`; report the exact command + exit 0 before claiming done.
+Local (no GitHub Actions in this repo):
+- `pnpm pretest`, `pnpm test`, `pnpm lint`, `pnpm format`.
+- U0: one live `text`/`structure` call to capture fixtures (needs key; deferred to user).
+- U6: full extract→query→act once against live Extraction + Processor keys.
+- Per project AGENTS rules: branch off `main` → Conventional Commits → PR into `main`; never push to `main`; report exact command + exit 0 before claiming done.
 
 ---
 
 ## Sources & Research
 
-- Existing code (authoritative): `src/index.ts`, `src/schemas.ts` (`JSONContentOutputSchema`, disabled `structuredText` at the bottom of that schema, `PDFUAOutputSchema`), `src/dws/build.ts` (`performBuildCall` write-path-before-call; private `processInstructions`/`makeApiBuildCall`), `src/dws/utils.ts` (`handleJsonContentResponse`/`handleFileResponse`/`handleApiError`), `src/dws/api.ts`, `src/fs/sandbox.ts`.
-- DWS Processor API — *"typed JSON or Markdown … tables, key-value pairs, coordinates, and confidence scores"*; *"each document element … bounding-box coordinates, reading order index, element type, and confidence scores."* ([nutrient.io/api](https://www.nutrient.io/api/), [processor-api](https://www.nutrient.io/api/processor-api/))
-- Plan review (2026-06-07): 6 personas; this revision applies the high-confidence Feasibility/Scope/Security/Adversarial findings (shared-core composition, drop size-threshold, markdown routing, U0 spike, PII-safe summaries, sandbox-validate-first, de-advertise overlap) and the product decision (re-focus on extraction + add the query affordance + example).
+- **Authoritative, on disk:** `~/projects/nutrient-website/src/content/guides/dws-data-extraction/` — `getting-started.mdoc`, `api-overview.mdoc`, `parsing/processing-modes.mdoc`, `parsing/coordinate-spaces.mdoc`, `llms.txt`. Endpoint `POST /extraction/parse`, Bearer `pdf_live_…`, modes/formats, element schema, coordinate system.
+- Repo (authoritative for wiring): `src/dws/client.ts` (`DwsApiClient`, `createApiClientFromApiKey`, `.post`), `src/index.ts` (`createMcpServer`/`addToolsToServer` apiClient threading), `src/dws/build.ts`, `src/dws/utils.ts` (`pipeToString`, `handleApiError`), `src/fs/sandbox.ts`.
+- Plan review (2026-06-07, 6 personas) + two user corrections establishing the separate-API/separate-key reality.
