@@ -74,9 +74,9 @@ Open Settings → Developer → Edit Config, then add:
         // "C:\\your\\sandbox\\directory" for Windows
         // Optional for CI or headless usage:
         // "NUTRIENT_DWS_API_KEY": "YOUR_API_KEY_HERE"
-      }
-    }
-  }
+      },
+    },
+  },
 }
 ```
 
@@ -98,9 +98,9 @@ Create `.cursor/mcp.json` in your project root:
         // "C:\\your\\project\\documents" for Windows
         // Optional for CI or headless usage:
         // "NUTRIENT_DWS_API_KEY": "YOUR_API_KEY_HERE"
-      }
-    }
-  }
+      },
+    },
+  },
 }
 ```
 
@@ -122,9 +122,9 @@ Add to `~/.codeium/windsurf/mcp_config.json`:
         // "C:\\your\\sandbox\\directory" for Windows
         // Optional for CI or headless usage:
         // "NUTRIENT_DWS_API_KEY": "YOUR_API_KEY_HERE"
-      }
-    }
-  }
+      },
+    },
+  },
 }
 ```
 
@@ -146,9 +146,9 @@ Create `.vscode/mcp.json` in your project, or add the same server definition to 
         "SANDBOX_PATH": "${workspaceFolder}",
         // Optional for CI or headless usage:
         // "NUTRIENT_DWS_API_KEY": "YOUR_API_KEY_HERE"
-      }
-    }
-  }
+      },
+    },
+  },
 }
 ```
 
@@ -178,28 +178,50 @@ Place documents in your sandbox directory and use explicit file names or paths i
 
 ## Available Tools
 
-| Tool | Description |
-| ---- | ----------- |
-| `document_processor` | Document processing for conversions, OCR, extraction, watermarking, rotation, annotation flattening, and redaction workflows |
-| `document_signer` | PDF signing with CMS / PKCS#7 and CAdES signatures plus visible or invisible appearance options |
-| `ai_redactor` | AI redaction for detecting and permanently removing sensitive content such as names, addresses, SSNs, emails, and custom criteria |
-| `check_credits` | Read-only account lookup for current DWS credits and usage. No document content is uploaded |
-| `sandbox_file_tree` | Read-only view of files inside the configured sandbox directory |
-| `directory_tree` | Read-only view of local files when sandbox mode is disabled. Sandbox mode is strongly recommended |
+| Tool                 | Description                                                                                                                                  |
+| -------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| `document_processor` | Document processing for conversions, OCR, watermarking, rotation, annotation flattening, and redaction workflows                             |
+| `data_extractor`     | Structured data extraction (DWS Data Extraction API): typed JSON elements with bounding boxes and confidence, or whole-document Markdown     |
+| `query_extraction`   | Read-only query over a saved extraction file — filter elements by page, region, confidence, or type without re-extracting or calling the API |
+| `document_signer`    | PDF signing with CMS / PKCS#7 and CAdES signatures plus visible or invisible appearance options                                              |
+| `ai_redactor`        | AI redaction for detecting and permanently removing sensitive content such as names, addresses, SSNs, emails, and custom criteria            |
+| `check_credits`      | Read-only account lookup for current DWS credits and usage. No document content is uploaded                                                  |
+| `sandbox_file_tree`  | Read-only view of files inside the configured sandbox directory                                                                              |
+| `directory_tree`     | Read-only view of local files when sandbox mode is disabled. Sandbox mode is strongly recommended                                            |
 
 ### Document Processor Capabilities
 
-| Feature           | Description                                                                                       |
-| ----------------- | ------------------------------------------------------------------------------------------------- |
-| Document Creation | Merge PDFs, Office docs (DOCX, XLSX, PPTX), and images into a single document                     |
-| Format Conversion | PDF ↔ DOCX, images (PNG, JPEG, WebP), PDF/A, PDF/UA, HTML, Markdown                               |
-| Editing           | Watermark (text/image), rotate pages, flatten annotations                                         |
-| Security          | Redact sensitive data (SSNs, credit cards, emails, etc.), password protection, permission control |
-| Data Extraction   | Extract text, tables, or key-value pairs as structured JSON                                       |
-| OCR               | Multi-language optical character recognition for scanned documents                                |
-| Optimization      | Compress and linearize PDFs without quality loss                                                  |
-| Annotations       | Import XFDF annotations, flatten annotations                                                      |
-| Digital Signing   | PAdES-compliant CMS and CAdES digital signatures (via document_signer tool)                       |
+| Feature           | Description                                                                                                                               |
+| ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| Document Creation | Merge PDFs, Office docs (DOCX, XLSX, PPTX), and images into a single document                                                             |
+| Format Conversion | PDF ↔ DOCX, images (PNG, JPEG, WebP), PDF/A, PDF/UA, HTML, Markdown                                                                       |
+| Editing           | Watermark (text/image), rotate pages, flatten annotations                                                                                 |
+| Security          | Redact sensitive data (SSNs, credit cards, emails, etc.), password protection, permission control                                         |
+| Data Extraction   | Now a dedicated tool — see [Data Extraction](#data-extraction) (`data_extractor`) for typed JSON/Markdown with coordinates and confidence |
+| OCR               | Multi-language optical character recognition for scanned documents                                                                        |
+| Optimization      | Compress and linearize PDFs without quality loss                                                                                          |
+| Annotations       | Import XFDF annotations, flatten annotations                                                                                              |
+| Digital Signing   | PAdES-compliant CMS and CAdES digital signatures (via document_signer tool)                                                               |
+
+### Data Extraction
+
+The `data_extractor` and `query_extraction` tools wrap the standalone [DWS Data Extraction API](https://www.nutrient.io/guides/dws-data-extraction/). They authenticate with a **separate** `NUTRIENT_EXTRACTION_API_KEY` (it starts with `pdf_live_`), independent of the Processor `NUTRIENT_DWS_API_KEY`.
+
+`data_extractor` runs one of four processing modes:
+
+| Mode                   | Output              | OCR                | Cost per page |
+| ---------------------- | ------------------- | ------------------ | ------------- |
+| `text`                 | Markdown only       | No                 | 1 credit      |
+| `structure`            | Spatial or Markdown | Yes                | 1.5 credits   |
+| `understand` (default) | Spatial or Markdown | Yes (AI-augmented) | 9 credits     |
+| `agentic`              | Spatial or Markdown | Yes (VLM)          | 18 credits    |
+
+- **Spatial** output returns typed elements (paragraphs, tables, key-value regions, formulas, pictures, handwriting) with bounding boxes, confidence scores, and reading order. Because the element list can be large, it is written to `outputPath` and the tool returns a content-free summary (element counts, low-confidence flags, page geometry).
+- **Markdown** output returns whole-document Markdown inline — useful for RAG and search indexing.
+
+Use `query_extraction` to pull just the elements you need from a saved spatial file — filter by `pages`, `region` (bounding box), `minConfidence`, or `elementTypes` — so coordinates and values enter the conversation only when you ask for them.
+
+> **Note:** Extracted content returned inline (Markdown output, or `query_extraction` results) enters the conversation and may be logged by the host. For sensitive documents, prefer spatial output to a file plus scoped `query_extraction` calls.
 
 ## Usage Examples
 
@@ -277,24 +299,25 @@ Processed files are saved to a location determined by the AI. To guide output pl
 
 The server authenticates to the Nutrient DWS API (`https://api.nutrient.io`) using one of:
 
-| Method | When | Config |
-|--------|------|--------|
-| **API key** | `NUTRIENT_DWS_API_KEY` is set | Static key passed as Bearer token to DWS API |
-| **OAuth browser flow** | No API key set | Opens browser for Nutrient OAuth consent on the first request that uses the Nutrient API, caches token locally |
+| Method                 | When                          | Config                                                                                                         |
+| ---------------------- | ----------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| **API key**            | `NUTRIENT_DWS_API_KEY` is set | Static key passed as Bearer token to DWS API                                                                   |
+| **OAuth browser flow** | No API key set                | Opens browser for Nutrient OAuth consent on the first request that uses the Nutrient API, caches token locally |
 
 When no API key is configured, the server stays connected and opens a browser-based OAuth flow on the first request that uses the Nutrient API (similar to `gh auth login`). Tokens are cached at `$XDG_CONFIG_HOME/nutrient/credentials.json` or `~/.config/nutrient/credentials.json` and refreshed automatically.
 
 ### Environment Variables
 
-| Variable               | Required    | Description                                                                                  |
-| ---------------------- | ----------- | -------------------------------------------------------------------------------------------- |
-| `NUTRIENT_DWS_API_KEY` | No*         | Nutrient DWS API key ([get one free](https://dashboard.nutrient.io/sign_up/))               |
-| `SANDBOX_PATH`         | Recommended | Directory to restrict file operations to                                                    |
-| `AUTH_SERVER_URL`      | No          | OAuth server base URL (default: `https://api.nutrient.io`)                                 |
-| `CLIENT_ID`            | No          | OAuth client ID. Skips DCR and enables refresh token reuse when set                         |
-| `DWS_API_BASE_URL`     | No          | DWS API base URL (default: `https://api.nutrient.io`)                                      |
-| `LOG_LEVEL`            | No          | Winston logger level (`info` default). Logs are written to `MCP_LOG_FILE` in stdio mode     |
-| `MCP_LOG_FILE`         | No          | Override log file path (default: system temp directory)                                     |
+| Variable                      | Required    | Description                                                                                                                   |
+| ----------------------------- | ----------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| `NUTRIENT_DWS_API_KEY`        | No\*        | Nutrient DWS **Processor** API key ([get one free](https://dashboard.nutrient.io/sign_up/))                                   |
+| `NUTRIENT_EXTRACTION_API_KEY` | No          | Nutrient DWS **Data Extraction** API key (separate key, starts with `pdf_live_`). Required only for the `data_extractor` tool |
+| `SANDBOX_PATH`                | Recommended | Directory to restrict file operations to                                                                                      |
+| `AUTH_SERVER_URL`             | No          | OAuth server base URL (default: `https://api.nutrient.io`)                                                                    |
+| `CLIENT_ID`                   | No          | OAuth client ID. Skips DCR and enables refresh token reuse when set                                                           |
+| `DWS_API_BASE_URL`            | No          | DWS API base URL (default: `https://api.nutrient.io`)                                                                         |
+| `LOG_LEVEL`                   | No          | Winston logger level (`info` default). Logs are written to `MCP_LOG_FILE` in stdio mode                                       |
+| `MCP_LOG_FILE`                | No          | Override log file path (default: system temp directory)                                                                       |
 
 \* If omitted, the server uses an OAuth browser flow to authenticate with the Nutrient API.
 
