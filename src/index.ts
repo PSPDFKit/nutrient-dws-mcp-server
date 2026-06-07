@@ -176,7 +176,7 @@ Returns: subscription type, total credits, used credits, and remaining credits.`
 
 Output formats:
 • spatial — typed elements (paragraphs, tables, key-value pairs, formulas, pictures, handwriting) with bounding boxes, confidence scores, and reading order. Written to outputPath (the list can be large); retrieve slices with the query_extraction tool.
-• markdown — whole-document Markdown, returned inline. Good for RAG and search indexing.
+• markdown — whole-document Markdown. Returned inline, or written to outputPath when provided (recommended for large documents). Good for RAG and search indexing.
 
 Processing modes (cost per page): text = fast Markdown, no OCR (1 credit); structure = OCR spatial (1.5 credits); understand = AI-augmented, default (9 credits); agentic = VLM-augmented (18 credits).
 

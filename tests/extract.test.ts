@@ -101,6 +101,40 @@ describe('performExtractCall', () => {
     expect(post).toHaveBeenCalledOnce()
   })
 
+  it('writes markdown to a file when outputPath is given, returning a summary not the content', async () => {
+    const input = await writeInput()
+    const outName = `out-${counter}.md`
+    const { client } = mockClient({ output: { markdown: '# Big Document\n\nlots of text' } })
+
+    const result = await performExtractCall(
+      extractArgs({ filePath: input, mode: 'text', format: 'markdown', outputPath: outName }),
+      client,
+    )
+
+    expect(result.isError).toBeFalsy()
+    const summary = text(result)
+    expect(summary).toContain('Wrote')
+    expect(summary).toContain(outName)
+    expect(summary).not.toContain('lots of text')
+    const written = await fs.promises.readFile(path.join(sandboxDir, outName), 'utf-8')
+    expect(written).toBe('# Big Document\n\nlots of text')
+  })
+
+  it('rejects a 2xx response with no spatial element list without writing the file', async () => {
+    const input = await writeInput()
+    const outName = `out-${counter}.json`
+    const { client } = mockClient({ status: 200, output: { markdown: 'oops wrong shape' } })
+
+    const result = await performExtractCall(
+      extractArgs({ filePath: input, mode: 'structure', format: 'spatial', outputPath: outName }),
+      client,
+    )
+
+    expect(result.isError).toBe(true)
+    expect(text(result)).toContain('output.elements')
+    await expect(fs.promises.access(path.join(sandboxDir, outName))).rejects.toThrow()
+  })
+
   it('writes spatial output to a file and returns a content-free summary', async () => {
     const input = await writeInput()
     const outName = `out-${counter}.json`

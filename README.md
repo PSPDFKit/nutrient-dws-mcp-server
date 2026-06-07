@@ -217,7 +217,7 @@ The `data_extractor` and `query_extraction` tools wrap the standalone [DWS Data 
 | `agentic`              | Spatial or Markdown | Yes (VLM)          | 18 credits    |
 
 - **Spatial** output returns typed elements (paragraphs, tables, key-value regions, formulas, pictures, handwriting) with bounding boxes, confidence scores, and reading order. Because the element list can be large, it is written to `outputPath` and the tool returns a content-free summary (element counts, low-confidence flags, page geometry).
-- **Markdown** output returns whole-document Markdown inline — useful for RAG and search indexing.
+- **Markdown** output returns whole-document Markdown inline, or writes it to `outputPath` when provided (recommended for large documents) — useful for RAG and search indexing.
 
 Use `query_extraction` to pull just the elements you need from a saved spatial file — filter by `pages`, `region` (bounding box), `minConfidence`, or `elementTypes` — so coordinates and values enter the conversation only when you ask for them.
 

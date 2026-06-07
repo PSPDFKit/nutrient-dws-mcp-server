@@ -72,6 +72,17 @@ function summarizeSpatial(response: ExtractionResponse, outputPath: string, byte
   ].join('\n')
 }
 
+/** Writes `data` to `resolvedPath`, creating parent directories as needed. */
+async function writeToResolvedPath(resolvedPath: string, data: string): Promise<void> {
+  const outputDir = path.dirname(resolvedPath)
+  try {
+    await fs.promises.access(outputDir)
+  } catch {
+    await fs.promises.mkdir(outputDir, { recursive: true })
+  }
+  await fs.promises.writeFile(resolvedPath, data)
+}
+
 /**
  * Calls the Nutrient DWS Data Extraction API (`POST /extraction/parse`).
  *
@@ -105,9 +116,10 @@ export async function performExtractCall(
     )
   }
 
-  // Resolve the output path first (fail early on a sandbox escape, before any API call).
+  // Resolve any provided output path first (fail early on a sandbox escape,
+  // before the API call). Required for spatial, optional for markdown.
   let resolvedOutputPath: string | undefined
-  if (format === 'spatial' && outputPath) {
+  if (outputPath) {
     try {
       resolvedOutputPath = await resolveWriteFilePath(outputPath)
     } catch (error) {
@@ -129,7 +141,7 @@ export async function performExtractCall(
 
   const instructions: Record<string, unknown> = {
     mode,
-    output: format === 'spatial' ? { format, includeWords: includeWords ?? false } : { format },
+    output: format === 'spatial' ? { format, includeWords } : { format },
   }
   if (language && mode !== 'text') {
     instructions.options = { language }
@@ -155,20 +167,30 @@ export async function performExtractCall(
       if (typeof markdown !== 'string') {
         return createErrorResponse('Error: the Data Extraction API did not return markdown output.')
       }
+      // Honor outputPath for markdown too — a large document returned inline
+      // would overflow the conversation. Only return inline when no path given.
+      if (resolvedOutputPath) {
+        await writeToResolvedPath(resolvedOutputPath, markdown)
+        return createSuccessResponse(`Wrote ${Buffer.byteLength(markdown)} bytes of Markdown to ${resolvedOutputPath}.`)
+      }
       return createSuccessResponse(markdown)
     }
 
-    // Spatial: write the full result to disk, return a content-free summary.
-    const outputDir = path.dirname(resolvedOutputPath as string)
-    try {
-      await fs.promises.access(outputDir)
-    } catch {
-      await fs.promises.mkdir(outputDir, { recursive: true })
+    // Spatial. The early guard guarantees outputPath was provided.
+    if (!resolvedOutputPath) {
+      return createErrorResponse('Error: spatial output requires outputPath.')
     }
-    const json = JSON.stringify(parsed, null, 2)
-    await fs.promises.writeFile(resolvedOutputPath as string, json)
-
-    return createSuccessResponse(summarizeSpatial(parsed, resolvedOutputPath as string, Buffer.byteLength(json)))
+    // Guard against a 2xx response that is not a spatial result, so we never
+    // overwrite the target file with a non-extraction body.
+    if (!Array.isArray(parsed.output?.elements)) {
+      return createErrorResponse(
+        'Error: the Data Extraction API response did not contain a spatial element list (output.elements). Nothing was written.',
+      )
+    }
+    // Write the raw response body: avoids re-serializing a potentially large
+    // payload and preserves every field the API returned.
+    await writeToResolvedPath(resolvedOutputPath, body)
+    return createSuccessResponse(summarizeSpatial(parsed, resolvedOutputPath, Buffer.byteLength(body)))
   } catch (error) {
     return handleApiError(error)
   }
