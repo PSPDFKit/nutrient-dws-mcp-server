@@ -14,10 +14,13 @@ import {
   AiRedactArgsSchema,
   BuildAPIArgsSchema,
   CheckCreditsArgsSchema,
+  DataExtractorArgsSchema,
   DirectoryTreeArgsSchema,
+  QueryExtractionArgsSchema,
   SignAPIArgsSchema,
 } from './schemas.js'
 import { performBuildCall } from './dws/build.js'
+import { performExtractCall, performQueryCall } from './dws/extract.js'
 import { performSignCall } from './dws/sign.js'
 import { performAiRedactCall } from './dws/ai-redact.js'
 import { performCheckCreditsCall } from './dws/credits.js'
@@ -36,8 +39,9 @@ function addToolsToServer(options: {
   server: McpServer
   sandboxEnabled: boolean
   apiClient: DwsApiClient
+  extractionApiClient?: DwsApiClient
 }) {
-  const { server, sandboxEnabled, apiClient } = options
+  const { server, sandboxEnabled, apiClient, extractionApiClient } = options
 
   server.tool(
     'document_processor',
@@ -51,7 +55,9 @@ Features:
 • Watermarking (text/image)
 • Redaction creation and application
 
-Output formats: PDF, PDF/A, images (PNG, JPEG, WebP), JSON extraction, Office (DOCX, XLSX, PPTX)`,
+Output formats: PDF, PDF/A, images (PNG, JPEG, WebP), Office (DOCX, XLSX, PPTX)
+
+For structured data extraction (typed JSON or Markdown with bounding boxes and confidence scores), use the dedicated data_extractor tool instead.`,
     BuildAPIArgsSchema.shape,
     {
       title: 'Nutrient Document Processor',
@@ -164,6 +170,62 @@ Returns: subscription type, total credits, used credits, and remaining credits.`
     },
   )
 
+  server.tool(
+    'data_extractor',
+    `Extract structured data from a document using the Nutrient DWS Data Extraction API. Reads the input file from the local file system or sandbox (if enabled).
+
+Output formats:
+• spatial — typed elements (paragraphs, tables, key-value pairs, formulas, pictures, handwriting) with bounding boxes, confidence scores, and reading order. Written to outputPath (the list can be large); retrieve slices with the query_extraction tool.
+• markdown — whole-document Markdown, returned inline. Good for RAG and search indexing.
+
+Processing modes (cost per page): text = fast Markdown, no OCR (1 credit); structure = OCR spatial (1.5 credits); understand = AI-augmented, default (9 credits); agentic = VLM-augmented (18 credits).
+
+Note: markdown output and any extracted content are returned into this conversation and may be logged by the host. For sensitive documents, prefer spatial output to a file plus scoped query_extraction calls.`,
+    DataExtractorArgsSchema.shape,
+    {
+      title: 'Nutrient Data Extractor',
+      readOnlyHint: false,
+      destructiveHint: true,
+      idempotentHint: false,
+      openWorldHint: true,
+    },
+    async (args) => {
+      try {
+        return await performExtractCall(args, extractionApiClient)
+      } catch (error) {
+        return createErrorResponse(`Error: ${error instanceof Error ? error.message : String(error)}`)
+      }
+    },
+  )
+
+  server.tool(
+    'query_extraction',
+    `Query a spatial extraction file previously produced by data_extractor and return the matching elements inline. Reads the file from the local file system or sandbox (if enabled); does not call the Nutrient API.
+
+Filter by any combination of:
+• pages — 0-based page indices
+• region — a bounding box {x, y, width, height} in render-space pixels (top-left origin); returns elements whose bounds intersect it
+• minConfidence — only elements at or above this confidence (0-1)
+• elementTypes — paragraph, table, formula, picture, keyValueRegion, handwriting
+
+Use this to pull just the elements you need (e.g. low-confidence fields, or everything in a table region) instead of loading the whole extraction. Returned elements include their text and coordinates, which enter this conversation.`,
+    QueryExtractionArgsSchema.shape,
+    {
+      title: 'Nutrient Extraction Query',
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: false,
+    },
+    async (args) => {
+      try {
+        return await performQueryCall(args)
+      } catch (error) {
+        return createErrorResponse(`Error: ${error instanceof Error ? error.message : String(error)}`)
+      }
+    },
+  )
+
   if (sandboxEnabled) {
     server.tool(
       'sandbox_file_tree',
@@ -195,7 +257,11 @@ Returns: subscription type, total credits, used credits, and remaining credits.`
   }
 }
 
-export function createMcpServer(options: { sandboxEnabled: boolean; apiClient: DwsApiClient }) {
+export function createMcpServer(options: {
+  sandboxEnabled: boolean
+  apiClient: DwsApiClient
+  extractionApiClient?: DwsApiClient
+}) {
   const server = new McpServer(
     {
       name: 'nutrient-dws-mcp-server',
@@ -213,9 +279,26 @@ export function createMcpServer(options: { sandboxEnabled: boolean; apiClient: D
     server,
     sandboxEnabled: options.sandboxEnabled,
     apiClient: options.apiClient,
+    extractionApiClient: options.extractionApiClient,
   })
 
   return server
+}
+
+/**
+ * Builds the Data Extraction API client when NUTRIENT_EXTRACTION_API_KEY is set.
+ * Returns undefined otherwise, in which case data_extractor reports a clear
+ * "set NUTRIENT_EXTRACTION_API_KEY" error when invoked.
+ */
+function createExtractionApiClient(environment: Environment): DwsApiClient | undefined {
+  if (!environment.extractionApiKey) {
+    return undefined
+  }
+
+  return createApiClient({
+    apiKey: environment.extractionApiKey,
+    baseUrl: environment.dwsApiBaseUrl,
+  })
 }
 
 async function parseCommandLineArgs() {
@@ -283,10 +366,12 @@ export async function runServer(environment: Environment): Promise<RunServerResu
   })
 
   const apiClient = createStdioApiClient(environment)
+  const extractionApiClient = createExtractionApiClient(environment)
 
   const server = createMcpServer({
     sandboxEnabled,
     apiClient,
+    extractionApiClient,
   })
 
   const transport = new StdioServerTransport()
