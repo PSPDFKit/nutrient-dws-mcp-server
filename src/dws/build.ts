@@ -39,9 +39,13 @@ export async function performBuildCall(
 }
 
 /**
- * Process file references in instructions
+ * Process file references in instructions.
+ *
+ * Exported (package-internal) so focused tools such as `data_extractor` can
+ * compose the build core directly without going through `performBuildCall`
+ * (which requires an output file path and so cannot serve inline responses).
  */
-async function processInstructions(instructions: Instructions): Promise<{
+export async function processInstructions(instructions: Instructions): Promise<{
   instructions: Instructions
   fileReferences: Map<string, FileReference>
 }> {
@@ -133,9 +137,12 @@ async function processFileReference(reference: string): Promise<FileReference> {
 }
 
 /**
- * Make the API call to the build endpoint
+ * Make the API call to the build endpoint.
+ *
+ * Exported (package-internal) so focused tools can reuse the multipart/URL
+ * negotiation and streaming-response behavior of the Processor `build` endpoint.
  */
-async function makeApiBuildCall(
+export async function makeApiBuildCall(
   instructions: Instructions,
   fileReferences: Map<string, FileReference>,
   apiClient: DwsApiClient,
