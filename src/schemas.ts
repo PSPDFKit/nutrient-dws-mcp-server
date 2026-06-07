@@ -549,3 +549,106 @@ export type Action = z.infer<typeof BuildActionSchema>
 export type SignAPIArgs = z.infer<typeof SignAPIArgsSchema>
 export type SignatureOptions = z.infer<typeof CreateDigitalSignatureSchema>
 export type AiRedactArgs = z.infer<typeof AiRedactArgsSchema>
+
+// ----- Data Extraction API (POST /extraction/parse) -----
+//
+// Cross-field rules (spatial format requires outputPath; text mode supports
+// markdown only) are enforced in the handler rather than via a top-level
+// `.superRefine`, because tools are registered with `Schema.shape`, which only
+// exists on a plain ZodObject (a refined schema would be a ZodEffects).
+
+export const ExtractionModeSchema = z
+  .enum(['text', 'structure', 'understand', 'agentic'])
+  .describe(
+    'Processing mode (cost/quality trade-off). ' +
+      'text: fast Markdown from digital-born documents, no OCR (1 credit/page). ' +
+      'structure: OCR-based spatial elements (1.5 credits/page). ' +
+      'understand: AI-augmented spatial extraction, the default (9 credits/page). ' +
+      'agentic: VLM-augmented for the most complex documents (18 credits/page).',
+  )
+
+export const ExtractionFormatSchema = z
+  .enum(['spatial', 'markdown'])
+  .describe(
+    'Output format. spatial: typed elements with bounding boxes, confidence, and reading order — written to outputPath and queried with query_extraction. ' +
+      'markdown: whole-document Markdown returned inline. text mode supports markdown only; other modes default to spatial.',
+  )
+
+export const ExtractionElementTypeSchema = z.enum([
+  'paragraph',
+  'table',
+  'formula',
+  'picture',
+  'keyValueRegion',
+  'handwriting',
+])
+
+export const DataExtractorArgsSchema = z.object({
+  filePath: z
+    .string()
+    .describe(
+      'Path to the document to extract from (PDF, image, or Office file). Resolves to sandbox path if enabled, otherwise resolves to the local file system.',
+    ),
+  mode: ExtractionModeSchema.optional().default('understand'),
+  format: ExtractionFormatSchema.optional().describe(
+    'Output format. Defaults to markdown for text mode and spatial for all other modes.',
+  ),
+  includeWords: z
+    .boolean()
+    .optional()
+    .default(false)
+    .describe('Include word-level bounding boxes in spatial output. Ignored for markdown output.'),
+  language: z
+    .union([z.string(), z.array(z.string())])
+    .optional()
+    .describe('OCR language(s) — ISO code or alias — for scanned or image documents.'),
+  pages: PageRangeSchema.optional().describe('Page range to process (0-based indexing).'),
+  outputPath: z
+    .string()
+    .optional()
+    .describe(
+      'Where to write spatial JSON output. Required for the spatial format (the element list can be large and is kept out of the conversation). ' +
+        'Resolves to sandbox path if enabled. Retrieve slices of it with query_extraction.',
+    ),
+})
+
+export const QueryExtractionArgsSchema = z.object({
+  filePath: z
+    .string()
+    .describe(
+      'Path to a spatial extraction JSON file previously produced by data_extractor. Resolves to sandbox path if enabled.',
+    ),
+  pages: z
+    .array(z.number().int().nonnegative())
+    .optional()
+    .describe('Only return elements on these 0-based page indices.'),
+  region: z
+    .object({
+      x: z.number().describe('Left edge in render-space pixels (top-left origin).'),
+      y: z.number().describe('Top edge in render-space pixels.'),
+      width: z.number().positive().describe('Region width in render-space pixels.'),
+      height: z.number().positive().describe('Region height in render-space pixels.'),
+    })
+    .optional()
+    .describe('Only return elements whose bounding box intersects this region.'),
+  minConfidence: z
+    .number()
+    .min(0)
+    .max(1)
+    .optional()
+    .describe('Only return elements with confidence greater than or equal to this value (0-1).'),
+  elementTypes: z
+    .array(ExtractionElementTypeSchema)
+    .optional()
+    .describe('Only return elements of these types.'),
+  limit: z
+    .number()
+    .int()
+    .positive()
+    .optional()
+    .default(100)
+    .describe('Maximum number of elements to return inline. Narrow the filters if results are truncated.'),
+})
+
+export type DataExtractorArgs = z.infer<typeof DataExtractorArgsSchema>
+export type QueryExtractionArgs = z.infer<typeof QueryExtractionArgsSchema>
