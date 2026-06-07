@@ -10,6 +10,19 @@ describe('environment', () => {
     expect(environment.authServerUrl).toBe('https://api.nutrient.io')
   })
 
+  it('parses the separate Data Extraction API key', () => {
+    const environment = getEnvironment({ NUTRIENT_EXTRACTION_API_KEY: 'pdf_live_abc123' })
+
+    expect(environment.extractionApiKey).toBe('pdf_live_abc123')
+    expect(environment.nutrientApiKey).toBeUndefined()
+  })
+
+  it('leaves the extraction key undefined when unset', () => {
+    const environment = getEnvironment({ NUTRIENT_DWS_API_KEY: 'dws-key' })
+
+    expect(environment.extractionApiKey).toBeUndefined()
+  })
+
   it('allows overriding DWS API base URL', () => {
     const environment = getEnvironment({ DWS_API_BASE_URL: 'http://localhost:4000' })
 
