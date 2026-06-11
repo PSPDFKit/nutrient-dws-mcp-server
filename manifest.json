@@ -16,6 +16,7 @@
   "homepage": "https://www.nutrient.io/mcp-server-pdf-automation-llm/",
   "documentation": "https://www.nutrient.io/guides/dws-processor/getting-started/mcp-server/",
   "support": "https://github.com/PSPDFKit/nutrient-dws-mcp-server/issues",
+  "icon": "icon.png",
   "keywords": [
     "mcp",
     "pdf",
