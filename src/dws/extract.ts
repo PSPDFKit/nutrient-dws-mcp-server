@@ -89,17 +89,7 @@ async function writeToResolvedPath(resolvedPath: string, data: string): Promise<
  * Spatial output is written to `outputPath` and summarized inline; markdown
  * output is returned inline.
  */
-export async function performExtractCall(
-  args: DataExtractorArgs,
-  extractionApiClient: DwsApiClient | undefined,
-): Promise<CallToolResult> {
-  if (!extractionApiClient) {
-    return createErrorResponse(
-      'Error: Data Extraction is not configured. Set the NUTRIENT_EXTRACTION_API_KEY environment variable ' +
-        '(a Data Extraction API key from the Nutrient dashboard, starting with pdf_live_ or pdf_test_).',
-    )
-  }
-
+export async function performExtractCall(args: DataExtractorArgs, apiClient: DwsApiClient): Promise<CallToolResult> {
   const { filePath, mode, language, includeWords, outputPath } = args
   const format = resolveFormat(mode, args.format)
 
@@ -152,7 +142,7 @@ export async function performExtractCall(
     form.append('file', fileBuffer, { filename: fileName })
     form.append('instructions', JSON.stringify(instructions))
 
-    const response = await extractionApiClient.post(EXTRACTION_ENDPOINT, form)
+    const response = await apiClient.post(EXTRACTION_ENDPOINT, form)
     const body = await pipeToString(response.data)
 
     let parsed: ExtractionResponse

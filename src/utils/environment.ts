@@ -2,7 +2,6 @@ import { z } from 'zod'
 
 export type Environment = {
   nutrientApiKey?: string
-  extractionApiKey?: string
   dwsApiBaseUrl: string
   authServerUrl: string
   clientId?: string
@@ -10,9 +9,6 @@ export type Environment = {
 
 const RawEnvironmentSchema = z.object({
   NUTRIENT_DWS_API_KEY: z.string().optional(),
-  // Separate key for the standalone DWS Data Extraction API (POST /extraction/parse).
-  // Distinct from the Processor key above; starts with `pdf_live_` / `pdf_test_`.
-  NUTRIENT_EXTRACTION_API_KEY: z.string().optional(),
   DWS_API_BASE_URL: z.string().url().default('https://api.nutrient.io'),
   AUTH_SERVER_URL: z
     .string()
@@ -30,7 +26,6 @@ export function getEnvironment(rawEnv: NodeJS.ProcessEnv = process.env): Environ
 
   return {
     nutrientApiKey: raw.NUTRIENT_DWS_API_KEY,
-    extractionApiKey: raw.NUTRIENT_EXTRACTION_API_KEY,
     dwsApiBaseUrl: raw.DWS_API_BASE_URL,
     authServerUrl: raw.AUTH_SERVER_URL,
     clientId: raw.CLIENT_ID,

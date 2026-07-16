@@ -7,8 +7,7 @@ extract structured data, branch on it, then act.
 
 **Prerequisites**
 
-- `NUTRIENT_EXTRACTION_API_KEY` (Data Extraction API key, starts with `pdf_live_`) for `data_extractor`.
-- `NUTRIENT_DWS_API_KEY` (or OAuth) for the `ai_redactor` / `document_signer` "act" steps.
+- `NUTRIENT_DWS_API_KEY` (or OAuth) for every step below.
 - `SANDBOX_PATH` set to a directory containing `invoice.pdf`.
 
 ## Step 1 — Extract structured elements to a file

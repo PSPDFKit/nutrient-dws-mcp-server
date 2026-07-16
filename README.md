@@ -205,7 +205,7 @@ Place documents in your sandbox directory and use explicit file names or paths i
 
 ### Data Extraction
 
-The `data_extractor` and `query_extraction` tools wrap the standalone [DWS Data Extraction API](https://www.nutrient.io/guides/dws-data-extraction/). They authenticate with a **separate** `NUTRIENT_EXTRACTION_API_KEY` (it starts with `pdf_live_`), independent of the Processor `NUTRIENT_DWS_API_KEY`.
+The `data_extractor` and `query_extraction` tools wrap the [DWS Data Extraction API](https://www.nutrient.io/guides/dws-data-extraction/). They authenticate the same way as every other tool — set `NUTRIENT_DWS_API_KEY`, or omit it and use the OAuth browser flow. No extra configuration is needed.
 
 `data_extractor` runs one of four processing modes:
 
@@ -310,16 +310,15 @@ When no API key is configured, the server stays connected and opens a browser-ba
 
 ### Environment Variables
 
-| Variable                      | Required    | Description                                                                                                                   |
-| ----------------------------- | ----------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| `NUTRIENT_DWS_API_KEY`        | No\*        | Nutrient DWS **Processor** API key ([get one free](https://dashboard.nutrient.io/sign_up/))                                   |
-| `NUTRIENT_EXTRACTION_API_KEY` | No          | Nutrient DWS **Data Extraction** API key (separate key, starts with `pdf_live_`). Required only for the `data_extractor` tool |
-| `SANDBOX_PATH`                | Recommended | Directory to restrict file operations to                                                                                      |
-| `AUTH_SERVER_URL`             | No          | OAuth server base URL (default: `https://api.nutrient.io`)                                                                    |
-| `CLIENT_ID`                   | No          | OAuth client ID. Skips DCR and enables refresh token reuse when set                                                           |
-| `DWS_API_BASE_URL`            | No          | DWS API base URL (default: `https://api.nutrient.io`)                                                                         |
-| `LOG_LEVEL`                   | No          | Winston logger level (`info` default). Logs are written to `MCP_LOG_FILE` in stdio mode                                       |
-| `MCP_LOG_FILE`                | No          | Override log file path (default: system temp directory)                                                                       |
+| Variable               | Required    | Description                                                                             |
+| ---------------------- | ----------- | --------------------------------------------------------------------------------------- |
+| `NUTRIENT_DWS_API_KEY` | No\*        | Nutrient DWS API key ([get one free](https://dashboard.nutrient.io/sign_up/))           |
+| `SANDBOX_PATH`         | Recommended | Directory to restrict file operations to                                                |
+| `AUTH_SERVER_URL`      | No          | OAuth server base URL (default: `https://api.nutrient.io`)                              |
+| `CLIENT_ID`            | No          | OAuth client ID. Skips DCR and enables refresh token reuse when set                     |
+| `DWS_API_BASE_URL`     | No          | DWS API base URL (default: `https://api.nutrient.io`)                                   |
+| `LOG_LEVEL`            | No          | Winston logger level (`info` default). Logs are written to `MCP_LOG_FILE` in stdio mode |
+| `MCP_LOG_FILE`         | No          | Override log file path (default: system temp directory)                                 |
 
 \* If omitted, the server uses an OAuth browser flow to authenticate with the Nutrient API.
 
