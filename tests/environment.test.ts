@@ -48,6 +48,12 @@ describe('environment', () => {
     expect(environment.authServerUrl).toBe('http://localhost:4000')
   })
 
+  it('treats a whitespace-only NUTRIENT_DWS_API_KEY as unset, so it cannot suppress the OAuth flow', () => {
+    const environment = getEnvironment({ NUTRIENT_DWS_API_KEY: '   ' })
+
+    expect(environment.nutrientApiKey).toBeUndefined()
+  })
+
   it('reads NUTRIENT_DWS_EXTRACT_API_KEY', () => {
     const environment = getEnvironment({ NUTRIENT_DWS_EXTRACT_API_KEY: 'pdf_live_extract-key' })
 

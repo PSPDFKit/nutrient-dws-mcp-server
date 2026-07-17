@@ -114,7 +114,9 @@ export class DwsApiClient {
     const headers = await this.buildHeaders(data)
 
     return this.httpClient.post(this.buildUrl(endpoint), data, {
-      headers: { ...headers, ...extraHeaders },
+      // Built headers win: extraHeaders adds endpoint-specific keys and must not
+      // be able to displace Authorization or the payload's Content-Type.
+      headers: { ...extraHeaders, ...headers },
       responseType: 'stream',
     })
   }

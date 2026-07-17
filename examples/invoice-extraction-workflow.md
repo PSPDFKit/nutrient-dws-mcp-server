@@ -7,7 +7,11 @@ extract structured data, branch on it, then act.
 
 **Prerequisites**
 
-- `NUTRIENT_DWS_API_KEY` (or OAuth) for every step below.
+- Credentials for every step below. OAuth (no `NUTRIENT_DWS_API_KEY` set) covers
+  the whole walkthrough with one token. With a static key you need two:
+  `NUTRIENT_DWS_API_KEY` for the redact/sign steps, plus
+  `NUTRIENT_DWS_EXTRACT_API_KEY` for `data_extractor` — Data Extraction is a
+  separate product and the Processor key cannot authenticate it.
 - `SANDBOX_PATH` set to a directory containing `invoice.pdf`.
 
 ## Step 1 — Extract structured elements to a file

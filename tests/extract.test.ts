@@ -111,7 +111,7 @@ function extractArgs(overrides: Partial<DataExtractorArgs>): DataExtractorArgs {
     mode: overrides.mode ?? 'understand',
     format: overrides.format,
     formats: overrides.formats,
-    includeWords: overrides.includeWords ?? false,
+    includeWords: overrides.includeWords,
     language: overrides.language,
     maxLanguages: overrides.maxLanguages,
     maxScripts: overrides.maxScripts,
@@ -352,6 +352,57 @@ describe('performExtractCall', () => {
       expect(post).not.toHaveBeenCalled()
     })
 
+    it('sends output.formats (and never output.format) for a multi-format request', async () => {
+      const input = await writeInput()
+      const markdown = '# Quarterly Report'
+      const { client, post } = mockClient({ ...spatialFixture, output: { ...spatialFixture.output, markdown } })
+
+      await performExtractCall(
+        extractArgs({
+          filePath: input,
+          mode: 'structure',
+          formats: ['spatial', 'markdown'],
+          outputPath: `out-${counter}.json`,
+        }),
+        client,
+      )
+
+      const output = parseFormInstructions(post.mock.calls[0][1]).output as Record<string, unknown>
+      expect(output.formats).toEqual(['spatial', 'markdown'])
+      // Sending both keys is a 400 — assert absence explicitly, since a subset
+      // match would pass with `format` also present.
+      expect(output).not.toHaveProperty('format')
+    })
+
+    it('sends output.format (and never output.formats) for a single-format request', async () => {
+      const input = await writeInput()
+      const { client, post } = mockClient({ output: { markdown: '# Hello' } })
+
+      await performExtractCall(extractArgs({ filePath: input, mode: 'text', format: 'markdown' }), client)
+
+      const output = parseFormInstructions(post.mock.calls[0][1]).output as Record<string, unknown>
+      expect(output.format).toBe('markdown')
+      expect(output).not.toHaveProperty('formats')
+    })
+
+    it('omits includeWords when unset, and never sends it on a markdown-only request', async () => {
+      const input = await writeInput()
+      const spatial = mockClient(spatialFixture)
+      const markdownOnly = mockClient({ output: { markdown: '# Hello' } })
+
+      await performExtractCall(
+        extractArgs({ filePath: input, mode: 'structure', format: 'spatial', outputPath: `out-${counter}.json` }),
+        spatial.client,
+      )
+      await performExtractCall(
+        extractArgs({ filePath: input, mode: 'text', format: 'markdown', includeWords: true }),
+        markdownOnly.client,
+      )
+
+      expect(parseFormInstructions(spatial.post.mock.calls[0][1]).output).not.toHaveProperty('includeWords')
+      expect(parseFormInstructions(markdownOnly.post.mock.calls[0][1]).output).not.toHaveProperty('includeWords')
+    })
+
     it('writes both spatial and markdown to outputPath and mentions markdown bytes in the summary', async () => {
       const input = await writeInput()
       const outName = `out-${counter}.json`
@@ -464,6 +515,51 @@ describe('performExtractCall', () => {
   })
 
   describe('language / maxLanguages / maxScripts', () => {
+    it('rejects maxLanguages in text mode, which does no OCR, rather than dropping it', async () => {
+      const input = await writeInput()
+      const { client, post } = mockClient({ output: { markdown: '# Hello' } })
+
+      const result = await performExtractCall(
+        extractArgs({ filePath: input, mode: 'text', format: 'markdown', maxLanguages: 3 }),
+        client,
+      )
+
+      expect(result.isError).toBe(true)
+      expect(text(result)).toContain('text mode')
+      expect(post).not.toHaveBeenCalled()
+    })
+
+    it('sends auto-detection tuning under options on a happy path', async () => {
+      const input = await writeInput()
+      const { client, post } = mockClient(spatialFixture)
+
+      await performExtractCall(
+        extractArgs({
+          filePath: input,
+          mode: 'structure',
+          format: 'spatial',
+          outputPath: `out-${counter}.json`,
+          maxLanguages: 3,
+          maxScripts: 1,
+        }),
+        client,
+      )
+
+      expect(parseFormInstructions(post.mock.calls[0][1]).options).toEqual({ maxLanguages: 3, maxScripts: 1 })
+    })
+
+    it('omits options entirely when no language tuning is given', async () => {
+      const input = await writeInput()
+      const { client, post } = mockClient(spatialFixture)
+
+      await performExtractCall(
+        extractArgs({ filePath: input, mode: 'structure', format: 'spatial', outputPath: `out-${counter}.json` }),
+        client,
+      )
+
+      expect(parseFormInstructions(post.mock.calls[0][1])).not.toHaveProperty('options')
+    })
+
     it('rejects maxLanguages when language is explicitly set', async () => {
       const input = await writeInput()
       const { client, post } = mockClient(spatialFixture)

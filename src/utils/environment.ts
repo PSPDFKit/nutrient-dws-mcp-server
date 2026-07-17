@@ -15,9 +15,11 @@ function trimmedOrUndefined(value: string | undefined): string | undefined {
 }
 
 const RawEnvironmentSchema = z.object({
-  NUTRIENT_DWS_API_KEY: z.string().optional(),
+  // A blank value must read as unset, or it is truthy enough to select static-key
+  // auth and suppress the OAuth flow, while being useless as a credential.
+  NUTRIENT_DWS_API_KEY: z.string().optional().transform(trimmedOrUndefined),
   // Data Extraction is a separate product with its own tenant; a Processor
-  // static key is bound to the :dws_api tenant and gets a 403 at
+  // static key is bound to the Processor tenant and is rejected at
   // /extraction/parse, so it needs its own key when not using OAuth.
   NUTRIENT_DWS_EXTRACT_API_KEY: z.string().optional().transform(trimmedOrUndefined),
   DWS_API_BASE_URL: z.string().url().default('https://api.nutrient.io'),

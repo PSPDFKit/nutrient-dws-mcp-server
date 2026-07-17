@@ -616,8 +616,9 @@ export const DataExtractorArgsSchema = z.object({
   includeWords: z
     .boolean()
     .optional()
-    .default(false)
-    .describe('Include word-level bounding boxes in spatial output. Ignored for markdown output.'),
+    .describe(
+      'Include word-level bounding boxes in spatial output. Server default: false. Ignored for markdown output.',
+    ),
   language: z
     .union([z.string(), z.array(z.string())])
     .optional()
@@ -631,7 +632,8 @@ export const DataExtractorArgsSchema = z.object({
     .min(1)
     .optional()
     .describe(
-      'Maximum number of languages to auto-detect. Only valid when language is left unset (auto-detect). Server default: 2.',
+      'Maximum number of languages to auto-detect. Only valid when language is left unset (auto-detect), and not in text mode, ' +
+        'which does no OCR. Server default: 2.',
     ),
   maxScripts: z
     .number()
@@ -639,7 +641,8 @@ export const DataExtractorArgsSchema = z.object({
     .min(1)
     .optional()
     .describe(
-      'Maximum number of scripts to auto-detect. Only valid when language is left unset (auto-detect). Server default: 2.',
+      'Maximum number of scripts to auto-detect. Only valid when language is left unset (auto-detect), and not in text mode, ' +
+        'which does no OCR. Server default: 2.',
     ),
   useHtmlTables: z
     .boolean()

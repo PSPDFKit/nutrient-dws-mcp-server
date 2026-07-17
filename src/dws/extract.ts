@@ -116,7 +116,7 @@ async function handleExtractionApiError(error: unknown): Promise<CallToolResult>
   return createErrorResponse(formatExtractionError(parsed, error.response.status))
 }
 
-/** text mode defaults to markdown; every other mode defaults to spatial. `formats` wins over `format`. */
+/** text mode defaults to markdown; every other mode defaults to spatial. Callers pass `format` or `formats`, never both. */
 function resolveFormats(
   mode: DataExtractorArgs['mode'],
   format: DataExtractorArgs['format'],
@@ -241,6 +241,12 @@ export async function performExtractCall(args: DataExtractorArgs, apiClient: Dws
       'Error: maxLanguages and maxScripts only apply when language is left unset (auto-detect). Remove language, or drop these options.',
     )
   }
+  if (mode === 'text' && (maxLanguages !== undefined || maxScripts !== undefined)) {
+    return createErrorResponse(
+      'Error: maxLanguages and maxScripts tune OCR language auto-detection, which text mode does not perform. ' +
+        'Drop them, or use structure/understand/agentic.',
+    )
+  }
 
   const resolvedFormats = resolveFormats(mode, format, formats)
   const formatSet = new Set(resolvedFormats)
@@ -284,7 +290,7 @@ export async function performExtractCall(args: DataExtractorArgs, apiClient: Dws
 
   const output: Record<string, unknown> =
     resolvedFormats.length === 1 ? { format: resolvedFormats[0] } : { formats: resolvedFormats }
-  if (formatSet.has('spatial')) {
+  if (formatSet.has('spatial') && includeWords !== undefined) {
     output.includeWords = includeWords
   }
   if (formatSet.has('markdown')) {
@@ -330,11 +336,7 @@ export async function performExtractCall(args: DataExtractorArgs, apiClient: Dws
 
     const runMetadata = formatRunMetadata(parsed)
 
-    if (formatSet.has('spatial')) {
-      // The early guard guarantees outputPath was provided.
-      if (!resolvedOutputPath) {
-        return createErrorResponse('Error: spatial output requires outputPath.')
-      }
+    if (formatSet.has('spatial') && resolvedOutputPath) {
       // Guard against a 2xx response that is not a spatial result, so we never
       // overwrite the target file with a non-extraction body.
       if (!Array.isArray(parsed.output?.elements)) {
