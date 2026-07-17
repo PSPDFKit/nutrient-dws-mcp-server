@@ -1,4 +1,6 @@
 import { describe, expect, it } from 'vitest'
+import { readFileSync } from 'fs'
+import { resolve } from 'path'
 import { createMcpServer } from '../src/index.js'
 import type { DwsApiClient } from '../src/dws/client.js'
 
@@ -43,6 +45,7 @@ describe('MCP tool metadata', () => {
       'document_signer',
       'query_extraction',
       'sandbox_file_tree',
+      'schema_extractor',
     ])
 
     for (const [name, tool] of Object.entries(tools)) {
@@ -53,6 +56,19 @@ describe('MCP tool metadata', () => {
       const isDestructive = tool.annotations?.destructiveHint === true
       expect(Number(isReadOnly) + Number(isDestructive), `${name} must be either read-only or destructive`).toBe(1)
     }
+  })
+
+  it('advertises every API-backed tool in manifest.json', () => {
+    const manifest = JSON.parse(readFileSync(resolve(process.cwd(), 'manifest.json'), 'utf8')) as {
+      tools: { name: string }[]
+    }
+
+    // sandbox_file_tree is swapped for directory_tree when sandboxing is off, so
+    // compare against the sandbox-enabled set the manifest is written for.
+    const registered = Object.keys(getRegisteredTools(true)).sort()
+    const advertised = manifest.tools.map((tool) => tool.name).sort()
+
+    expect(advertised).toEqual(registered)
   })
 
   it('registers directory_tree with safety annotations when sandbox mode is disabled', () => {

@@ -15,7 +15,7 @@ const LOW_CONFIDENCE_THRESHOLD = 0.6
 // Omitting this header pins the request to whichever spec version was current
 // when the API key was created, not the version this server was built against.
 const EXTRACTION_API_VERSION = '2026-05-25'
-const EXTRACTION_HEADERS = { 'x-nutrient-api-version': EXTRACTION_API_VERSION }
+export const EXTRACTION_HEADERS = { 'x-nutrient-api-version': EXTRACTION_API_VERSION }
 
 type ExtractionFormat = 'spatial' | 'markdown'
 
@@ -53,7 +53,7 @@ type ExtractionErrorResponse = {
   }
 }
 
-function formatExtractionError(body: ExtractionErrorResponse, httpStatus: number): string {
+function formatExtractionError(body: ExtractionErrorResponse, httpStatus: number, cheaperModeHint?: string): string {
   const status = body.status ?? httpStatus
   const lines = [`Data Extraction API error (HTTP ${status}): ${body.errorMessage}`]
 
@@ -62,8 +62,7 @@ function formatExtractionError(body: ExtractionErrorResponse, httpStatus: number
   if (status === 402) {
     lines.push(
       'Out of Data Extraction credits. Retrying will not help — top up the Data Extraction balance, which is separate ' +
-        'from the Processor API credits reported by check_credits. A cheaper mode (text: 1 credit/page, structure: 1.5) ' +
-        'costs less per page than understand (9) or agentic (18).',
+        `from the Processor API credits reported by check_credits.${cheaperModeHint ? ` ${cheaperModeHint}` : ''}`,
     )
   }
 
@@ -81,14 +80,22 @@ function formatExtractionError(body: ExtractionErrorResponse, httpStatus: number
   return lines.join('\n')
 }
 
+/** Advice appended to a 402 from `/extraction/parse`, whose cheapest mode is `text`. */
+export const PARSE_CHEAPER_MODE_HINT =
+  'A cheaper mode (text: 1 credit/page, structure: 1.5) costs less per page than understand (9) or agentic (18).'
+
 /**
- * Renders a failed `/extraction/parse` call.
+ * Renders a failed Data Extraction call.
  *
  * Consumes the error stream itself rather than delegating to `handleApiError`,
  * which only recognizes the Processor envelope — the response body can be read
  * exactly once, so the two cannot both inspect it.
+ *
+ * `cheaperModeHint` is per-endpoint: the modes and per-page costs differ between
+ * /extraction/parse and /extraction/extract, and naming a mode the caller's
+ * endpoint rejects would send it into a guaranteed-failing retry.
  */
-async function handleExtractionApiError(error: unknown): Promise<CallToolResult> {
+export async function handleExtractionApiError(error: unknown, cheaperModeHint?: string): Promise<CallToolResult> {
   if (!axios.isAxiosError(error) || !error.response?.data) {
     return handleApiError(error)
   }
@@ -113,7 +120,7 @@ async function handleExtractionApiError(error: unknown): Promise<CallToolResult>
     return createErrorResponse(`Data Extraction API error (HTTP ${error.response.status}): ${body}`)
   }
 
-  return createErrorResponse(formatExtractionError(parsed, error.response.status))
+  return createErrorResponse(formatExtractionError(parsed, error.response.status, cheaperModeHint))
 }
 
 /** text mode defaults to markdown; every other mode defaults to spatial. Callers pass `format` or `formats`, never both. */
@@ -131,8 +138,21 @@ function resolveFormats(
   return mode === 'text' ? ['markdown'] : ['spatial']
 }
 
+/** A parse or extract line item within `usage.price_composition` (returned by `/extraction/extract`). */
+export type PriceComponent = { units?: number; unit_cost?: number; cost?: number; currency?: string }
+
+/** The subset of an extraction response `formatRunMetadata` reads — shared by `/extraction/parse` and `/extraction/extract`. */
+export type RunMetadataResponse = {
+  runId?: string
+  usage?: {
+    data_extraction_credits?: { cost?: number; remainingCredits?: number }
+    // Only present on /extraction/extract — the parse-mode component plus the fixed per-page extract component.
+    price_composition?: { parse?: PriceComponent; extract?: PriceComponent }
+  }
+}
+
 /** `runId` (present when `storeRun: true`) and Data Extraction credit usage, appended to the success message. */
-function formatRunMetadata(response: ExtractionResponse): string {
+export function formatRunMetadata(response: RunMetadataResponse): string {
   const notes: string[] = []
   if (response.runId) {
     notes.push(`This run was stored server-side (runId: ${response.runId}) and can be retrieved later.`)
@@ -145,6 +165,14 @@ function formatRunMetadata(response: ExtractionResponse): string {
       `Used ${credits.cost} Data Extraction credit(s) (${remaining}). These are Data Extraction credits — a separate ` +
         'balance from the Processor API credits reported by check_credits.',
     )
+    const composition = response.usage?.price_composition
+    const parse = composition?.parse
+    const extract = composition?.extract
+    if (parse && extract) {
+      notes.push(
+        `Cost breakdown: parse ${parse.cost ?? '?'} + extract ${extract.cost ?? '?'} (per-page, ${extract.units ?? '?'} page(s)).`,
+      )
+    }
   }
   return notes.length > 0 ? `\n\n${notes.join('\n')}` : ''
 }
@@ -188,7 +216,7 @@ function summarizeSpatial(response: ExtractionResponse, outputPath: string, byte
 }
 
 /** Writes `data` to `resolvedPath`, creating parent directories as needed. */
-async function writeToResolvedPath(resolvedPath: string, data: string): Promise<void> {
+export async function writeToResolvedPath(resolvedPath: string, data: string): Promise<void> {
   const outputDir = path.dirname(resolvedPath)
   try {
     await fs.promises.access(outputDir)
@@ -379,7 +407,7 @@ export async function performExtractCall(args: DataExtractorArgs, apiClient: Dws
     }
     return createSuccessResponse(markdown + runMetadata)
   } catch (error) {
-    return handleExtractionApiError(error)
+    return handleExtractionApiError(error, PARSE_CHEAPER_MODE_HINT)
   }
 }
 

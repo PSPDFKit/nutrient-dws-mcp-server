@@ -16,11 +16,13 @@ import {
   CheckCreditsArgsSchema,
   DataExtractorArgsSchema,
   DirectoryTreeArgsSchema,
+  ExtractStructuredArgsSchema,
   QueryExtractionArgsSchema,
   SignAPIArgsSchema,
 } from './schemas.js'
 import { performBuildCall } from './dws/build.js'
 import { performExtractCall, performQueryCall } from './dws/extract.js'
+import { performExtractStructuredCall } from './dws/extract-structured.js'
 import { performSignCall } from './dws/sign.js'
 import { performAiRedactCall } from './dws/ai-redact.js'
 import { performCheckCreditsCall } from './dws/credits.js'
@@ -233,6 +235,37 @@ Use this to pull just the elements you need (e.g. low-confidence fields, or ever
     async (args) => {
       try {
         return await performQueryCall(args)
+      } catch (error) {
+        return createErrorResponse(`Error: ${error instanceof Error ? error.message : String(error)}`)
+      }
+    },
+  )
+
+  server.tool(
+    'schema_extractor',
+    `Pull specific named fields out of a document into a JSON shape you define, using the Nutrient DWS Data Extraction API. Reads the input file from the local file system or sandbox (if enabled), or fetches it directly from a URL — provide exactly one of filePath or url.
+
+Unlike data_extractor, which parses a whole document into elements or Markdown, schema_extractor takes a JSON schema (root type: "object", with properties) and returns only the values matching it — e.g. { invoiceNumber, total, lineItems: [...] } — each with a per-field citation (bounding box, confidence, and match quality) tying it back to where it was found.
+
+Processing modes (cost per page, parse component only — no text mode here): structure = OCR spatial parse (1.5 credits); understand = AI-augmented, default (9 credits); agentic = VLM-augmented (18 credits). Total cost per page is this parse component plus a fixed extract component, billed in Data Extraction credits — a separate balance from the Processor API credits reported by check_credits.
+
+output.data (the extracted values) is always returned inline. Per-field citations and page geometry are large and are only kept when outputPath is provided; otherwise a note says they were omitted. Set storeRun: true to persist the run server-side and retrieve it later by the runId returned in the response.`,
+    ExtractStructuredArgsSchema.shape,
+    {
+      title: 'Nutrient Schema Extractor',
+      // Writes to outputPath, like data_extractor — not read-only, whatever the
+      // "extractor" name suggests.
+      readOnlyHint: false,
+      destructiveHint: true,
+      idempotentHint: false,
+      openWorldHint: true,
+    },
+    async (args) => {
+      if (!extractApiClient) {
+        return createErrorResponse(EXTRACT_CLIENT_MISSING_ERROR)
+      }
+      try {
+        return await performExtractStructuredCall(args, extractApiClient)
       } catch (error) {
         return createErrorResponse(`Error: ${error instanceof Error ? error.message : String(error)}`)
       }

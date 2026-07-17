@@ -713,3 +713,115 @@ export const QueryExtractionArgsSchema = z.object({
 
 export type DataExtractorArgs = z.infer<typeof DataExtractorArgsSchema>
 export type QueryExtractionArgs = z.infer<typeof QueryExtractionArgsSchema>
+
+// ----- Data Extraction API (POST /extraction/extract) -----
+//
+// Cross-field rules (exactly one of filePath/url; maxLanguages/maxScripts
+// require an unset language) are enforced in the handler, for the same
+// ZodObject-vs-ZodEffects reason noted above the parse-endpoint schemas.
+
+export const ExtractStructuredModeSchema = z
+  .enum(['structure', 'understand', 'agentic'])
+  .describe(
+    'Parse mode feeding the extraction (cost/quality trade-off). No text mode — schema-guided extraction needs the ' +
+      'structural parse (OCR/layout) that text mode skips. structure: OCR-based spatial parse (1.5 credits/page). ' +
+      'understand: AI-augmented, the default (9 credits/page). agentic: VLM-augmented for the most complex documents ' +
+      '(18 credits/page). Total cost per page is this parse component plus a fixed extract component, in Data Extraction credits.',
+  )
+
+export const ExtractJsonSchemaSchema = z
+  .object({
+    type: z.literal('object').describe('The schema root must be an object.'),
+    description: z.string().optional().describe('Optional description of the object.'),
+    properties: z
+      .record(z.unknown())
+      .describe(
+        'Field definitions. Supported keywords only: type, properties, items, description, required, string enum, ' +
+          'and format: "date". $ref/$defs and composition/conditional keywords (allOf/anyOf/oneOf/if/then/else) are rejected.',
+      ),
+    required: z.array(z.string()).optional().describe('Names of properties that must be present.'),
+  })
+  .describe(
+    'JSON Schema describing the fields to extract. Root must be type: "object" with properties. Schemas are closed — ' +
+      'do NOT set additionalProperties yourself, the API rejects a schema that sets it. Limits: 32 KB serialized, ' +
+      '500 fields, 50 properties per object, 5 nesting levels, enum values capped at 50.',
+  )
+
+export const ExtractStructuredArgsSchema = z.object({
+  filePath: z
+    .string()
+    .optional()
+    .describe(
+      'Path to the document to extract from (PDF, image, or Office file). Exactly one of filePath or url is required. ' +
+        'Resolves to sandbox path if enabled, otherwise resolves to the local file system.',
+    ),
+  url: z
+    .string()
+    .url()
+    .optional()
+    .describe(
+      'URL of the document to extract from — fetched directly by the API instead of uploading a local file. ' +
+        'Exactly one of filePath or url is required.',
+    ),
+  schema: ExtractJsonSchemaSchema,
+  instructions: z
+    .string()
+    .max(10000)
+    .optional()
+    .describe('Free-text guidance for the extraction, e.g. clarifying an ambiguous field. Max 10000 characters.'),
+  mode: ExtractStructuredModeSchema.optional().default('understand'),
+  language: z
+    .union([z.string(), z.array(z.string())])
+    .optional()
+    .describe(
+      'OCR language(s) — full name (e.g. "german"), ISO code (e.g. "deu"), or array for multilingual docs. ' +
+        'Leave unset for auto-detection.',
+    ),
+  maxLanguages: z
+    .number()
+    .int()
+    .min(1)
+    .optional()
+    .describe('Maximum number of languages to auto-detect. Only valid when language is left unset. Server default: 2.'),
+  maxScripts: z
+    .number()
+    .int()
+    .min(1)
+    .optional()
+    .describe('Maximum number of scripts to auto-detect. Only valid when language is left unset. Server default: 2.'),
+  includeCitations: z
+    .boolean()
+    .optional()
+    .describe(
+      'Include per-field citations (bounding box, confidence, match quality) in output.metadata. Server default: ' +
+        'true. Leave unset to keep that default — passing false here disables citations.',
+    ),
+  strict: z
+    .boolean()
+    .optional()
+    .describe(
+      'Fail the extraction if a required field cannot be found, instead of returning a partial result. Server default: false.',
+    ),
+  multimodal: z
+    .boolean()
+    .optional()
+    .describe(
+      'Use multimodal (vision) extraction for higher accuracy on visual fields. Increases cost and latency. Server default: false.',
+    ),
+  storeRun: z
+    .boolean()
+    .optional()
+    .default(false)
+    .describe(
+      'Persist this extraction run server-side so its result can be retrieved later by runId (returned in the response when true).',
+    ),
+  outputPath: z
+    .string()
+    .optional()
+    .describe(
+      'Where to write the full response (data, per-field citations, and pages). Resolves to sandbox path if enabled. ' +
+        'output.data is always returned inline regardless of this option; set it to also keep the citations.',
+    ),
+})
+
+export type ExtractStructuredArgs = z.infer<typeof ExtractStructuredArgsSchema>

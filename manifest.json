@@ -55,6 +55,18 @@
       "description": "Detect and permanently redact sensitive content such as names, addresses, SSNs, and emails."
     },
     {
+      "name": "data_extractor",
+      "description": "Parse a document into spatial elements with bounding boxes, or into Markdown."
+    },
+    {
+      "name": "query_extraction",
+      "description": "Query a saved spatial extraction file by page, region, confidence, or element type."
+    },
+    {
+      "name": "schema_extractor",
+      "description": "Pull specific named fields from a document into a JSON shape you define, with per-field citations."
+    },
+    {
       "name": "check_credits",
       "description": "Check the current Nutrient DWS credit balance and usage."
     },

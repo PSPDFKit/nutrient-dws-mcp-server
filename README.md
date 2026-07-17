@@ -183,6 +183,7 @@ Place documents in your sandbox directory and use explicit file names or paths i
 | `document_processor` | Document processing for conversions, OCR, watermarking, rotation, annotation flattening, and redaction workflows                             |
 | `data_extractor`     | Structured data extraction (DWS Data Extraction API): typed JSON elements with bounding boxes and confidence, or whole-document Markdown     |
 | `query_extraction`   | Read-only query over a saved extraction file — filter elements by page, region, confidence, or type without re-extracting or calling the API |
+| `schema_extractor`   | Schema-guided field extraction (DWS Data Extraction API): pulls specific named fields into a JSON shape you define, with per-field citations |
 | `document_signer`    | PDF signing with CMS / PKCS#7 and CAdES signatures plus visible or invisible appearance options                                              |
 | `ai_redactor`        | AI redaction for detecting and permanently removing sensitive content such as names, addresses, SSNs, emails, and custom criteria            |
 | `check_credits`      | Read-only account lookup for current DWS credits and usage. No document content is uploaded                                                  |
@@ -205,10 +206,10 @@ Place documents in your sandbox directory and use explicit file names or paths i
 
 ### Data Extraction
 
-The `data_extractor` and `query_extraction` tools wrap the [DWS Data Extraction API](https://www.nutrient.io/guides/dws-data-extraction/). `query_extraction` is a local file reader and needs no credential. `data_extractor` calls the API and authenticates as follows:
+The `data_extractor`, `query_extraction`, and `schema_extractor` tools wrap the [DWS Data Extraction API](https://www.nutrient.io/guides/dws-data-extraction/). `query_extraction` is a local file reader and needs no credential. `data_extractor` and `schema_extractor` call the API and authenticate as follows:
 
 - **OAuth** (no `NUTRIENT_DWS_API_KEY` set): the same browser-flow token used by every other tool also covers Data Extraction. No extra configuration is needed.
-- **Static API key**: Data Extraction is a separate product with its own tenant, so the Processor key in `NUTRIENT_DWS_API_KEY` cannot be reused. Set `NUTRIENT_DWS_EXTRACT_API_KEY` to a Data Extraction key from the dashboard. Without it, `data_extractor` returns an error instead of calling the API.
+- **Static API key**: Data Extraction is a separate product with its own tenant, so the Processor key in `NUTRIENT_DWS_API_KEY` cannot be reused. Set `NUTRIENT_DWS_EXTRACT_API_KEY` to a Data Extraction key from the dashboard. Without it, `data_extractor` and `schema_extractor` return an error instead of calling the API.
 
 `data_extractor` runs one of four processing modes:
 
@@ -235,6 +236,17 @@ Additional options:
 Use `query_extraction` to pull just the elements you need from a saved spatial file — filter by `pages`, `region` (bounding box), `minConfidence`, or `elementTypes` — so coordinates and values enter the conversation only when you ask for them.
 
 > **Note:** Extracted content returned inline (Markdown output, or `query_extraction` results) enters the conversation and may be logged by the host. For sensitive documents, prefer spatial output to a file plus scoped `query_extraction` calls.
+
+### Schema-Guided Extraction (`schema_extractor`)
+
+Where `data_extractor` parses a whole document into elements or Markdown, `schema_extractor` pulls out only the fields you name. Pass a JSON schema (`schema`) whose root is `type: "object"` with `properties` — the response's `output.data` matches that shape, e.g. `{ invoiceNumber, total, lineItems: [...] }`.
+
+- Supported schema keywords: `type`, `properties`, `required`, `items`, `description`, string `enum`, and `format: "date"`. `$ref`/`$defs` and composition/conditional keywords (`allOf`/`anyOf`/`oneOf`/`if`/`then`/`else`) are rejected. Schemas are closed — do not set `additionalProperties` yourself. Limits: 32 KB serialized, 500 fields, 50 properties per object, 5 nesting levels, enum values capped at 50.
+- `mode` runs the parse feeding the extraction: `structure` (1.5 credits/page), `understand` (default, 9 credits/page), or `agentic` (18 credits/page) — no `text` mode, since schema-guided extraction needs the structural parse text mode skips. Total cost per page is that parse component plus a fixed extract component, in Data Extraction credits.
+- `output.data` is always returned inline, pretty-printed — it is the answer, bounded by your own schema. Alongside it, a citation match summary reports how each field was grounded (`id_match`, `id_match_multiblock`, `id_match_partial`, `fuzzy_match`, `not_found`) and lists which field paths came back `not_found` (capped at 10, then "+N more"). Field paths come from your schema, not the document, so this leaks no document content.
+- Per-field citations (bounding box, confidence, match quality) and page geometry are only kept when `outputPath` is set — they can be large and add little without the document open alongside them. Without `outputPath`, a note says they were omitted.
+- `includeCitations` (server default `true`), `strict` (default `false`), and `multimodal` (default `false`, increases cost/latency) are only sent when you set them explicitly.
+- `instructions` (free text, up to 10000 characters) adds guidance for ambiguous fields. `language`/`maxLanguages`/`maxScripts` tune OCR the same way as `data_extractor`.
 
 For a worked extract → query → act walkthrough, see [examples/invoice-extraction-workflow.md](examples/invoice-extraction-workflow.md).
 
@@ -321,20 +333,20 @@ The server authenticates to the Nutrient DWS API (`https://api.nutrient.io`) usi
 
 When no API key is configured, the server stays connected and opens a browser-based OAuth flow on the first request that uses the Nutrient API (similar to `gh auth login`). Tokens are cached at `$XDG_CONFIG_HOME/nutrient/credentials.json` or `~/.config/nutrient/credentials.json` and refreshed automatically.
 
-**Data Extraction (`data_extractor`) is a separate product with its own tenant.** Under OAuth, one token covers both products — nothing extra to configure. Under a static API key, the Processor key in `NUTRIENT_DWS_API_KEY` cannot be reused for extraction; set `NUTRIENT_DWS_EXTRACT_API_KEY` to a Data Extraction key from the dashboard, or omit `NUTRIENT_DWS_API_KEY` entirely to use OAuth instead.
+**Data Extraction (`data_extractor`, `schema_extractor`) is a separate product with its own tenant.** Under OAuth, one token covers both products — nothing extra to configure. Under a static API key, the Processor key in `NUTRIENT_DWS_API_KEY` cannot be reused for extraction; set `NUTRIENT_DWS_EXTRACT_API_KEY` to a Data Extraction key from the dashboard, or omit `NUTRIENT_DWS_API_KEY` entirely to use OAuth instead.
 
 ### Environment Variables
 
-| Variable                       | Required                | Description                                                                                       |
-| ------------------------------ | ----------------------- | ------------------------------------------------------------------------------------------------- |
-| `NUTRIENT_DWS_API_KEY`         | No\*                    | Nutrient DWS API key ([get one free](https://dashboard.nutrient.io/sign_up/))                     |
-| `NUTRIENT_DWS_EXTRACT_API_KEY` | Only with a static key† | Data Extraction API key from the dashboard (starts with `pdf_live_`), needed for `data_extractor` |
-| `SANDBOX_PATH`                 | Recommended             | Directory to restrict file operations to                                                          |
-| `AUTH_SERVER_URL`              | No                      | OAuth server base URL (default: `https://api.nutrient.io`)                                        |
-| `CLIENT_ID`                    | No                      | OAuth client ID. Skips DCR and enables refresh token reuse when set                               |
-| `DWS_API_BASE_URL`             | No                      | DWS API base URL (default: `https://api.nutrient.io`)                                             |
-| `LOG_LEVEL`                    | No                      | Winston logger level (`info` default). Logs are written to `MCP_LOG_FILE` in stdio mode           |
-| `MCP_LOG_FILE`                 | No                      | Override log file path (default: system temp directory)                                           |
+| Variable                       | Required                | Description                                                                                                            |
+| ------------------------------ | ----------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| `NUTRIENT_DWS_API_KEY`         | No\*                    | Nutrient DWS API key ([get one free](https://dashboard.nutrient.io/sign_up/))                                          |
+| `NUTRIENT_DWS_EXTRACT_API_KEY` | Only with a static key† | Data Extraction API key from the dashboard (starts with `pdf_live_`), needed for `data_extractor` / `schema_extractor` |
+| `SANDBOX_PATH`                 | Recommended             | Directory to restrict file operations to                                                                               |
+| `AUTH_SERVER_URL`              | No                      | OAuth server base URL (default: `https://api.nutrient.io`)                                                             |
+| `CLIENT_ID`                    | No                      | OAuth client ID. Skips DCR and enables refresh token reuse when set                                                    |
+| `DWS_API_BASE_URL`             | No                      | DWS API base URL (default: `https://api.nutrient.io`)                                                                  |
+| `LOG_LEVEL`                    | No                      | Winston logger level (`info` default). Logs are written to `MCP_LOG_FILE` in stdio mode                                |
+| `MCP_LOG_FILE`                 | No                      | Override log file path (default: system temp directory)                                                                |
 
 \* If omitted, the server uses an OAuth browser flow to authenticate with the Nutrient API.
 † Only relevant when `NUTRIENT_DWS_API_KEY` is set — Data Extraction is a separate product/tenant, so the Processor key cannot also authenticate it. Not needed under OAuth, which covers both products with one token.
