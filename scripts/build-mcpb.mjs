@@ -56,6 +56,7 @@ try {
   await cp(path.join(rootDir, 'README.md'), path.join(stageDir, 'README.md'))
   await cp(path.join(rootDir, 'LICENSE'), path.join(stageDir, 'LICENSE'))
   await cp(path.join(rootDir, 'manifest.json'), path.join(stageDir, 'manifest.json'))
+  await cp(path.join(rootDir, 'icon.png'), path.join(stageDir, 'icon.png'))
 
   await run('npm', ['install', '--omit=dev', '--ignore-scripts', '--no-package-lock'], stageDir)
   await rm(path.join(stageDir, 'node_modules', '.package-lock.json'), { force: true })
