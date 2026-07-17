@@ -14,14 +14,14 @@ import {
   AiRedactArgsSchema,
   BuildAPIArgsSchema,
   CheckCreditsArgsSchema,
-  DataExtractorArgsSchema,
   DirectoryTreeArgsSchema,
-  ExtractStructuredArgsSchema,
+  ExtractFieldsArgsSchema,
+  ParseDocumentArgsSchema,
   SignAPIArgsSchema,
 } from './schemas.js'
 import { performBuildCall } from './dws/build.js'
-import { performExtractCall } from './dws/extract.js'
-import { performExtractStructuredCall } from './dws/extract-structured.js'
+import { performParseDocumentCall } from './dws/extract.js'
+import { performExtractFieldsCall } from './dws/extract-structured.js'
 import { performSignCall } from './dws/sign.js'
 import { performAiRedactCall } from './dws/ai-redact.js'
 import { performCheckCreditsCall } from './dws/credits.js'
@@ -36,7 +36,7 @@ import { getToken, invalidateCachedToken, type NutrientOAuthConfig } from './aut
 import { Environment, getEnvironment } from './utils/environment.js'
 import { logger } from './logger.js'
 
-/** Returned by the `data_extractor` tool when no Data Extraction credential is configured (fail fast, no API call). */
+/** Returned by the `parse_document` tool when no Data Extraction credential is configured (fail fast, no API call). */
 const EXTRACT_CLIENT_MISSING_ERROR =
   'Error: Data Extraction is a separate product whose static API key is bound to its own tenant — the Processor key ' +
   '(NUTRIENT_DWS_API_KEY) cannot be reused here. Set NUTRIENT_DWS_EXTRACT_API_KEY to a Data Extraction API key from ' +
@@ -65,7 +65,7 @@ Features:
 
 Output formats: PDF, PDF/A, images (PNG, JPEG, WebP), Office (DOCX, XLSX, PPTX)
 
-For structured data extraction (typed JSON or Markdown with bounding boxes and confidence scores), use the dedicated data_extractor tool instead.`,
+For structured data extraction (typed JSON or Markdown with bounding boxes and confidence scores), use the dedicated parse_document tool instead.`,
     BuildAPIArgsSchema.shape,
     {
       title: 'Nutrient Document Processor',
@@ -179,7 +179,7 @@ Returns: subscription type, total credits, used credits, and remaining credits.`
   )
 
   server.tool(
-    'data_extractor',
+    'parse_document',
     `Extract structured data from a document using the Nutrient DWS Data Extraction API. Reads the input file from the local file system or sandbox (if enabled), or fetches it directly from a URL — provide exactly one of filePath or url.
 
 Output formats:
@@ -191,10 +191,10 @@ Processing modes (cost per page): text = fast Markdown, no OCR (1 credit); struc
 
 Set storeRun: true to persist the run server-side and retrieve it later by the runId returned in the response.
 
-Note: markdown output and any extracted content are returned into this conversation and may be logged by the host. For sensitive documents, prefer spatial output to a file plus targeted schema_extractor calls.`,
-    DataExtractorArgsSchema.shape,
+Note: markdown output and any extracted content are returned into this conversation and may be logged by the host. For sensitive documents, prefer spatial output to a file plus targeted extract_fields calls.`,
+    ParseDocumentArgsSchema.shape,
     {
-      title: 'Nutrient Data Extractor',
+      title: 'Nutrient Document Parser',
       readOnlyHint: false,
       destructiveHint: true,
       idempotentHint: false,
@@ -205,7 +205,7 @@ Note: markdown output and any extracted content are returned into this conversat
         return createErrorResponse(EXTRACT_CLIENT_MISSING_ERROR)
       }
       try {
-        return await performExtractCall(args, extractApiClient)
+        return await performParseDocumentCall(args, extractApiClient)
       } catch (error) {
         return createErrorResponse(`Error: ${error instanceof Error ? error.message : String(error)}`)
       }
@@ -213,18 +213,18 @@ Note: markdown output and any extracted content are returned into this conversat
   )
 
   server.tool(
-    'schema_extractor',
+    'extract_fields',
     `Pull specific named fields out of a document into a JSON shape you define, using the Nutrient DWS Data Extraction API. Reads the input file from the local file system or sandbox (if enabled), or fetches it directly from a URL — provide exactly one of filePath or url.
 
-Unlike data_extractor, which parses a whole document into elements or Markdown, schema_extractor takes a JSON schema (root type: "object", with properties) and returns only the values matching it — e.g. { invoiceNumber, total, lineItems: [...] } — each with a per-field citation (bounding box, confidence, and match quality) tying it back to where it was found.
+Unlike parse_document, which parses a whole document into elements or Markdown, extract_fields takes a JSON schema (root type: "object", with properties) and returns only the values matching it — e.g. { invoiceNumber, total, lineItems: [...] } — each with a per-field citation (bounding box, confidence, and match quality) tying it back to where it was found.
 
 Processing modes (cost per page, parse component only — no text mode here): structure = OCR spatial parse (1.5 credits); understand = AI-augmented, default (9 credits); agentic = VLM-augmented (18 credits). Total cost per page is this parse component plus a fixed extract component, billed in Data Extraction credits — a separate balance from the Processor API credits reported by check_credits.
 
 output.data (the extracted values) is always returned inline. Per-field citations and page geometry are large and are only kept when outputPath is provided; otherwise a note says they were omitted. Set storeRun: true to persist the run server-side and retrieve it later by the runId returned in the response.`,
-    ExtractStructuredArgsSchema.shape,
+    ExtractFieldsArgsSchema.shape,
     {
-      title: 'Nutrient Schema Extractor',
-      // Writes to outputPath, like data_extractor — not read-only, whatever the
+      title: 'Nutrient Field Extractor',
+      // Writes to outputPath, like parse_document — not read-only, whatever the
       // "extractor" name suggests.
       readOnlyHint: false,
       destructiveHint: true,
@@ -236,7 +236,7 @@ output.data (the extracted values) is always returned inline. Per-field citation
         return createErrorResponse(EXTRACT_CLIENT_MISSING_ERROR)
       }
       try {
-        return await performExtractStructuredCall(args, extractApiClient)
+        return await performExtractFieldsCall(args, extractApiClient)
       } catch (error) {
         return createErrorResponse(`Error: ${error instanceof Error ? error.message : String(error)}`)
       }

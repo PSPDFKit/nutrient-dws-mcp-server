@@ -4,11 +4,11 @@ import os from 'os'
 import path from 'path'
 import { Readable } from 'stream'
 import { setSandboxDirectory } from '../src/fs/sandbox.js'
-import { performExtractStructuredCall } from '../src/dws/extract-structured.js'
+import { performExtractFieldsCall } from '../src/dws/extract-structured.js'
 import { SAME_PATH_ERROR } from '../src/dws/extract.js'
 import type { DwsApiClient } from '../src/dws/client.js'
-import { ExtractStructuredArgsSchema } from '../src/schemas.js'
-import type { ExtractStructuredArgs } from '../src/schemas.js'
+import { ExtractFieldsArgsSchema } from '../src/schemas.js'
+import type { ExtractFieldsArgs } from '../src/schemas.js'
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 
 // A recognizable "PII" value used to prove citation content only lands in the
@@ -97,7 +97,7 @@ async function writeInput(): Promise<string> {
   return name
 }
 
-function extractArgs(overrides: Partial<ExtractStructuredArgs>): ExtractStructuredArgs {
+function extractArgs(overrides: Partial<ExtractFieldsArgs>): ExtractFieldsArgs {
   const noDocumentGiven = !('filePath' in overrides) && !('url' in overrides)
   return {
     filePath: noDocumentGiven ? `input-${counter}.pdf` : overrides.filePath,
@@ -116,13 +116,13 @@ function extractArgs(overrides: Partial<ExtractStructuredArgs>): ExtractStructur
   }
 }
 
-describe('performExtractStructuredCall', () => {
+describe('performExtractFieldsCall', () => {
   describe('document input: filePath vs url', () => {
     it('sends a multipart request with a JSON-stringified instructions field for filePath', async () => {
       const input = await writeInput()
       const { client, post } = mockClient(extractFixture)
 
-      const result = await performExtractStructuredCall(extractArgs({ filePath: input }), client)
+      const result = await performExtractFieldsCall(extractArgs({ filePath: input }), client)
 
       expect(result.isError).toBeFalsy()
       const form = post.mock.calls[0][1]
@@ -134,7 +134,7 @@ describe('performExtractStructuredCall', () => {
     it('sends a JSON body containing the url and schema for url input, not multipart', async () => {
       const { client, post } = mockClient(extractFixture)
 
-      const result = await performExtractStructuredCall(
+      const result = await performExtractFieldsCall(
         extractArgs({ filePath: undefined, url: 'https://example.com/doc.pdf' }),
         client,
       )
@@ -149,7 +149,7 @@ describe('performExtractStructuredCall', () => {
       const input = await writeInput()
       const { client, post } = mockClient(extractFixture)
 
-      const result = await performExtractStructuredCall(
+      const result = await performExtractFieldsCall(
         extractArgs({ filePath: input, url: 'https://example.com/doc.pdf' }),
         client,
       )
@@ -162,7 +162,7 @@ describe('performExtractStructuredCall', () => {
     it('rejects when neither filePath nor url is provided, before any API call', async () => {
       const { client, post } = mockClient(extractFixture)
 
-      const result = await performExtractStructuredCall(extractArgs({ filePath: undefined, url: undefined }), client)
+      const result = await performExtractFieldsCall(extractArgs({ filePath: undefined, url: undefined }), client)
 
       expect(result.isError).toBe(true)
       expect(text(result)).toContain('exactly one')
@@ -173,7 +173,7 @@ describe('performExtractStructuredCall', () => {
       const input = await writeInput()
       const { client, post } = mockClient(extractFixture)
 
-      const result = await performExtractStructuredCall(extractArgs({ filePath: input, outputPath: input }), client)
+      const result = await performExtractFieldsCall(extractArgs({ filePath: input, outputPath: input }), client)
 
       expect(result.isError).toBe(true)
       expect(text(result)).toBe(SAME_PATH_ERROR)
@@ -186,7 +186,7 @@ describe('performExtractStructuredCall', () => {
       const input = await writeInput()
       const { client, post } = mockClient(extractFixture)
 
-      await performExtractStructuredCall(extractArgs({ filePath: input }), client)
+      await performExtractFieldsCall(extractArgs({ filePath: input }), client)
 
       const instructions = parseFormInstructions(post.mock.calls[0][1])
       expect(instructions.schema).toEqual(invoiceSchema)
@@ -196,7 +196,7 @@ describe('performExtractStructuredCall', () => {
       const input = await writeInput()
       const { client, post } = mockClient(extractFixture)
 
-      await performExtractStructuredCall(
+      await performExtractFieldsCall(
         extractArgs({ filePath: input, mode: 'structure', language: 'german' }),
         client,
       )
@@ -209,7 +209,7 @@ describe('performExtractStructuredCall', () => {
       const input = await writeInput()
       const { client, post } = mockClient(extractFixture)
 
-      await performExtractStructuredCall(extractArgs({ filePath: input }), client)
+      await performExtractFieldsCall(extractArgs({ filePath: input }), client)
 
       const instructions = parseFormInstructions(post.mock.calls[0][1])
       expect(instructions.parseConfig).toEqual({ mode: 'understand' })
@@ -219,7 +219,7 @@ describe('performExtractStructuredCall', () => {
       const input = await writeInput()
       const { client, post } = mockClient(extractFixture)
 
-      const result = await performExtractStructuredCall(
+      const result = await performExtractFieldsCall(
         extractArgs({ filePath: input, language: 'german', maxLanguages: 3 }),
         client,
       )
@@ -233,7 +233,7 @@ describe('performExtractStructuredCall', () => {
       const input = await writeInput()
       const { client, post } = mockClient(extractFixture)
 
-      const result = await performExtractStructuredCall(
+      const result = await performExtractFieldsCall(
         extractArgs({ filePath: input, language: 'german', maxScripts: 2 }),
         client,
       )
@@ -247,7 +247,7 @@ describe('performExtractStructuredCall', () => {
       const input = await writeInput()
       const { client, post } = mockClient(extractFixture)
 
-      await performExtractStructuredCall(extractArgs({ filePath: input }), client)
+      await performExtractFieldsCall(extractArgs({ filePath: input }), client)
 
       const instructions = parseFormInstructions(post.mock.calls[0][1])
       expect(instructions).not.toHaveProperty('options')
@@ -257,7 +257,7 @@ describe('performExtractStructuredCall', () => {
       const input = await writeInput()
       const { client, post } = mockClient(extractFixture)
 
-      await performExtractStructuredCall(
+      await performExtractFieldsCall(
         extractArgs({ filePath: input, includeCitations: false, strict: true, multimodal: true }),
         client,
       )
@@ -270,7 +270,7 @@ describe('performExtractStructuredCall', () => {
       const input = await writeInput()
       const { client, post } = mockClient(extractFixture)
 
-      await performExtractStructuredCall(
+      await performExtractFieldsCall(
         extractArgs({ filePath: input, instructions: 'Prefer the most recent invoice date.', storeRun: true }),
         client,
       )
@@ -288,7 +288,7 @@ describe('performExtractStructuredCall', () => {
       const input = await writeInput()
       const { client } = mockClient(extractFixture)
 
-      const result = await performExtractStructuredCall(extractArgs({ filePath: input }), client)
+      const result = await performExtractFieldsCall(extractArgs({ filePath: input }), client)
 
       expect(result.isError).toBeFalsy()
       const output = text(result)
@@ -305,7 +305,7 @@ describe('performExtractStructuredCall', () => {
       }
       const { client } = mockClient({ output: { data, metadata: manyNotFound, pages: [] } })
 
-      const result = await performExtractStructuredCall(extractArgs({ filePath: input }), client)
+      const result = await performExtractFieldsCall(extractArgs({ filePath: input }), client)
 
       const notFoundLine = text(result)
         .split('\n')
@@ -320,7 +320,7 @@ describe('performExtractStructuredCall', () => {
       const input = await writeInput()
       const { client } = mockClient(extractFixture)
 
-      const result = await performExtractStructuredCall(extractArgs({ filePath: input }), client)
+      const result = await performExtractFieldsCall(extractArgs({ filePath: input }), client)
 
       const output = text(result)
       expect(output).toContain('id_match: 1')
@@ -332,7 +332,7 @@ describe('performExtractStructuredCall', () => {
       const outName = `out-${counter}.json`
       const { client } = mockClient(extractFixture)
 
-      const result = await performExtractStructuredCall(extractArgs({ filePath: input, outputPath: outName }), client)
+      const result = await performExtractFieldsCall(extractArgs({ filePath: input, outputPath: outName }), client)
 
       expect(result.isError).toBeFalsy()
       const output = text(result)
@@ -347,7 +347,7 @@ describe('performExtractStructuredCall', () => {
       const input = await writeInput()
       const { client } = mockClient(extractFixture)
 
-      const result = await performExtractStructuredCall(extractArgs({ filePath: input }), client)
+      const result = await performExtractFieldsCall(extractArgs({ filePath: input }), client)
 
       const output = text(result)
       expect(output).toContain('omitted')
@@ -359,7 +359,7 @@ describe('performExtractStructuredCall', () => {
       const input = await writeInput()
       const { client } = mockClient({ output: { data: { invoiceNumber: 'INV-001' }, metadata: null, pages: [] } })
 
-      const result = await performExtractStructuredCall(extractArgs({ filePath: input }), client)
+      const result = await performExtractFieldsCall(extractArgs({ filePath: input }), client)
 
       expect(result.isError).toBeFalsy()
       const output = text(result)
@@ -372,7 +372,7 @@ describe('performExtractStructuredCall', () => {
       const outName = `out-${counter}.json`
       const { client } = mockClient({ output: { data: 'not an object', metadata: {} } })
 
-      const result = await performExtractStructuredCall(extractArgs({ filePath: input, outputPath: outName }), client)
+      const result = await performExtractFieldsCall(extractArgs({ filePath: input, outputPath: outName }), client)
 
       expect(result.isError).toBe(true)
       expect(text(result)).toContain('output.data')
@@ -383,7 +383,7 @@ describe('performExtractStructuredCall', () => {
       const input = await writeInput()
       const { client } = mockClient(extractFixture)
 
-      const result = await performExtractStructuredCall(extractArgs({ filePath: input }), client)
+      const result = await performExtractFieldsCall(extractArgs({ filePath: input }), client)
 
       const output = text(result)
       expect(output).toContain('run_abc123')
@@ -397,7 +397,7 @@ describe('performExtractStructuredCall', () => {
       const input = await writeInput()
       const { client, post } = mockClient(extractFixture)
 
-      await performExtractStructuredCall(extractArgs({ filePath: input }), client)
+      await performExtractFieldsCall(extractArgs({ filePath: input }), client)
 
       expect(post).toHaveBeenCalledWith(expect.any(String), expect.anything(), {
         'x-nutrient-api-version': '2026-05-25',
@@ -414,7 +414,7 @@ describe('performExtractStructuredCall', () => {
         errorMessage: 'Insufficient credits. This request requires 12 credits, 0 remaining.',
       })
 
-      const result = await performExtractStructuredCall(extractArgs({ filePath: input }), client)
+      const result = await performExtractFieldsCall(extractArgs({ filePath: input }), client)
 
       expect(result.isError).toBe(true)
       const message = text(result)
@@ -431,7 +431,7 @@ describe('performExtractStructuredCall', () => {
       const input = await writeInput()
       const { client } = mockErrorClient(503, 'upstream unavailable', { raw: true })
 
-      const result = await performExtractStructuredCall(extractArgs({ filePath: input }), client)
+      const result = await performExtractFieldsCall(extractArgs({ filePath: input }), client)
 
       expect(result.isError).toBe(true)
       expect(text(result)).toContain('HTTP 503')
@@ -442,11 +442,11 @@ describe('performExtractStructuredCall', () => {
 
 // The handler tests above construct args directly, so they cannot catch a bad
 // default on the schema itself — parse real input here instead.
-describe('ExtractStructuredArgsSchema', () => {
+describe('ExtractFieldsArgsSchema', () => {
   const minimal = { filePath: 'in.pdf', schema: { type: 'object', properties: { total: { type: 'number' } } } }
 
   it('leaves includeCitations, strict and multimodal undefined when unset', () => {
-    const parsed = ExtractStructuredArgsSchema.parse(minimal)
+    const parsed = ExtractFieldsArgsSchema.parse(minimal)
 
     // A zod default here would ship an implicit `false` and silently disable
     // citations, which the API enables by default, for every caller.
@@ -456,35 +456,35 @@ describe('ExtractStructuredArgsSchema', () => {
   })
 
   it('defaults mode to understand and storeRun to false', () => {
-    const parsed = ExtractStructuredArgsSchema.parse(minimal)
+    const parsed = ExtractFieldsArgsSchema.parse(minimal)
 
     expect(parsed.mode).toBe('understand')
     expect(parsed.storeRun).toBe(false)
   })
 
   it('rejects text mode, which this endpoint does not offer', () => {
-    expect(() => ExtractStructuredArgsSchema.parse({ ...minimal, mode: 'text' })).toThrow()
+    expect(() => ExtractFieldsArgsSchema.parse({ ...minimal, mode: 'text' })).toThrow()
   })
 
   it('accepts every mode this endpoint does offer', () => {
     for (const mode of ['structure', 'understand', 'agentic']) {
-      expect(ExtractStructuredArgsSchema.parse({ ...minimal, mode }).mode).toBe(mode)
+      expect(ExtractFieldsArgsSchema.parse({ ...minimal, mode }).mode).toBe(mode)
     }
   })
 
   it('requires a schema whose root is an object with properties', () => {
-    expect(() => ExtractStructuredArgsSchema.parse({ filePath: 'in.pdf' })).toThrow()
-    expect(() => ExtractStructuredArgsSchema.parse({ ...minimal, schema: { type: 'array', properties: {} } })).toThrow()
+    expect(() => ExtractFieldsArgsSchema.parse({ filePath: 'in.pdf' })).toThrow()
+    expect(() => ExtractFieldsArgsSchema.parse({ ...minimal, schema: { type: 'array', properties: {} } })).toThrow()
   })
 
   it('rejects free-text instructions beyond the documented 10000 characters', () => {
-    expect(() => ExtractStructuredArgsSchema.parse({ ...minimal, instructions: 'x'.repeat(10001) })).toThrow()
+    expect(() => ExtractFieldsArgsSchema.parse({ ...minimal, instructions: 'x'.repeat(10001) })).toThrow()
     expect(
-      ExtractStructuredArgsSchema.parse({ ...minimal, instructions: 'x'.repeat(10000) }).instructions,
+      ExtractFieldsArgsSchema.parse({ ...minimal, instructions: 'x'.repeat(10000) }).instructions,
     ).toHaveLength(10000)
   })
 
   it('rejects a url that is not a URL', () => {
-    expect(() => ExtractStructuredArgsSchema.parse({ schema: minimal.schema, url: 'not-a-url' })).toThrow()
+    expect(() => ExtractFieldsArgsSchema.parse({ schema: minimal.schema, url: 'not-a-url' })).toThrow()
   })
 })

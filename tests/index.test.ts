@@ -50,7 +50,7 @@ describe('createStdioApiClients', () => {
   })
 })
 
-describe('data_extractor with no extraction credential', () => {
+describe('parse_document with no extraction credential', () => {
   it('fails fast without calling the API and names NUTRIENT_DWS_EXTRACT_API_KEY', async () => {
     const apiClient = createMockApiClient()
     const server = createMcpServer({ sandboxEnabled: true, apiClient, extractApiClient: null })
@@ -59,7 +59,7 @@ describe('data_extractor with no extraction credential', () => {
       server as unknown as {
         _registeredTools: Record<string, { handler: (args: unknown) => Promise<CallToolResult> }>
       }
-    )._registeredTools.data_extractor
+    )._registeredTools.parse_document
 
     const result = await tool.handler({ filePath: 'input.pdf', mode: 'text' })
 

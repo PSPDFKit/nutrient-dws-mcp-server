@@ -40,11 +40,11 @@ describe('MCP tool metadata', () => {
     expect(Object.keys(tools).sort()).toEqual([
       'ai_redactor',
       'check_credits',
-      'data_extractor',
       'document_processor',
       'document_signer',
+      'extract_fields',
+      'parse_document',
       'sandbox_file_tree',
-      'schema_extractor',
     ])
 
     for (const [name, tool] of Object.entries(tools)) {

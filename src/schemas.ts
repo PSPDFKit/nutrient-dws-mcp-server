@@ -576,7 +576,7 @@ export const ExtractionFormatSchema = z
       'markdown: whole-document Markdown returned inline. text mode supports markdown only; other modes default to spatial.',
   )
 
-export const DataExtractorArgsSchema = z.object({
+export const ParseDocumentArgsSchema = z.object({
   filePath: z
     .string()
     .optional()
@@ -667,7 +667,7 @@ export const DataExtractorArgsSchema = z.object({
     ),
 })
 
-export type DataExtractorArgs = z.infer<typeof DataExtractorArgsSchema>
+export type ParseDocumentArgs = z.infer<typeof ParseDocumentArgsSchema>
 
 // ----- Data Extraction API (POST /extraction/extract) -----
 //
@@ -675,7 +675,7 @@ export type DataExtractorArgs = z.infer<typeof DataExtractorArgsSchema>
 // require an unset language) are enforced in the handler, for the same
 // ZodObject-vs-ZodEffects reason noted above the parse-endpoint schemas.
 
-export const ExtractStructuredModeSchema = z
+export const ExtractFieldsModeSchema = z
   .enum(['structure', 'understand', 'agentic'])
   .describe(
     'Parse mode feeding the extraction (cost/quality trade-off). No text mode — schema-guided extraction needs the ' +
@@ -702,7 +702,7 @@ export const ExtractJsonSchemaSchema = z
       '500 fields, 50 properties per object, 5 nesting levels, enum values capped at 50.',
   )
 
-export const ExtractStructuredArgsSchema = z.object({
+export const ExtractFieldsArgsSchema = z.object({
   filePath: z
     .string()
     .optional()
@@ -724,7 +724,7 @@ export const ExtractStructuredArgsSchema = z.object({
     .max(10000)
     .optional()
     .describe('Free-text guidance for the extraction, e.g. clarifying an ambiguous field. Max 10000 characters.'),
-  mode: ExtractStructuredModeSchema.optional().default('understand'),
+  mode: ExtractFieldsModeSchema.optional().default('understand'),
   language: z
     .union([z.string(), z.array(z.string())])
     .optional()
@@ -779,4 +779,4 @@ export const ExtractStructuredArgsSchema = z.object({
     ),
 })
 
-export type ExtractStructuredArgs = z.infer<typeof ExtractStructuredArgsSchema>
+export type ExtractFieldsArgs = z.infer<typeof ExtractFieldsArgsSchema>

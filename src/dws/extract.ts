@@ -4,7 +4,7 @@ import fs from 'fs'
 import path from 'path'
 import { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import { DwsApiClient } from './client.js'
-import { DataExtractorArgs } from '../schemas.js'
+import { ParseDocumentArgs } from '../schemas.js'
 import { resolveReadFilePath, resolveWriteFilePath } from '../fs/sandbox.js'
 import { pipeToString, handleApiError } from './utils.js'
 import { createSuccessResponse, createErrorResponse } from '../responses.js'
@@ -125,9 +125,9 @@ export async function handleExtractionApiError(error: unknown, cheaperModeHint?:
 
 /** text mode defaults to markdown; every other mode defaults to spatial. Callers pass `format` or `formats`, never both. */
 function resolveFormats(
-  mode: DataExtractorArgs['mode'],
-  format: DataExtractorArgs['format'],
-  formats: DataExtractorArgs['formats'],
+  mode: ParseDocumentArgs['mode'],
+  format: ParseDocumentArgs['format'],
+  formats: ParseDocumentArgs['formats'],
 ): ExtractionFormat[] {
   if (formats) {
     return formats
@@ -216,7 +216,7 @@ function summarizeSpatial(response: ExtractionResponse, outputPath: string, byte
     `Extracted ${elements.length} elements across ${pageCount} page(s) and wrote the full spatial JSON to ${outputPath} (${byteLength} bytes).`,
     `Element types: ${typeSummary || 'none'}.`,
     `Low-confidence elements (confidence < ${LOW_CONFIDENCE_THRESHOLD}): ${lowConfidence}.`,
-    `The document content is not included here — use schema_extractor to pull specific field values.`,
+    `The document content is not included here — use extract_fields to pull specific field values.`,
   ].join('\n')
 }
 
@@ -255,7 +255,7 @@ export function billedWriteFailure(resolvedPath: string, error: unknown): CallTo
  * both are requested, the spatial file is written and the summary also notes
  * the markdown that landed alongside it under `output.markdown`.
  */
-export async function performExtractCall(args: DataExtractorArgs, apiClient: DwsApiClient): Promise<CallToolResult> {
+export async function performParseDocumentCall(args: ParseDocumentArgs, apiClient: DwsApiClient): Promise<CallToolResult> {
   const {
     filePath,
     url,

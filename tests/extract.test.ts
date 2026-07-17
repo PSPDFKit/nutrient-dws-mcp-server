@@ -4,9 +4,9 @@ import os from 'os'
 import path from 'path'
 import { Readable } from 'stream'
 import { setSandboxDirectory } from '../src/fs/sandbox.js'
-import { performExtractCall, SAME_PATH_ERROR } from '../src/dws/extract.js'
+import { performParseDocumentCall, SAME_PATH_ERROR } from '../src/dws/extract.js'
 import type { DwsApiClient } from '../src/dws/client.js'
-import type { DataExtractorArgs } from '../src/schemas.js'
+import type { ParseDocumentArgs } from '../src/schemas.js'
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 
 // A recognizable "PII" string used to prove extracted content never appears in
@@ -103,7 +103,7 @@ async function writeInput(): Promise<string> {
   return name
 }
 
-function extractArgs(overrides: Partial<DataExtractorArgs>): DataExtractorArgs {
+function extractArgs(overrides: Partial<ParseDocumentArgs>): ParseDocumentArgs {
   const noDocumentGiven = !('filePath' in overrides) && !('url' in overrides)
   return {
     filePath: noDocumentGiven ? `input-${counter}.pdf` : overrides.filePath,
@@ -124,12 +124,12 @@ function extractArgs(overrides: Partial<DataExtractorArgs>): DataExtractorArgs {
   }
 }
 
-describe('performExtractCall', () => {
+describe('performParseDocumentCall', () => {
   it('returns markdown output inline', async () => {
     const input = await writeInput()
     const { client, post } = mockClient({ output: { markdown: '# Hello World' } })
 
-    const result = await performExtractCall(extractArgs({ filePath: input, mode: 'text', format: 'markdown' }), client)
+    const result = await performParseDocumentCall(extractArgs({ filePath: input, mode: 'text', format: 'markdown' }), client)
 
     expect(result.isError).toBeFalsy()
     expect(text(result)).toBe('# Hello World')
@@ -141,7 +141,7 @@ describe('performExtractCall', () => {
     const outName = `out-${counter}.md`
     const { client } = mockClient({ output: { markdown: '# Big Document\n\nlots of text' } })
 
-    const result = await performExtractCall(
+    const result = await performParseDocumentCall(
       extractArgs({ filePath: input, mode: 'text', format: 'markdown', outputPath: outName }),
       client,
     )
@@ -160,7 +160,7 @@ describe('performExtractCall', () => {
     const outName = `out-${counter}.json`
     const { client } = mockClient({ status: 200, output: { markdown: 'oops wrong shape' } })
 
-    const result = await performExtractCall(
+    const result = await performParseDocumentCall(
       extractArgs({ filePath: input, mode: 'structure', format: 'spatial', outputPath: outName }),
       client,
     )
@@ -175,7 +175,7 @@ describe('performExtractCall', () => {
     const outName = `out-${counter}.json`
     const { client } = mockClient(spatialFixture)
 
-    const result = await performExtractCall(
+    const result = await performParseDocumentCall(
       extractArgs({ filePath: input, mode: 'structure', format: 'spatial', outputPath: outName }),
       client,
     )
@@ -197,7 +197,7 @@ describe('performExtractCall', () => {
     const input = await writeInput()
     const { client, post } = mockClient(spatialFixture)
 
-    const result = await performExtractCall(
+    const result = await performParseDocumentCall(
       extractArgs({ filePath: input, mode: 'structure', format: 'spatial' }),
       client,
     )
@@ -211,7 +211,7 @@ describe('performExtractCall', () => {
     const input = await writeInput()
     const { client, post } = mockClient(spatialFixture)
 
-    const result = await performExtractCall(
+    const result = await performParseDocumentCall(
       extractArgs({ filePath: input, mode: 'text', format: 'spatial', outputPath: `out-${counter}.json` }),
       client,
     )
@@ -226,7 +226,7 @@ describe('performExtractCall', () => {
     const escape = path.join(os.tmpdir(), `escape-${counter}.json`)
     const { client } = mockClient(spatialFixture)
 
-    const result = await performExtractCall(
+    const result = await performParseDocumentCall(
       extractArgs({ filePath: input, mode: 'structure', format: 'spatial', outputPath: escape }),
       client,
     )
@@ -241,7 +241,7 @@ describe('performExtractCall', () => {
     const input = await writeInput()
     const { client, post } = mockClient({ output: { markdown: '# Hello' } })
 
-    await performExtractCall(extractArgs({ filePath: input, mode: 'text', format: 'markdown' }), client)
+    await performParseDocumentCall(extractArgs({ filePath: input, mode: 'text', format: 'markdown' }), client)
 
     expect(post).toHaveBeenCalledWith(expect.any(String), expect.anything(), { 'x-nutrient-api-version': '2026-05-25' })
   })
@@ -253,7 +253,7 @@ describe('performExtractCall', () => {
       usage: { data_extraction_credits: { cost: 9, remainingCredits: 991 } },
     })
 
-    const result = await performExtractCall(extractArgs({ filePath: input, mode: 'text', format: 'markdown' }), client)
+    const result = await performParseDocumentCall(extractArgs({ filePath: input, mode: 'text', format: 'markdown' }), client)
 
     const summary = text(result)
     expect(summary).toContain('9 Data Extraction credit')
@@ -265,7 +265,7 @@ describe('performExtractCall', () => {
     const input = await writeInput()
     const { client } = mockClient({ output: { markdown: '# Hello' }, runId: 'run_abc123' })
 
-    const result = await performExtractCall(
+    const result = await performParseDocumentCall(
       extractArgs({ filePath: input, mode: 'text', format: 'markdown', storeRun: true }),
       client,
     )
@@ -280,7 +280,7 @@ describe('performExtractCall', () => {
       usage: { data_extraction_credits: { remainingCredits: 3 } },
     })
 
-    const result = await performExtractCall(extractArgs({ filePath: input, mode: 'text', format: 'markdown' }), client)
+    const result = await performParseDocumentCall(extractArgs({ filePath: input, mode: 'text', format: 'markdown' }), client)
 
     const summary = text(result)
     expect(summary).toContain('3 remaining')
@@ -291,7 +291,7 @@ describe('performExtractCall', () => {
     const input = await writeInput()
     const { client, post } = mockClient(spatialFixture)
 
-    const result = await performExtractCall(
+    const result = await performParseDocumentCall(
       extractArgs({ filePath: input, mode: 'structure', format: 'spatial', outputPath: input }),
       client,
     )
@@ -307,7 +307,7 @@ describe('performExtractCall', () => {
     const { client } = mockClient(spatialFixture)
     const writeFileSpy = vi.spyOn(fs.promises, 'writeFile').mockRejectedValueOnce(new Error('ENOSPC: no space left'))
 
-    const result = await performExtractCall(
+    const result = await performParseDocumentCall(
       extractArgs({ filePath: input, mode: 'structure', format: 'spatial', outputPath: outName }),
       client,
     )
@@ -325,7 +325,7 @@ describe('performExtractCall', () => {
       const input = await writeInput()
       const { client, post } = mockClient({ output: { markdown: '# Hello' } })
 
-      await performExtractCall(extractArgs({ filePath: input, mode: 'text', format: 'markdown' }), client)
+      await performParseDocumentCall(extractArgs({ filePath: input, mode: 'text', format: 'markdown' }), client)
 
       const form = post.mock.calls[0][1]
       expect(form.constructor.name).toBe('FormData')
@@ -336,7 +336,7 @@ describe('performExtractCall', () => {
     it('sends a JSON body containing the url for url input, not multipart', async () => {
       const { client, post } = mockClient({ output: { markdown: '# Hello' } })
 
-      const result = await performExtractCall(
+      const result = await performParseDocumentCall(
         extractArgs({ filePath: undefined, url: 'https://example.com/doc.pdf', mode: 'text', format: 'markdown' }),
         client,
       )
@@ -355,7 +355,7 @@ describe('performExtractCall', () => {
       const input = await writeInput()
       const { client, post } = mockClient({ output: { markdown: '# Hello' } })
 
-      const result = await performExtractCall(
+      const result = await performParseDocumentCall(
         extractArgs({ filePath: input, url: 'https://example.com/doc.pdf', mode: 'text', format: 'markdown' }),
         client,
       )
@@ -368,7 +368,7 @@ describe('performExtractCall', () => {
     it('rejects when neither filePath nor url is provided', async () => {
       const { client, post } = mockClient({ output: { markdown: '# Hello' } })
 
-      const result = await performExtractCall(
+      const result = await performParseDocumentCall(
         extractArgs({ filePath: undefined, url: undefined, mode: 'text', format: 'markdown' }),
         client,
       )
@@ -384,7 +384,7 @@ describe('performExtractCall', () => {
       const input = await writeInput()
       const { client, post } = mockClient(spatialFixture)
 
-      const result = await performExtractCall(
+      const result = await performParseDocumentCall(
         extractArgs({
           filePath: input,
           format: 'markdown',
@@ -404,7 +404,7 @@ describe('performExtractCall', () => {
       const markdown = '# Quarterly Report'
       const { client, post } = mockClient({ ...spatialFixture, output: { ...spatialFixture.output, markdown } })
 
-      await performExtractCall(
+      await performParseDocumentCall(
         extractArgs({
           filePath: input,
           mode: 'structure',
@@ -425,7 +425,7 @@ describe('performExtractCall', () => {
       const input = await writeInput()
       const { client, post } = mockClient({ output: { markdown: '# Hello' } })
 
-      await performExtractCall(extractArgs({ filePath: input, mode: 'text', format: 'markdown' }), client)
+      await performParseDocumentCall(extractArgs({ filePath: input, mode: 'text', format: 'markdown' }), client)
 
       const output = parseFormInstructions(post.mock.calls[0][1]).output as Record<string, unknown>
       expect(output.format).toBe('markdown')
@@ -437,11 +437,11 @@ describe('performExtractCall', () => {
       const spatial = mockClient(spatialFixture)
       const markdownOnly = mockClient({ output: { markdown: '# Hello' } })
 
-      await performExtractCall(
+      await performParseDocumentCall(
         extractArgs({ filePath: input, mode: 'structure', format: 'spatial', outputPath: `out-${counter}.json` }),
         spatial.client,
       )
-      await performExtractCall(
+      await performParseDocumentCall(
         extractArgs({ filePath: input, mode: 'text', format: 'markdown', includeWords: true }),
         markdownOnly.client,
       )
@@ -456,7 +456,7 @@ describe('performExtractCall', () => {
       const markdown = '# Quarterly Report'
       const { client } = mockClient({ ...spatialFixture, output: { ...spatialFixture.output, markdown } })
 
-      const result = await performExtractCall(
+      const result = await performParseDocumentCall(
         extractArgs({ filePath: input, mode: 'structure', formats: ['spatial', 'markdown'], outputPath: outName }),
         client,
       )
@@ -474,7 +474,7 @@ describe('performExtractCall', () => {
       const input = await writeInput()
       const { client, post } = mockClient(spatialFixture)
 
-      const result = await performExtractCall(
+      const result = await performParseDocumentCall(
         extractArgs({ filePath: input, mode: 'structure', formats: ['spatial', 'markdown'] }),
         client,
       )
@@ -489,7 +489,7 @@ describe('performExtractCall', () => {
       const outName = `out-${counter}.json`
       const { client } = mockClient(spatialFixture)
 
-      const result = await performExtractCall(
+      const result = await performParseDocumentCall(
         extractArgs({ filePath: input, mode: 'structure', formats: ['spatial', 'markdown'], outputPath: outName }),
         client,
       )
@@ -505,7 +505,7 @@ describe('performExtractCall', () => {
       const input = await writeInput()
       const { client, post } = mockClient({ output: { markdown: '# Hello' } })
 
-      await performExtractCall(extractArgs({ filePath: input, mode: 'text', format: 'markdown' }), client)
+      await performParseDocumentCall(extractArgs({ filePath: input, mode: 'text', format: 'markdown' }), client)
 
       const instructions = parseFormInstructions(post.mock.calls[0][1])
       const output = instructions.output as Record<string, unknown>
@@ -519,7 +519,7 @@ describe('performExtractCall', () => {
       const input = await writeInput()
       const { client, post } = mockClient({ output: { markdown: '# Hello' } })
 
-      await performExtractCall(
+      await performParseDocumentCall(
         extractArgs({
           filePath: input,
           mode: 'text',
@@ -545,7 +545,7 @@ describe('performExtractCall', () => {
       const input = await writeInput()
       const { client, post } = mockClient(spatialFixture)
 
-      await performExtractCall(
+      await performParseDocumentCall(
         extractArgs({
           filePath: input,
           mode: 'structure',
@@ -566,7 +566,7 @@ describe('performExtractCall', () => {
       const input = await writeInput()
       const { client, post } = mockClient({ output: { markdown: '# Hello' } })
 
-      const result = await performExtractCall(
+      const result = await performParseDocumentCall(
         extractArgs({ filePath: input, mode: 'text', format: 'markdown', maxLanguages: 3 }),
         client,
       )
@@ -580,7 +580,7 @@ describe('performExtractCall', () => {
       const input = await writeInput()
       const { client, post } = mockClient(spatialFixture)
 
-      await performExtractCall(
+      await performParseDocumentCall(
         extractArgs({
           filePath: input,
           mode: 'structure',
@@ -599,7 +599,7 @@ describe('performExtractCall', () => {
       const input = await writeInput()
       const { client, post } = mockClient(spatialFixture)
 
-      await performExtractCall(
+      await performParseDocumentCall(
         extractArgs({ filePath: input, mode: 'structure', format: 'spatial', outputPath: `out-${counter}.json` }),
         client,
       )
@@ -611,7 +611,7 @@ describe('performExtractCall', () => {
       const input = await writeInput()
       const { client, post } = mockClient(spatialFixture)
 
-      const result = await performExtractCall(
+      const result = await performParseDocumentCall(
         extractArgs({
           filePath: input,
           mode: 'structure',
@@ -638,7 +638,7 @@ describe('performExtractCall', () => {
         errorMessage: 'Insufficient credits. This request requires 2 credits, 0 remaining.',
       })
 
-      const result = await performExtractCall(
+      const result = await performParseDocumentCall(
         extractArgs({ filePath: input, mode: 'text', format: 'markdown' }),
         client,
       )
@@ -663,7 +663,7 @@ describe('performExtractCall', () => {
         },
       })
 
-      const result = await performExtractCall(
+      const result = await performParseDocumentCall(
         extractArgs({ filePath: input, mode: 'text', format: 'markdown' }),
         client,
       )
@@ -681,7 +681,7 @@ describe('performExtractCall', () => {
       const input = await writeInput()
       const { client } = mockErrorClient(503, 'upstream unavailable', { raw: true })
 
-      const result = await performExtractCall(
+      const result = await performParseDocumentCall(
         extractArgs({ filePath: input, mode: 'text', format: 'markdown' }),
         client,
       )

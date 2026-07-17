@@ -56,11 +56,11 @@
       "description": "Detect and permanently redact sensitive content such as names, addresses, SSNs, and emails."
     },
     {
-      "name": "data_extractor",
+      "name": "parse_document",
       "description": "Parse a document into spatial elements with bounding boxes, or into Markdown."
     },
     {
-      "name": "schema_extractor",
+      "name": "extract_fields",
       "description": "Pull specific named fields from a document into a JSON shape you define, with per-field citations."
     },
     {

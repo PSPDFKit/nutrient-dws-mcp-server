@@ -3,7 +3,7 @@ import fs from 'fs'
 import path from 'path'
 import { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import { DwsApiClient } from './client.js'
-import { ExtractStructuredArgs } from '../schemas.js'
+import { ExtractFieldsArgs } from '../schemas.js'
 import { resolveReadFilePath, resolveWriteFilePath } from '../fs/sandbox.js'
 import { pipeToString } from './utils.js'
 import { createSuccessResponse, createErrorResponse } from '../responses.js'
@@ -27,7 +27,7 @@ const EXTRACT_CHEAPER_MODE_HINT =
   'this endpoint bills that parse component plus a fixed extract component per page. There is no text mode.'
 
 /** Parsed `/extraction/extract` response (the fields this handler reads). */
-type ExtractStructuredResponse = RunMetadataResponse & {
+type ExtractFieldsResponse = RunMetadataResponse & {
   output?: {
     data?: unknown
     metadata?: unknown
@@ -106,8 +106,8 @@ function formatGroundingSignal(metadata: unknown): string {
  * only written to `outputPath`, since they can be large and add little value
  * without the document open alongside them.
  */
-export async function performExtractStructuredCall(
-  args: ExtractStructuredArgs,
+export async function performExtractFieldsCall(
+  args: ExtractFieldsArgs,
   apiClient: DwsApiClient,
 ): Promise<CallToolResult> {
   const {
@@ -211,9 +211,9 @@ export async function performExtractStructuredCall(
     return handleExtractionApiError(error, EXTRACT_CHEAPER_MODE_HINT)
   }
 
-  let parsed: ExtractStructuredResponse
+  let parsed: ExtractFieldsResponse
   try {
-    parsed = JSON.parse(body) as ExtractStructuredResponse
+    parsed = JSON.parse(body) as ExtractFieldsResponse
   } catch {
     return createErrorResponse('Error: the Data Extraction API returned a response that could not be parsed as JSON.')
   }
