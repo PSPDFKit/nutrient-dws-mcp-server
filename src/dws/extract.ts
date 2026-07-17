@@ -158,11 +158,17 @@ export function formatRunMetadata(response: RunMetadataResponse): string {
     notes.push(`This run was stored server-side (runId: ${response.runId}) and can be retrieved later.`)
   }
   const credits = response.usage?.data_extraction_credits
-  if (credits && typeof credits.cost === 'number') {
+  // Either half alone is worth reporting: the remaining balance is what stops an
+  // agent from walking into a 402, and it must survive a response that omits cost.
+  if (credits && (typeof credits.cost === 'number' || typeof credits.remainingCredits === 'number')) {
+    const used =
+      typeof credits.cost === 'number'
+        ? `Used ${credits.cost} Data Extraction credit(s)`
+        : 'Used an unreported number of Data Extraction credits'
     const remaining =
       typeof credits.remainingCredits === 'number' ? `${credits.remainingCredits} remaining` : 'remaining unknown'
     notes.push(
-      `Used ${credits.cost} Data Extraction credit(s) (${remaining}). These are Data Extraction credits — a separate ` +
+      `${used} (${remaining}). These are Data Extraction credits — a separate ` +
         'balance from the Processor API credits reported by check_credits.',
     )
     const composition = response.usage?.price_composition
@@ -194,7 +200,10 @@ function summarizeSpatial(response: ExtractionResponse, outputPath: string, byte
   for (const element of elements) {
     const type = element.type ?? 'unknown'
     typeCounts[type] = (typeCounts[type] ?? 0) + 1
-    if (typeof element.confidence === 'number' && element.confidence < LOW_CONFIDENCE_THRESHOLD) {
+    // Inclusive, so the count matches exactly what the maxConfidence query
+    // suggested below returns — an element scored exactly at the threshold must
+    // not be counted here and then missing from the triage query.
+    if (typeof element.confidence === 'number' && element.confidence <= LOW_CONFIDENCE_THRESHOLD) {
       lowConfidence += 1
     }
     if (typeof element.page?.pageIndex === 'number') {
@@ -210,8 +219,9 @@ function summarizeSpatial(response: ExtractionResponse, outputPath: string, byte
   return [
     `Extracted ${elements.length} elements across ${pageCount} page(s) and wrote the full spatial JSON to ${outputPath} (${byteLength} bytes).`,
     `Element types: ${typeSummary || 'none'}.`,
-    `Low-confidence elements (confidence < ${LOW_CONFIDENCE_THRESHOLD}): ${lowConfidence}.`,
-    `Retrieve specific elements with query_extraction (filter by page, region, minConfidence, or elementTypes). The document content is not included here.`,
+    `Low-confidence elements (confidence <= ${LOW_CONFIDENCE_THRESHOLD}): ${lowConfidence}` +
+      `${lowConfidence > 0 ? ` — retrieve exactly these with query_extraction using maxConfidence: ${LOW_CONFIDENCE_THRESHOLD}` : ''}.`,
+    `Retrieve specific elements with query_extraction (filter by page, region, minConfidence, maxConfidence, or elementTypes). The document content is not included here.`,
   ].join('\n')
 }
 
@@ -224,6 +234,22 @@ export async function writeToResolvedPath(resolvedPath: string, data: string): P
     await fs.promises.mkdir(outputDir, { recursive: true })
   }
   await fs.promises.writeFile(resolvedPath, data)
+}
+
+export const SAME_PATH_ERROR =
+  'Error: outputPath must be different from the input filePath — writing the extraction there would destroy the source document.'
+
+/**
+ * Renders a write failure that happened *after* the extraction succeeded and was
+ * billed. A bare filesystem error reads as a failed call, so the agent retries
+ * and pays for the same extraction twice.
+ */
+export function billedWriteFailure(resolvedPath: string, error: unknown): CallToolResult {
+  return createErrorResponse(
+    `Error: the extraction succeeded and was billed, but writing the result to ${resolvedPath} failed: ` +
+      `${error instanceof Error ? error.message : String(error)}. ` +
+      'Retrying the extraction will be billed again — free up space or pass a different outputPath.',
+  )
 }
 
 /**
@@ -307,6 +333,9 @@ export async function performExtractCall(args: DataExtractorArgs, apiClient: Dws
   if (filePath) {
     try {
       const resolvedInputPath = await resolveReadFilePath(filePath)
+      if (resolvedInputPath === resolvedOutputPath) {
+        return createErrorResponse(SAME_PATH_ERROR)
+      }
       fileBuffer = await fs.promises.readFile(resolvedInputPath)
       fileName = path.basename(resolvedInputPath)
     } catch (error) {
@@ -343,6 +372,10 @@ export async function performExtractCall(args: DataExtractorArgs, apiClient: Dws
     }
   }
 
+  // Only the billable call is guarded by the API error handler: a failure after
+  // it has succeeded is not an API error, and rendering it as one hides the fact
+  // that the extraction was already paid for.
+  let body: string
   try {
     let response: Awaited<ReturnType<DwsApiClient['post']>>
     if (filePath) {
@@ -353,62 +386,70 @@ export async function performExtractCall(args: DataExtractorArgs, apiClient: Dws
     } else {
       response = await apiClient.post(EXTRACTION_ENDPOINT, { ...instructions, url }, EXTRACTION_HEADERS)
     }
-    const body = await pipeToString(response.data)
-
-    let parsed: ExtractionResponse
-    try {
-      parsed = JSON.parse(body) as ExtractionResponse
-    } catch {
-      return createErrorResponse('Error: the Data Extraction API returned a response that could not be parsed as JSON.')
-    }
-
-    const runMetadata = formatRunMetadata(parsed)
-
-    if (formatSet.has('spatial') && resolvedOutputPath) {
-      // Guard against a 2xx response that is not a spatial result, so we never
-      // overwrite the target file with a non-extraction body.
-      if (!Array.isArray(parsed.output?.elements)) {
-        return createErrorResponse(
-          'Error: the Data Extraction API response did not contain a spatial element list (output.elements). Nothing was written.',
-        )
-      }
-      // Validate every requested format before writing, so an incomplete
-      // response never leaves a file on disk behind an error result — the
-      // caller would retry and be billed for the extraction twice.
-      const markdown = formatSet.has('markdown') ? parsed.output?.markdown : undefined
-      if (formatSet.has('markdown') && typeof markdown !== 'string') {
-        return createErrorResponse(
-          'Error: the Data Extraction API did not return markdown output alongside the spatial result. Nothing was written.',
-        )
-      }
-      // Write the raw response body: avoids re-serializing a potentially large
-      // payload and preserves every field the API returned. When markdown was
-      // also requested, that same body already carries output.markdown.
-      await writeToResolvedPath(resolvedOutputPath, body)
-      let summary = summarizeSpatial(parsed, resolvedOutputPath, Buffer.byteLength(body))
-      if (typeof markdown === 'string') {
-        summary += `\nAlso wrote ${Buffer.byteLength(markdown)} bytes of Markdown to the same file, under output.markdown.`
-      }
-      return createSuccessResponse(summary + runMetadata)
-    }
-
-    // Markdown-only.
-    const markdown = parsed.output?.markdown
-    if (typeof markdown !== 'string') {
-      return createErrorResponse('Error: the Data Extraction API did not return markdown output.')
-    }
-    // Honor outputPath for markdown too — a large document returned inline
-    // would overflow the conversation. Only return inline when no path given.
-    if (resolvedOutputPath) {
-      await writeToResolvedPath(resolvedOutputPath, markdown)
-      return createSuccessResponse(
-        `Wrote ${Buffer.byteLength(markdown)} bytes of Markdown to ${resolvedOutputPath}.${runMetadata}`,
-      )
-    }
-    return createSuccessResponse(markdown + runMetadata)
+    body = await pipeToString(response.data)
   } catch (error) {
     return handleExtractionApiError(error, PARSE_CHEAPER_MODE_HINT)
   }
+
+  let parsed: ExtractionResponse
+  try {
+    parsed = JSON.parse(body) as ExtractionResponse
+  } catch {
+    return createErrorResponse('Error: the Data Extraction API returned a response that could not be parsed as JSON.')
+  }
+
+  const runMetadata = formatRunMetadata(parsed)
+
+  if (formatSet.has('spatial') && resolvedOutputPath) {
+    // Guard against a 2xx response that is not a spatial result, so we never
+    // overwrite the target file with a non-extraction body.
+    if (!Array.isArray(parsed.output?.elements)) {
+      return createErrorResponse(
+        'Error: the Data Extraction API response did not contain a spatial element list (output.elements). Nothing was written.',
+      )
+    }
+    // Validate every requested format before writing, so an incomplete
+    // response never leaves a file on disk behind an error result — the
+    // caller would retry and be billed for the extraction twice.
+    const markdown = formatSet.has('markdown') ? parsed.output?.markdown : undefined
+    if (formatSet.has('markdown') && typeof markdown !== 'string') {
+      return createErrorResponse(
+        'Error: the Data Extraction API did not return markdown output alongside the spatial result. Nothing was written.',
+      )
+    }
+    // Write the raw response body: avoids re-serializing a potentially large
+    // payload and preserves every field the API returned. When markdown was
+    // also requested, that same body already carries output.markdown.
+    try {
+      await writeToResolvedPath(resolvedOutputPath, body)
+    } catch (error) {
+      return billedWriteFailure(resolvedOutputPath, error)
+    }
+    let summary = summarizeSpatial(parsed, resolvedOutputPath, Buffer.byteLength(body))
+    if (typeof markdown === 'string') {
+      summary += `\nAlso wrote ${Buffer.byteLength(markdown)} bytes of Markdown to the same file, under output.markdown.`
+    }
+    return createSuccessResponse(summary + runMetadata)
+  }
+
+  // Markdown-only.
+  const markdown = parsed.output?.markdown
+  if (typeof markdown !== 'string') {
+    return createErrorResponse('Error: the Data Extraction API did not return markdown output.')
+  }
+  // Honor outputPath for markdown too — a large document returned inline
+  // would overflow the conversation. Only return inline when no path given.
+  if (resolvedOutputPath) {
+    try {
+      await writeToResolvedPath(resolvedOutputPath, markdown)
+    } catch (error) {
+      return billedWriteFailure(resolvedOutputPath, error)
+    }
+    return createSuccessResponse(
+      `Wrote ${Buffer.byteLength(markdown)} bytes of Markdown to ${resolvedOutputPath}.${runMetadata}`,
+    )
+  }
+  return createSuccessResponse(markdown + runMetadata)
 }
 
 /** Does element `bounds` intersect the query `region`? */
@@ -428,7 +469,13 @@ function intersects(bounds: SpatialElement['bounds'], region: NonNullable<QueryE
  * subset of elements matching the given filters, inline.
  */
 export async function performQueryCall(args: QueryExtractionArgs): Promise<CallToolResult> {
-  const { filePath, pages, region, minConfidence, elementTypes, limit } = args
+  const { filePath, pages, region, minConfidence, maxConfidence, elementTypes, limit } = args
+
+  if (typeof minConfidence === 'number' && typeof maxConfidence === 'number' && minConfidence > maxConfidence) {
+    return createErrorResponse(
+      `Error: minConfidence (${minConfidence}) must be less than or equal to maxConfidence (${maxConfidence}) — no element can match both.`,
+    )
+  }
 
   let parsed: ExtractionResponse
   try {
@@ -449,8 +496,9 @@ export async function performQueryCall(args: QueryExtractionArgs): Promise<CallT
     )
   }
 
-  const pageSet = pages && pages.length > 0 ? new Set(pages) : undefined
-  const typeSet = elementTypes && elementTypes.length > 0 ? new Set<string>(elementTypes) : undefined
+  const pageSet = pages ? new Set(pages) : undefined
+  const typeSet = elementTypes ? new Set<string>(elementTypes) : undefined
+  const filtersByConfidence = typeof minConfidence === 'number' || typeof maxConfidence === 'number'
 
   const matches = elements.filter((element) => {
     if (pageSet && (typeof element.page?.pageIndex !== 'number' || !pageSet.has(element.page.pageIndex))) {
@@ -459,11 +507,18 @@ export async function performQueryCall(args: QueryExtractionArgs): Promise<CallT
     if (typeSet && (typeof element.type !== 'string' || !typeSet.has(element.type))) {
       return false
     }
-    if (
-      typeof minConfidence === 'number' &&
-      !(typeof element.confidence === 'number' && element.confidence >= minConfidence)
-    ) {
-      return false
+    if (filtersByConfidence) {
+      // An element the API scored no confidence for cannot be placed inside a
+      // confidence bound either way, so a bounded query excludes it.
+      if (typeof element.confidence !== 'number') {
+        return false
+      }
+      if (typeof minConfidence === 'number' && element.confidence < minConfidence) {
+        return false
+      }
+      if (typeof maxConfidence === 'number' && element.confidence > maxConfidence) {
+        return false
+      }
     }
     if (region && !intersects(element.bounds, region)) {
       return false
@@ -474,7 +529,7 @@ export async function performQueryCall(args: QueryExtractionArgs): Promise<CallT
   const limited = matches.slice(0, limit)
   const truncatedNote =
     matches.length > limited.length
-      ? `\n\nShowing the first ${limited.length} of ${matches.length} matches. Narrow the filters (page, region, minConfidence, elementTypes) to see the rest.`
+      ? `\n\nShowing the first ${limited.length} of ${matches.length} matches. Narrow the filters (page, region, minConfidence, maxConfidence, elementTypes) to see the rest.`
       : ''
 
   return createSuccessResponse(

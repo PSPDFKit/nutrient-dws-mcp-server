@@ -42,6 +42,12 @@ describe('createStdioApiClients', () => {
 
     expect(extractApiClient).toBeNull()
   })
+
+  it('throws when NUTRIENT_DWS_EXTRACT_API_KEY is set without NUTRIENT_DWS_API_KEY', () => {
+    expect(() =>
+      createStdioApiClients(baseEnvironment({ nutrientExtractApiKey: 'pdf_live_extract-key' })),
+    ).toThrow(/NUTRIENT_DWS_EXTRACT_API_KEY.*NUTRIENT_DWS_API_KEY/s)
+  })
 })
 
 describe('data_extractor with no extraction credential', () => {

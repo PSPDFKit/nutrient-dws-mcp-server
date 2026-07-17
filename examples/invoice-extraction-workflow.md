@@ -28,7 +28,7 @@ compact summary comes back.
 ```
 Extracted 142 elements across 2 page(s) and wrote the full spatial JSON to invoice.elements.json (38217 bytes).
 Element types: paragraph: 96, table: 2, keyValueRegion: 18, picture: 1.
-Low-confidence elements (confidence < 0.6): 7.
+Low-confidence elements (confidence <= 0.6): 7 — retrieve exactly these with query_extraction using maxConfidence: 0.6.
 Retrieve specific elements with query_extraction ...
 ```
 
@@ -42,7 +42,7 @@ decide whether the document needs human review:
 
 ```jsonc
 // tool: query_extraction
-{ "filePath": "invoice.elements.json", "minConfidence": 0, "elementTypes": ["keyValueRegion"], "limit": 50 }
+{ "filePath": "invoice.elements.json", "maxConfidence": 0.6, "elementTypes": ["keyValueRegion"], "limit": 50 }
 ```
 
 It can also grab a specific region — e.g. the totals box in the bottom-right of

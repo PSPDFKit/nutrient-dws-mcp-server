@@ -7,7 +7,14 @@ import { ExtractStructuredArgs } from '../schemas.js'
 import { resolveReadFilePath, resolveWriteFilePath } from '../fs/sandbox.js'
 import { pipeToString } from './utils.js'
 import { createSuccessResponse, createErrorResponse } from '../responses.js'
-import { EXTRACTION_HEADERS, handleExtractionApiError, formatRunMetadata, writeToResolvedPath } from './extract.js'
+import {
+  EXTRACTION_HEADERS,
+  SAME_PATH_ERROR,
+  billedWriteFailure,
+  handleExtractionApiError,
+  formatRunMetadata,
+  writeToResolvedPath,
+} from './extract.js'
 import type { RunMetadataResponse } from './extract.js'
 
 const EXTRACT_STRUCTURED_ENDPOINT = 'extraction/extract'
@@ -147,6 +154,9 @@ export async function performExtractStructuredCall(
   if (filePath) {
     try {
       const resolvedInputPath = await resolveReadFilePath(filePath)
+      if (resolvedInputPath === resolvedOutputPath) {
+        return createErrorResponse(SAME_PATH_ERROR)
+      }
       fileBuffer = await fs.promises.readFile(resolvedInputPath)
       fileName = path.basename(resolvedInputPath)
     } catch (error) {
@@ -182,6 +192,10 @@ export async function performExtractStructuredCall(
     instructions.options = extractOptions
   }
 
+  // Only the billable call is guarded by the API error handler: a failure after
+  // it has succeeded is not an API error, and rendering it as one hides the fact
+  // that the extraction was already paid for.
+  let body: string
   try {
     let response: Awaited<ReturnType<DwsApiClient['post']>>
     if (filePath) {
@@ -192,50 +206,54 @@ export async function performExtractStructuredCall(
     } else {
       response = await apiClient.post(EXTRACT_STRUCTURED_ENDPOINT, { ...instructions, url }, EXTRACTION_HEADERS)
     }
-    const body = await pipeToString(response.data)
-
-    let parsed: ExtractStructuredResponse
-    try {
-      parsed = JSON.parse(body) as ExtractStructuredResponse
-    } catch {
-      return createErrorResponse('Error: the Data Extraction API returned a response that could not be parsed as JSON.')
-    }
-
-    // Guard against a 2xx response that is not an extraction result, so we
-    // never overwrite the target file with a non-extraction body and never
-    // report a false success inline.
-    const data = parsed.output?.data
-    if (typeof data !== 'object' || data === null || Array.isArray(data)) {
-      return createErrorResponse(
-        'Error: the Data Extraction API response did not contain an object at output.data. Nothing was written.',
-      )
-    }
-
-    const runMetadata = formatRunMetadata(parsed)
-    const groundingSignal = formatGroundingSignal(parsed.output?.metadata)
-    const metadataIsEmpty =
-      parsed.output?.metadata === undefined ||
-      (typeof parsed.output.metadata === 'object' &&
-        parsed.output.metadata !== null &&
-        Object.keys(parsed.output.metadata).length === 0)
-
-    const lines = [JSON.stringify(data, null, 2)]
-    if (groundingSignal) {
-      lines.push(groundingSignal)
-    }
-
-    if (resolvedOutputPath) {
-      await writeToResolvedPath(resolvedOutputPath, body)
-      lines.push(
-        `The full response was written to ${resolvedOutputPath} (${Buffer.byteLength(body)} bytes)` +
-          `${metadataIsEmpty ? ' — page geometry under output.pages; no citations were returned.' : ', with per-field citations under output.metadata and page geometry under output.pages.'}`,
-      )
-    } else if (!metadataIsEmpty) {
-      lines.push('Per-field citations were returned but omitted from this reply. Pass outputPath to keep them.')
-    }
-
-    return createSuccessResponse(lines.join('\n\n') + runMetadata)
+    body = await pipeToString(response.data)
   } catch (error) {
     return handleExtractionApiError(error, EXTRACT_CHEAPER_MODE_HINT)
   }
+
+  let parsed: ExtractStructuredResponse
+  try {
+    parsed = JSON.parse(body) as ExtractStructuredResponse
+  } catch {
+    return createErrorResponse('Error: the Data Extraction API returned a response that could not be parsed as JSON.')
+  }
+
+  // Guard against a 2xx response that is not an extraction result, so we
+  // never overwrite the target file with a non-extraction body and never
+  // report a false success inline.
+  const data = parsed.output?.data
+  if (typeof data !== 'object' || data === null || Array.isArray(data)) {
+    return createErrorResponse(
+      'Error: the Data Extraction API response did not contain an object at output.data. Nothing was written.',
+    )
+  }
+
+  const runMetadata = formatRunMetadata(parsed)
+  const metadata = parsed.output?.metadata
+  const groundingSignal = formatGroundingSignal(metadata)
+  const metadataIsEmpty =
+    metadata === undefined ||
+    metadata === null ||
+    (typeof metadata === 'object' && Object.keys(metadata).length === 0)
+
+  const lines = [JSON.stringify(data, null, 2)]
+  if (groundingSignal) {
+    lines.push(groundingSignal)
+  }
+
+  if (resolvedOutputPath) {
+    try {
+      await writeToResolvedPath(resolvedOutputPath, body)
+    } catch (error) {
+      return billedWriteFailure(resolvedOutputPath, error)
+    }
+    lines.push(
+      `The full response was written to ${resolvedOutputPath} (${Buffer.byteLength(body)} bytes)` +
+        `${metadataIsEmpty ? ' — page geometry under output.pages; no citations were returned.' : ', with per-field citations under output.metadata and page geometry under output.pages.'}`,
+    )
+  } else if (!metadataIsEmpty) {
+    lines.push('Per-field citations were returned but omitted from this reply. Pass outputPath to keep them.')
+  }
+
+  return createSuccessResponse(lines.join('\n\n') + runMetadata)
 }

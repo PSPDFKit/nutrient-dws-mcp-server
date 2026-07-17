@@ -4,8 +4,9 @@ import os from 'os'
 import path from 'path'
 import { Readable } from 'stream'
 import { setSandboxDirectory } from '../src/fs/sandbox.js'
-import { performExtractCall, performQueryCall } from '../src/dws/extract.js'
+import { performExtractCall, performQueryCall, SAME_PATH_ERROR } from '../src/dws/extract.js'
 import type { DwsApiClient } from '../src/dws/client.js'
+import { QueryExtractionArgsSchema } from '../src/schemas.js'
 import type { DataExtractorArgs, QueryExtractionArgs } from '../src/schemas.js'
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 
@@ -271,6 +272,53 @@ describe('performExtractCall', () => {
     )
 
     expect(text(result)).toContain('run_abc123')
+  })
+
+  it('reports remaining Data Extraction credits even when the response omits cost', async () => {
+    const input = await writeInput()
+    const { client } = mockClient({
+      output: { markdown: '# Hello' },
+      usage: { data_extraction_credits: { remainingCredits: 3 } },
+    })
+
+    const result = await performExtractCall(extractArgs({ filePath: input, mode: 'text', format: 'markdown' }), client)
+
+    const summary = text(result)
+    expect(summary).toContain('3 remaining')
+    expect(summary).toContain('separate')
+  })
+
+  it('rejects an outputPath that resolves to the same file as filePath, before any API call', async () => {
+    const input = await writeInput()
+    const { client, post } = mockClient(spatialFixture)
+
+    const result = await performExtractCall(
+      extractArgs({ filePath: input, mode: 'structure', format: 'spatial', outputPath: input }),
+      client,
+    )
+
+    expect(result.isError).toBe(true)
+    expect(text(result)).toBe(SAME_PATH_ERROR)
+    expect(post).not.toHaveBeenCalled()
+  })
+
+  it('reports a post-billing write failure as billed rather than as an API error', async () => {
+    const input = await writeInput()
+    const outName = `out-${counter}.json`
+    const { client } = mockClient(spatialFixture)
+    const writeFileSpy = vi.spyOn(fs.promises, 'writeFile').mockRejectedValueOnce(new Error('ENOSPC: no space left'))
+
+    const result = await performExtractCall(
+      extractArgs({ filePath: input, mode: 'structure', format: 'spatial', outputPath: outName }),
+      client,
+    )
+    writeFileSpy.mockRestore()
+
+    expect(result.isError).toBe(true)
+    const message = text(result)
+    expect(message).toContain('succeeded and was billed')
+    expect(message).toContain('billed again')
+    expect(message).not.toContain('Data Extraction API error')
   })
 
   describe('document input: filePath vs url', () => {
@@ -659,6 +707,7 @@ describe('performQueryCall', () => {
       pages: overrides.pages,
       region: overrides.region,
       minConfidence: overrides.minConfidence,
+      maxConfidence: overrides.maxConfidence,
       elementTypes: overrides.elementTypes,
       limit: overrides.limit ?? 100,
     }
@@ -673,6 +722,56 @@ describe('performQueryCall', () => {
     expect(out).toContain('1 matching element')
     expect(out).toContain('Quarterly Report')
     expect(out).not.toContain(SECRET)
+  })
+
+  it('filters by maxConfidence', async () => {
+    const file = await writeFixture()
+    const result = await performQueryCall(queryArgs({ filePath: file, maxConfidence: 0.6 }))
+
+    expect(result.isError).toBeFalsy()
+    const out = text(result)
+    expect(out).toContain('1 matching element')
+    expect(out).toContain('"type": "keyValueRegion"')
+  })
+
+  it('rejects a minConfidence greater than maxConfidence, naming both values', async () => {
+    const file = await writeFixture()
+    const result = await performQueryCall(queryArgs({ filePath: file, minConfidence: 0.9, maxConfidence: 0.5 }))
+
+    expect(result.isError).toBe(true)
+    const message = text(result)
+    expect(message).toContain('0.9')
+    expect(message).toContain('0.5')
+  })
+
+  it('excludes elements without a confidence score when a bound is set, includes them when neither bound is set', async () => {
+    const name = `unscored-${counter}.json`
+    const fixture = {
+      output: {
+        elements: [
+          {
+            id: 'scored',
+            type: 'paragraph',
+            confidence: 0.9,
+            bounds: { x: 0, y: 0, width: 10, height: 10 },
+            page: { pageIndex: 0 },
+          },
+          {
+            id: 'unscored',
+            type: 'paragraph',
+            bounds: { x: 0, y: 0, width: 10, height: 10 },
+            page: { pageIndex: 0 },
+          },
+        ],
+      },
+    }
+    await fs.promises.writeFile(path.join(sandboxDir, name), JSON.stringify(fixture))
+
+    const bounded = await performQueryCall(queryArgs({ filePath: name, minConfidence: 0 }))
+    expect(text(bounded)).toContain('1 matching element')
+
+    const unbounded = await performQueryCall(queryArgs({ filePath: name }))
+    expect(text(unbounded)).toContain('2 matching element')
   })
 
   it('filters by element type', async () => {
@@ -719,5 +818,21 @@ describe('performQueryCall', () => {
 
     expect(result.isError).toBe(true)
     expect(text(result)).toContain('output.elements')
+  })
+})
+
+describe('QueryExtractionArgsSchema', () => {
+  const minimal = { filePath: 'extraction.json' }
+
+  it('rejects an empty pages array rather than treating it as no filter', () => {
+    expect(QueryExtractionArgsSchema.safeParse({ ...minimal, pages: [] }).success).toBe(false)
+  })
+
+  it('rejects an empty elementTypes array rather than treating it as no filter', () => {
+    expect(QueryExtractionArgsSchema.safeParse({ ...minimal, elementTypes: [] }).success).toBe(false)
+  })
+
+  it('accepts omitting pages and elementTypes entirely', () => {
+    expect(QueryExtractionArgsSchema.safeParse(minimal).success).toBe(true)
   })
 })

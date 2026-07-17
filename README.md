@@ -233,7 +233,7 @@ Additional options:
 - `storeRun: true` persists the run server-side; the response's `runId` is surfaced in the tool's success message so it can be retrieved later.
 - Each response reports Data Extraction credit usage. These are a separate balance from the Processor API credits reported by `check_credits`.
 
-Use `query_extraction` to pull just the elements you need from a saved spatial file — filter by `pages`, `region` (bounding box), `minConfidence`, or `elementTypes` — so coordinates and values enter the conversation only when you ask for them.
+Use `query_extraction` to pull just the elements you need from a saved spatial file — filter by `pages`, `region` (bounding box), `minConfidence`/`maxConfidence`, or `elementTypes` — so coordinates and values enter the conversation only when you ask for them.
 
 > **Note:** Extracted content returned inline (Markdown output, or `query_extraction` results) enters the conversation and may be logged by the host. For sensitive documents, prefer spatial output to a file plus scoped `query_extraction` calls.
 

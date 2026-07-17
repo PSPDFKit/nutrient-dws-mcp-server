@@ -5,6 +5,7 @@ import path from 'path'
 import { Readable } from 'stream'
 import { setSandboxDirectory } from '../src/fs/sandbox.js'
 import { performExtractStructuredCall } from '../src/dws/extract-structured.js'
+import { SAME_PATH_ERROR } from '../src/dws/extract.js'
 import type { DwsApiClient } from '../src/dws/client.js'
 import { ExtractStructuredArgsSchema } from '../src/schemas.js'
 import type { ExtractStructuredArgs } from '../src/schemas.js'
@@ -165,6 +166,17 @@ describe('performExtractStructuredCall', () => {
 
       expect(result.isError).toBe(true)
       expect(text(result)).toContain('exactly one')
+      expect(post).not.toHaveBeenCalled()
+    })
+
+    it('rejects an outputPath that resolves to the same file as filePath, before any API call', async () => {
+      const input = await writeInput()
+      const { client, post } = mockClient(extractFixture)
+
+      const result = await performExtractStructuredCall(extractArgs({ filePath: input, outputPath: input }), client)
+
+      expect(result.isError).toBe(true)
+      expect(text(result)).toBe(SAME_PATH_ERROR)
       expect(post).not.toHaveBeenCalled()
     })
   })
@@ -341,6 +353,18 @@ describe('performExtractStructuredCall', () => {
       expect(output).toContain('omitted')
       expect(output).toContain('outputPath')
       expect(output).not.toContain(SECRET)
+    })
+
+    it('does not claim citations were returned when output.metadata is null', async () => {
+      const input = await writeInput()
+      const { client } = mockClient({ output: { data: { invoiceNumber: 'INV-001' }, metadata: null, pages: [] } })
+
+      const result = await performExtractStructuredCall(extractArgs({ filePath: input }), client)
+
+      expect(result.isError).toBeFalsy()
+      const output = text(result)
+      expect(output).not.toContain('citations were returned')
+      expect(output).not.toContain('Pass outputPath')
     })
 
     it('rejects a 2xx response whose output.data is not an object, writing nothing', async () => {

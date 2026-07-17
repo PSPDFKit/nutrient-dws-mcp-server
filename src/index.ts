@@ -221,7 +221,10 @@ Filter by any combination of:
 • pages — 0-based page indices
 • region — a bounding box {x, y, width, height} in render-space pixels (top-left origin); returns elements whose bounds intersect it
 • minConfidence — only elements at or above this confidence (0-1)
+• maxConfidence — only elements at or below this confidence (0-1); pair with the low-confidence count in the data_extractor summary to triage weak fields
 • elementTypes — paragraph, table, formula, picture, keyValueRegion, handwriting
+
+Elements the API scored no confidence for are excluded whenever minConfidence or maxConfidence is set.
 
 Use this to pull just the elements you need (e.g. low-confidence fields, or everything in a table region) instead of loading the whole extraction. Returned elements include their text and coordinates, which enter this conversation.`,
     QueryExtractionArgsSchema.shape,
@@ -373,8 +376,22 @@ type StdioApiClients = {
  * tenant on the gateway — the Processor key cannot also authenticate
  * extraction requests, so extraction gets its own client (or none, if
  * `NUTRIENT_DWS_EXTRACT_API_KEY` isn't set).
+ *
+ * `NUTRIENT_DWS_EXTRACT_API_KEY` without `NUTRIENT_DWS_API_KEY` is rejected
+ * rather than falling through to OAuth: silently switching auth mode would
+ * discard the configured extraction key and start a browser consent flow
+ * the user never asked for.
  */
 export function createStdioApiClients(environment: Environment): StdioApiClients {
+  if (environment.nutrientExtractApiKey && !environment.nutrientApiKey) {
+    throw new Error(
+      'NUTRIENT_DWS_EXTRACT_API_KEY is set but NUTRIENT_DWS_API_KEY is not. Static-key auth requires both: ' +
+        'a Processor API key is pinned to the Processor tenant and cannot authenticate extraction requests. ' +
+        'Either also set NUTRIENT_DWS_API_KEY, or unset NUTRIENT_DWS_EXTRACT_API_KEY to authenticate via the ' +
+        'OAuth browser flow instead, whose product:all scope covers both products.',
+    )
+  }
+
   if (environment.nutrientApiKey) {
     const apiClient = createApiClient({
       apiKey: environment.nutrientApiKey,

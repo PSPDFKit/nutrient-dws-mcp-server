@@ -684,8 +684,9 @@ export const QueryExtractionArgsSchema = z.object({
     ),
   pages: z
     .array(z.number().int().nonnegative())
+    .min(1)
     .optional()
-    .describe('Only return elements on these 0-based page indices.'),
+    .describe('Only return elements on these 0-based page indices. Omit to search every page.'),
   region: z
     .object({
       x: z.number().describe('Left edge in render-space pixels (top-left origin).'),
@@ -700,8 +701,24 @@ export const QueryExtractionArgsSchema = z.object({
     .min(0)
     .max(1)
     .optional()
-    .describe('Only return elements with confidence greater than or equal to this value (0-1).'),
-  elementTypes: z.array(ExtractionElementTypeSchema).optional().describe('Only return elements of these types.'),
+    .describe(
+      'Only return elements with confidence greater than or equal to this value (0-1). ' +
+        'Elements the API returned without a confidence score are excluded whenever this or maxConfidence is set.',
+    ),
+  maxConfidence: z
+    .number()
+    .min(0)
+    .max(1)
+    .optional()
+    .describe(
+      'Only return elements with confidence less than or equal to this value (0-1). ' +
+        'Use this to triage the low-confidence elements reported by data_extractor, e.g. maxConfidence: 0.6.',
+    ),
+  elementTypes: z
+    .array(ExtractionElementTypeSchema)
+    .min(1)
+    .optional()
+    .describe('Only return elements of these types. Omit to return every type.'),
   limit: z
     .number()
     .int()
