@@ -34,6 +34,7 @@ const CachedCredentialsSchema = z.object({
   refreshToken: z.string().optional(),
   expiresAt: z.number().optional(),
   clientId: z.string().optional(),
+  scopes: z.array(z.string()).optional(),
 })
 
 type CachedCredentials = z.infer<typeof CachedCredentialsSchema>
@@ -132,6 +133,12 @@ export function isTokenExpired(credentials: CachedCredentials): boolean {
   return Date.now() >= (credentials.expiresAt - 60_000)
 }
 
+/** Cached credentials are only reusable if they were minted under every scope the current config requests. */
+function coversRequestedScopes(cached: CachedCredentials, config: NutrientOAuthConfig): boolean {
+  const granted = new Set(cached.scopes ?? [])
+  return config.scopes.every((scope) => granted.has(scope))
+}
+
 async function refreshAccessToken(
   config: NutrientOAuthConfig,
   clientId: string,
@@ -207,7 +214,8 @@ async function exchangeCodeForToken(
     accessToken: data.access_token,
     refreshToken: data.refresh_token,
     expiresAt: data.expires_in ? Date.now() + data.expires_in * 1000 : undefined,
-    clientId
+    clientId,
+    scopes: config.scopes,
   }
 }
 
@@ -388,7 +396,13 @@ async function getTokenUncached(config: NutrientOAuthConfig, credentialsPath: st
   logger.debug('Starting token acquisition', { credentialsPath })
 
   // 1. Check cached token
-  const cached = await readCachedCredentials(credentialsPath)
+  let cached = await readCachedCredentials(credentialsPath)
+
+  if (cached && !coversRequestedScopes(cached, config)) {
+    const missing = config.scopes.filter((scope) => !(cached?.scopes ?? []).includes(scope))
+    logger.info('Cached credentials do not cover configured scopes, re-authorizing', { missing })
+    cached = null
+  }
 
   if (cached) {
     // 2. Valid token — return it
@@ -407,6 +421,7 @@ async function getTokenUncached(config: NutrientOAuthConfig, credentialsPath: st
       if (refreshed) {
         logger.info('Token refreshed successfully')
         refreshed.clientId = effectiveClientId
+        refreshed.scopes = cached.scopes
         await writeCachedCredentials(credentialsPath, refreshed)
         return refreshed.accessToken
       }

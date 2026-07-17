@@ -197,6 +197,7 @@ describe('getToken integration', () => {
       refreshToken: 'rt',
       expiresAt: Date.now() + 3600_000,
       clientId: 'cid',
+      scopes: ['dws'],
     }
     await writeFile(credsPath, JSON.stringify(creds))
 
@@ -210,12 +211,88 @@ describe('getToken integration', () => {
     expect(token).toBe('cached-access-token')
   })
 
+  it('returns cached token when its scopes are a superset of the configured scopes', async () => {
+    const creds = {
+      accessToken: 'cached-access-token',
+      refreshToken: 'rt',
+      expiresAt: Date.now() + 3600_000,
+      clientId: 'cid',
+      scopes: ['dws', 'product:all', 'offline_access'],
+    }
+    await writeFile(credsPath, JSON.stringify(creds))
+
+    const { getToken } = await import('../src/auth/nutrient-oauth.js')
+    const config = makeConfig({
+      tokenUrl: 'http://should-not-be-called',
+      credentialsPath: credsPath,
+    })
+
+    const token = await getToken(config)
+    expect(token).toBe('cached-access-token')
+  })
+
+  it('re-authorizes instead of reusing cached credentials with no recorded scopes', async () => {
+    const creds = {
+      accessToken: 'cached-access-token',
+      refreshToken: 'rt',
+      expiresAt: Date.now() + 3600_000,
+      clientId: 'cid',
+    }
+    await writeFile(credsPath, JSON.stringify(creds))
+
+    const { getToken } = await import('../src/auth/nutrient-oauth.js')
+    const config = makeConfig({
+      tokenUrl: 'http://localhost:1/token',
+      credentialsPath: credsPath,
+      clientId: 'fresh-client',
+    })
+
+    const openMock = (await import('open')).default as ReturnType<typeof vi.fn>
+    openMock.mockClear()
+
+    const result = getToken(config)
+    await vi.waitFor(() => {
+      expect(openMock).toHaveBeenCalled()
+    }, { timeout: 5_000 })
+
+    result.catch(() => {})
+  })
+
+  it('re-authorizes instead of reusing cached credentials missing a newly required scope', async () => {
+    const creds = {
+      accessToken: 'cached-access-token',
+      refreshToken: 'rt',
+      expiresAt: Date.now() + 3600_000,
+      clientId: 'cid',
+      scopes: ['offline_access'],
+    }
+    await writeFile(credsPath, JSON.stringify(creds))
+
+    const { getToken } = await import('../src/auth/nutrient-oauth.js')
+    const config = makeConfig({
+      tokenUrl: 'http://localhost:1/token',
+      credentialsPath: credsPath,
+      clientId: 'fresh-client',
+    })
+
+    const openMock = (await import('open')).default as ReturnType<typeof vi.fn>
+    openMock.mockClear()
+
+    const result = getToken(config)
+    await vi.waitFor(() => {
+      expect(openMock).toHaveBeenCalled()
+    }, { timeout: 5_000 })
+
+    result.catch(() => {})
+  })
+
   it('refreshes an expired token via the token endpoint', async () => {
     const creds = {
       accessToken: 'old-access-token',
       refreshToken: 'my-refresh-token',
       expiresAt: Date.now() - 60_000,
       clientId: 'test-client',
+      scopes: ['dws'],
     }
     await writeFile(credsPath, JSON.stringify(creds))
 
@@ -249,6 +326,7 @@ describe('getToken integration', () => {
     expect(saved.refreshToken).toBe('new-refresh-token')
     expect(saved.clientId).toBe('test-client')
     expect(saved.expiresAt).toBeGreaterThan(Date.now())
+    expect(saved.scopes).toEqual(['dws'])
   })
 
   it('falls back to browser flow when refresh fails', async () => {
@@ -257,6 +335,7 @@ describe('getToken integration', () => {
       refreshToken: 'bad-refresh',
       expiresAt: Date.now() - 60_000,
       clientId: 'test-client',
+      scopes: ['dws'],
     }
     await writeFile(credsPath, JSON.stringify(creds))
 
@@ -293,6 +372,7 @@ describe('getToken integration', () => {
       refreshToken: 'rt-concurrent',
       expiresAt: Date.now() - 60_000,
       clientId: 'concurrent-client',
+      scopes: ['dws'],
     }
     await writeFile(credsPath, JSON.stringify(creds))
 
