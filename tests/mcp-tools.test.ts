@@ -25,6 +25,7 @@ function getRegisteredTools(sandboxEnabled: boolean): Record<string, RegisteredT
   const server = createMcpServer({
     sandboxEnabled,
     apiClient: createMockApiClient(),
+    extractApiClient: createMockApiClient(),
   })
 
   return (server as unknown as { _registeredTools: Record<string, RegisteredTool> })._registeredTools

@@ -205,7 +205,10 @@ Place documents in your sandbox directory and use explicit file names or paths i
 
 ### Data Extraction
 
-The `data_extractor` and `query_extraction` tools wrap the [DWS Data Extraction API](https://www.nutrient.io/guides/dws-data-extraction/). They authenticate the same way as every other tool — set `NUTRIENT_DWS_API_KEY`, or omit it and use the OAuth browser flow. No extra configuration is needed.
+The `data_extractor` and `query_extraction` tools wrap the [DWS Data Extraction API](https://www.nutrient.io/guides/dws-data-extraction/). `query_extraction` is a local file reader and needs no credential. `data_extractor` calls the API and authenticates as follows:
+
+- **OAuth** (no `NUTRIENT_DWS_API_KEY` set): the same browser-flow token used by every other tool also covers Data Extraction. No extra configuration is needed.
+- **Static API key**: Data Extraction is a separate product with its own tenant, so the Processor key in `NUTRIENT_DWS_API_KEY` cannot be reused. Set `NUTRIENT_DWS_EXTRACT_API_KEY` to a Data Extraction key from the dashboard. Without it, `data_extractor` returns an error instead of calling the API.
 
 `data_extractor` runs one of four processing modes:
 
@@ -308,19 +311,23 @@ The server authenticates to the Nutrient DWS API (`https://api.nutrient.io`) usi
 
 When no API key is configured, the server stays connected and opens a browser-based OAuth flow on the first request that uses the Nutrient API (similar to `gh auth login`). Tokens are cached at `$XDG_CONFIG_HOME/nutrient/credentials.json` or `~/.config/nutrient/credentials.json` and refreshed automatically.
 
+**Data Extraction (`data_extractor`) is a separate product with its own tenant.** Under OAuth, one token covers both products — nothing extra to configure. Under a static API key, the Processor key in `NUTRIENT_DWS_API_KEY` cannot be reused for extraction; set `NUTRIENT_DWS_EXTRACT_API_KEY` to a Data Extraction key from the dashboard, or omit `NUTRIENT_DWS_API_KEY` entirely to use OAuth instead.
+
 ### Environment Variables
 
-| Variable               | Required    | Description                                                                             |
-| ---------------------- | ----------- | --------------------------------------------------------------------------------------- |
-| `NUTRIENT_DWS_API_KEY` | No\*        | Nutrient DWS API key ([get one free](https://dashboard.nutrient.io/sign_up/))           |
-| `SANDBOX_PATH`         | Recommended | Directory to restrict file operations to                                                |
-| `AUTH_SERVER_URL`      | No          | OAuth server base URL (default: `https://api.nutrient.io`)                              |
-| `CLIENT_ID`            | No          | OAuth client ID. Skips DCR and enables refresh token reuse when set                     |
-| `DWS_API_BASE_URL`     | No          | DWS API base URL (default: `https://api.nutrient.io`)                                   |
-| `LOG_LEVEL`            | No          | Winston logger level (`info` default). Logs are written to `MCP_LOG_FILE` in stdio mode |
-| `MCP_LOG_FILE`         | No          | Override log file path (default: system temp directory)                                 |
+| Variable                       | Required                | Description                                                                                       |
+| ------------------------------ | ----------------------- | ------------------------------------------------------------------------------------------------- |
+| `NUTRIENT_DWS_API_KEY`         | No\*                    | Nutrient DWS API key ([get one free](https://dashboard.nutrient.io/sign_up/))                     |
+| `NUTRIENT_DWS_EXTRACT_API_KEY` | Only with a static key† | Data Extraction API key from the dashboard (starts with `pdf_live_`), needed for `data_extractor` |
+| `SANDBOX_PATH`                 | Recommended             | Directory to restrict file operations to                                                          |
+| `AUTH_SERVER_URL`              | No                      | OAuth server base URL (default: `https://api.nutrient.io`)                                        |
+| `CLIENT_ID`                    | No                      | OAuth client ID. Skips DCR and enables refresh token reuse when set                               |
+| `DWS_API_BASE_URL`             | No                      | DWS API base URL (default: `https://api.nutrient.io`)                                             |
+| `LOG_LEVEL`                    | No                      | Winston logger level (`info` default). Logs are written to `MCP_LOG_FILE` in stdio mode           |
+| `MCP_LOG_FILE`                 | No                      | Override log file path (default: system temp directory)                                           |
 
 \* If omitted, the server uses an OAuth browser flow to authenticate with the Nutrient API.
+† Only relevant when `NUTRIENT_DWS_API_KEY` is set — Data Extraction is a separate product/tenant, so the Processor key cannot also authenticate it. Not needed under OAuth, which covers both products with one token.
 
 ## Data Handling
 

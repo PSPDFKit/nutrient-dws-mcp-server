@@ -35,8 +35,20 @@ import { getToken, invalidateCachedToken, type NutrientOAuthConfig } from './aut
 import { Environment, getEnvironment } from './utils/environment.js'
 import { logger } from './logger.js'
 
-function addToolsToServer(options: { server: McpServer; sandboxEnabled: boolean; apiClient: DwsApiClient }) {
-  const { server, sandboxEnabled, apiClient } = options
+/** Returned by the `data_extractor` tool when no Data Extraction credential is configured (fail fast, no API call). */
+const EXTRACT_CLIENT_MISSING_ERROR =
+  'Error: Data Extraction is a separate product whose static API key is bound to its own tenant — the Processor key ' +
+  '(NUTRIENT_DWS_API_KEY) cannot be reused here. Set NUTRIENT_DWS_EXTRACT_API_KEY to a Data Extraction API key from ' +
+  'the dashboard (starts with pdf_live_), or omit NUTRIENT_DWS_API_KEY entirely to authenticate via OAuth, which ' +
+  'covers both products with one token.'
+
+function addToolsToServer(options: {
+  server: McpServer
+  sandboxEnabled: boolean
+  apiClient: DwsApiClient
+  extractApiClient: DwsApiClient | null
+}) {
+  const { server, sandboxEnabled, apiClient, extractApiClient } = options
 
   server.tool(
     'document_processor',
@@ -185,8 +197,11 @@ Note: markdown output and any extracted content are returned into this conversat
       openWorldHint: true,
     },
     async (args) => {
+      if (!extractApiClient) {
+        return createErrorResponse(EXTRACT_CLIENT_MISSING_ERROR)
+      }
       try {
-        return await performExtractCall(args, apiClient)
+        return await performExtractCall(args, extractApiClient)
       } catch (error) {
         return createErrorResponse(`Error: ${error instanceof Error ? error.message : String(error)}`)
       }
@@ -252,7 +267,11 @@ Use this to pull just the elements you need (e.g. low-confidence fields, or ever
   }
 }
 
-export function createMcpServer(options: { sandboxEnabled: boolean; apiClient: DwsApiClient }) {
+export function createMcpServer(options: {
+  sandboxEnabled: boolean
+  apiClient: DwsApiClient
+  extractApiClient: DwsApiClient | null
+}) {
   const server = new McpServer(
     {
       name: 'nutrient-dws-mcp-server',
@@ -270,6 +289,7 @@ export function createMcpServer(options: { sandboxEnabled: boolean; apiClient: D
     server,
     sandboxEnabled: options.sandboxEnabled,
     apiClient: options.apiClient,
+    extractApiClient: options.extractApiClient,
   })
 
   return server
@@ -304,21 +324,45 @@ function buildOAuthConfig(environment: Environment): NutrientOAuthConfig {
   }
 }
 
-function createStdioApiClient(environment: Environment): DwsApiClient {
+type StdioApiClients = {
+  apiClient: DwsApiClient
+  extractApiClient: DwsApiClient | null
+}
+
+/**
+ * Builds the Processor client and the Data Extraction client for stdio mode.
+ *
+ * Under OAuth, `product:all` covers both products, so one token resolver
+ * serves both clients. Under a static API key, the key is pinned to a single
+ * tenant on the gateway — the Processor key cannot also authenticate
+ * extraction requests, so extraction gets its own client (or none, if
+ * `NUTRIENT_DWS_EXTRACT_API_KEY` isn't set).
+ */
+export function createStdioApiClients(environment: Environment): StdioApiClients {
   if (environment.nutrientApiKey) {
-    return createApiClient({
+    const apiClient = createApiClient({
       apiKey: environment.nutrientApiKey,
       baseUrl: environment.dwsApiBaseUrl,
     })
+
+    const extractApiClient = environment.nutrientExtractApiKey
+      ? createApiClient({
+          apiKey: environment.nutrientExtractApiKey,
+          baseUrl: environment.dwsApiBaseUrl,
+        })
+      : null
+
+    return { apiClient, extractApiClient }
   }
 
   const oauthConfig = buildOAuthConfig(environment)
-
-  return createApiClient({
+  const apiClient = createApiClient({
     tokenResolver: () => getToken(oauthConfig),
     onTokenRejected: () => invalidateCachedToken(oauthConfig),
     baseUrl: environment.dwsApiBaseUrl,
   })
+
+  return { apiClient, extractApiClient: apiClient }
 }
 
 type RunServerResult = {
@@ -332,18 +376,24 @@ export async function runServer(environment: Environment): Promise<RunServerResu
 
   const sandboxEnabled = sandboxDir !== null
 
+  const { apiClient, extractApiClient } = createStdioApiClients(environment)
+
   logger.info('Starting stdio transport', {
     version: getVersion(),
     authMethod: environment.nutrientApiKey ? 'api-key' : 'oauth-browser-flow',
+    extractAuthMethod: environment.nutrientApiKey
+      ? extractApiClient
+        ? 'api-key'
+        : 'unconfigured'
+      : 'oauth-browser-flow',
     sandboxEnabled,
     dwsApiBaseUrl: environment.dwsApiBaseUrl,
   })
 
-  const apiClient = createStdioApiClient(environment)
-
   const server = createMcpServer({
     sandboxEnabled,
     apiClient,
+    extractApiClient,
   })
 
   const transport = new StdioServerTransport()
