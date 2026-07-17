@@ -112,8 +112,11 @@ export class DwsApiClient {
     extraHeaders?: Record<string, string>,
   ): Promise<AxiosResponse> {
     const headers = await this.buildHeaders(data)
+    // Buffer the multipart body up front: a FormData stream is consumed after the first
+    // request attempt, so the 401 interceptor's retry would otherwise replay an empty body.
+    const body = data instanceof FormData ? data.getBuffer() : data
 
-    return this.httpClient.post(this.buildUrl(endpoint), data, {
+    return this.httpClient.post(this.buildUrl(endpoint), body, {
       // Built headers win: extraHeaders adds endpoint-specific keys and must not
       // be able to displace Authorization or the payload's Content-Type.
       headers: { ...extraHeaders, ...headers },

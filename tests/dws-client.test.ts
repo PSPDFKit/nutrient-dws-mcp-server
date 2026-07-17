@@ -1,5 +1,6 @@
 import { describe, expect, it, vi, afterEach } from 'vitest'
 import { createServer, type Server } from 'node:http'
+import FormData from 'form-data'
 import { DwsApiClient } from '../src/dws/client.js'
 
 describe('DwsApiClient.buildUrl', () => {
@@ -146,6 +147,47 @@ describe('DwsApiClient token rotation (401 retry)', () => {
     // Each retry should produce a different token
     const retryTokens = tokens.slice(1)
     expect(new Set(retryTokens).size).toBe(retryTokens.length)
+  })
+
+  it('retries a FormData POST with the same non-empty body after a 401', async () => {
+    const bodies: Buffer[] = []
+    const server = createServer((req, res) => {
+      const chunks: Buffer[] = []
+      req.on('data', (chunk: Buffer) => chunks.push(chunk))
+      req.on('end', () => {
+        bodies.push(Buffer.concat(chunks))
+        const status = bodies.length === 1 ? 401 : 200
+        res.writeHead(status, { 'Content-Type': 'application/json' })
+        res.end(status === 401 ? '{"error":"unauthorized"}' : '{"ok":true}')
+      })
+    })
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
+    const addr = server.address()
+    if (addr === null || typeof addr === 'string') throw new Error('expected a bound TCP address')
+
+    let tokenCall = 0
+    const client = new DwsApiClient({
+      baseUrl: `http://127.0.0.1:${addr.port}`,
+      tokenResolver: async () => {
+        tokenCall++
+        return tokenCall === 1 ? 'stale-token' : 'fresh-token'
+      },
+      onTokenRejected: vi.fn(),
+      retryDelayMs: 0,
+    })
+
+    const form = new FormData()
+    form.append('file', Buffer.from('file-contents'), { filename: 'test.pdf' })
+
+    try {
+      const response = await client.post('/upload', form)
+      expect(response.status).toBe(200)
+      expect(bodies).toHaveLength(2)
+      expect(bodies[0].length).toBeGreaterThan(0)
+      expect(bodies[1]).toEqual(bodies[0])
+    } finally {
+      server.close()
+    }
   })
 
   it('works normally when no onTokenRejected is provided', async () => {
