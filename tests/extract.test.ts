@@ -201,18 +201,6 @@ describe('performExtractCall', () => {
     expect(result.isError).toBeFalsy()
     await expect(fs.promises.access(escape)).rejects.toThrow()
   })
-
-  it('returns a clear setup error when the extraction client is not configured', async () => {
-    const input = await writeInput()
-
-    const result = await performExtractCall(
-      extractArgs({ filePath: input, mode: 'text', format: 'markdown' }),
-      undefined,
-    )
-
-    expect(result.isError).toBe(true)
-    expect(text(result)).toContain('NUTRIENT_EXTRACTION_API_KEY')
-  })
 })
 
 describe('performQueryCall', () => {

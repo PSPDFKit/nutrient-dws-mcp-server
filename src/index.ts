@@ -35,13 +35,8 @@ import { getToken, invalidateCachedToken, type NutrientOAuthConfig } from './aut
 import { Environment, getEnvironment } from './utils/environment.js'
 import { logger } from './logger.js'
 
-function addToolsToServer(options: {
-  server: McpServer
-  sandboxEnabled: boolean
-  apiClient: DwsApiClient
-  extractionApiClient?: DwsApiClient
-}) {
-  const { server, sandboxEnabled, apiClient, extractionApiClient } = options
+function addToolsToServer(options: { server: McpServer; sandboxEnabled: boolean; apiClient: DwsApiClient }) {
+  const { server, sandboxEnabled, apiClient } = options
 
   server.tool(
     'document_processor',
@@ -191,7 +186,7 @@ Note: markdown output and any extracted content are returned into this conversat
     },
     async (args) => {
       try {
-        return await performExtractCall(args, extractionApiClient)
+        return await performExtractCall(args, apiClient)
       } catch (error) {
         return createErrorResponse(`Error: ${error instanceof Error ? error.message : String(error)}`)
       }
@@ -257,11 +252,7 @@ Use this to pull just the elements you need (e.g. low-confidence fields, or ever
   }
 }
 
-export function createMcpServer(options: {
-  sandboxEnabled: boolean
-  apiClient: DwsApiClient
-  extractionApiClient?: DwsApiClient
-}) {
+export function createMcpServer(options: { sandboxEnabled: boolean; apiClient: DwsApiClient }) {
   const server = new McpServer(
     {
       name: 'nutrient-dws-mcp-server',
@@ -279,26 +270,9 @@ export function createMcpServer(options: {
     server,
     sandboxEnabled: options.sandboxEnabled,
     apiClient: options.apiClient,
-    extractionApiClient: options.extractionApiClient,
   })
 
   return server
-}
-
-/**
- * Builds the Data Extraction API client when NUTRIENT_EXTRACTION_API_KEY is set.
- * Returns undefined otherwise, in which case data_extractor reports a clear
- * "set NUTRIENT_EXTRACTION_API_KEY" error when invoked.
- */
-function createExtractionApiClient(environment: Environment): DwsApiClient | undefined {
-  if (!environment.extractionApiKey) {
-    return undefined
-  }
-
-  return createApiClient({
-    apiKey: environment.extractionApiKey,
-    baseUrl: environment.dwsApiBaseUrl,
-  })
 }
 
 async function parseCommandLineArgs() {
@@ -325,7 +299,7 @@ function buildOAuthConfig(environment: Environment): NutrientOAuthConfig {
     tokenUrl: `${environment.authServerUrl}/oauth/token`,
     registrationUrl: `${environment.authServerUrl}/oauth/register`,
     clientId: environment.clientId,
-    scopes: ['mcp:invoke', 'offline_access'],
+    scopes: ['mcp:invoke', 'product:all', 'offline_access'],
     resource: environment.dwsApiBaseUrl,
   }
 }
@@ -366,12 +340,10 @@ export async function runServer(environment: Environment): Promise<RunServerResu
   })
 
   const apiClient = createStdioApiClient(environment)
-  const extractionApiClient = createExtractionApiClient(environment)
 
   const server = createMcpServer({
     sandboxEnabled,
     apiClient,
-    extractionApiClient,
   })
 
   const transport = new StdioServerTransport()
