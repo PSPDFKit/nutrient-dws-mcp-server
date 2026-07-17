@@ -11,6 +11,13 @@ import { createSuccessResponse, createErrorResponse } from '../responses.js'
 const EXTRACTION_ENDPOINT = 'extraction/parse'
 const LOW_CONFIDENCE_THRESHOLD = 0.6
 
+// Omitting this header pins the request to whichever spec version was current
+// when the API key was created, not the version this server was built against.
+const EXTRACTION_API_VERSION = '2026-05-25'
+const EXTRACTION_HEADERS = { 'x-nutrient-api-version': EXTRACTION_API_VERSION }
+
+type ExtractionFormat = 'spatial' | 'markdown'
+
 /** A single spatial element from the Data Extraction API (`output.format: spatial`). */
 type SpatialElement = {
   type?: string
@@ -24,14 +31,41 @@ type SpatialElement = {
 type ExtractionResponse = {
   output?: { elements?: SpatialElement[]; markdown?: string }
   metrics?: { pagesProcessed?: number }
+  runId?: string
+  usage?: { data_extraction_credits?: { cost?: number; remainingCredits?: number } }
 }
 
-/** text mode only supports markdown; every other mode defaults to spatial. */
-function resolveFormat(mode: DataExtractorArgs['mode'], format: DataExtractorArgs['format']): 'spatial' | 'markdown' {
-  if (format) {
-    return format
+/** text mode defaults to markdown; every other mode defaults to spatial. `formats` wins over `format`. */
+function resolveFormats(
+  mode: DataExtractorArgs['mode'],
+  format: DataExtractorArgs['format'],
+  formats: DataExtractorArgs['formats'],
+): ExtractionFormat[] {
+  if (formats) {
+    return formats
   }
-  return mode === 'text' ? 'markdown' : 'spatial'
+  if (format) {
+    return [format]
+  }
+  return mode === 'text' ? ['markdown'] : ['spatial']
+}
+
+/** `runId` (present when `storeRun: true`) and Data Extraction credit usage, appended to the success message. */
+function formatRunMetadata(response: ExtractionResponse): string {
+  const notes: string[] = []
+  if (response.runId) {
+    notes.push(`This run was stored server-side (runId: ${response.runId}) and can be retrieved later.`)
+  }
+  const credits = response.usage?.data_extraction_credits
+  if (credits && typeof credits.cost === 'number') {
+    const remaining =
+      typeof credits.remainingCredits === 'number' ? `${credits.remainingCredits} remaining` : 'remaining unknown'
+    notes.push(
+      `Used ${credits.cost} Data Extraction credit(s) (${remaining}). These are Data Extraction credits — a separate ` +
+        'balance from the Processor API credits reported by check_credits.',
+    )
+  }
+  return notes.length > 0 ? `\n\n${notes.join('\n')}` : ''
 }
 
 /**
@@ -87,19 +121,55 @@ async function writeToResolvedPath(resolvedPath: string, data: string): Promise<
  * Calls the Nutrient DWS Data Extraction API (`POST /extraction/parse`).
  *
  * Spatial output is written to `outputPath` and summarized inline; markdown
- * output is returned inline.
+ * output is returned inline (or written to `outputPath` when given). When
+ * both are requested, the spatial file is written and the summary also notes
+ * the markdown that landed alongside it under `output.markdown`.
  */
 export async function performExtractCall(args: DataExtractorArgs, apiClient: DwsApiClient): Promise<CallToolResult> {
-  const { filePath, mode, language, includeWords, outputPath } = args
-  const format = resolveFormat(mode, args.format)
+  const {
+    filePath,
+    url,
+    mode,
+    format,
+    formats,
+    language,
+    maxLanguages,
+    maxScripts,
+    includeWords,
+    useHtmlTables,
+    enableSemanticBlockFormatting,
+    includeHeadersAndFooters,
+    extractWordsFromPictures,
+    storeRun,
+    outputPath,
+  } = args
 
-  if (mode === 'text' && format === 'spatial') {
+  if (filePath && url) {
+    return createErrorResponse('Error: provide exactly one of filePath or url, not both.')
+  }
+  if (!filePath && !url) {
+    return createErrorResponse('Error: provide exactly one of filePath or url.')
+  }
+  if (format && formats) {
+    return createErrorResponse(
+      'Error: provide only one of format or formats — the Data Extraction API rejects a request with both set.',
+    )
+  }
+  if (language !== undefined && (maxLanguages !== undefined || maxScripts !== undefined)) {
+    return createErrorResponse(
+      'Error: maxLanguages and maxScripts only apply when language is left unset (auto-detect). Remove language, or drop these options.',
+    )
+  }
+
+  const resolvedFormats = resolveFormats(mode, format, formats)
+  const formatSet = new Set(resolvedFormats)
+
+  if (mode === 'text' && formatSet.has('spatial')) {
     return createErrorResponse(
       'Error: text mode only supports markdown output. Use a different mode for spatial output.',
     )
   }
-
-  if (format === 'spatial' && !outputPath) {
+  if (formatSet.has('spatial') && !outputPath) {
     return createErrorResponse(
       'Error: spatial output requires outputPath — the element list can be large and is written to a file, ' +
         'then queried with query_extraction.',
@@ -117,32 +187,57 @@ export async function performExtractCall(args: DataExtractorArgs, apiClient: Dws
     }
   }
 
-  let fileBuffer: Buffer
-  let fileName: string
+  let fileBuffer: Buffer | undefined
+  let fileName: string | undefined
+  if (filePath) {
+    try {
+      const resolvedInputPath = await resolveReadFilePath(filePath)
+      fileBuffer = await fs.promises.readFile(resolvedInputPath)
+      fileName = path.basename(resolvedInputPath)
+    } catch (error) {
+      return createErrorResponse(
+        `Error with input file ${filePath}: ${error instanceof Error ? error.message : String(error)}`,
+      )
+    }
+  }
+
+  const output: Record<string, unknown> =
+    resolvedFormats.length === 1 ? { format: resolvedFormats[0] } : { formats: resolvedFormats }
+  if (formatSet.has('spatial')) {
+    output.includeWords = includeWords
+  }
+  if (formatSet.has('markdown')) {
+    // Markdown-only knobs: send only when the caller set them, never a zod
+    // default — useHtmlTables/enableSemanticBlockFormatting default to true
+    // server-side, so sending an implicit `false` would silently change output.
+    if (useHtmlTables !== undefined) output.useHtmlTables = useHtmlTables
+    if (enableSemanticBlockFormatting !== undefined)
+      output.enableSemanticBlockFormatting = enableSemanticBlockFormatting
+    if (includeHeadersAndFooters !== undefined) output.includeHeadersAndFooters = includeHeadersAndFooters
+    if (extractWordsFromPictures !== undefined) output.extractWordsFromPictures = extractWordsFromPictures
+  }
+
+  const instructions: Record<string, unknown> = { mode, storeRun, output }
+  if (mode !== 'text') {
+    const options: Record<string, unknown> = {}
+    if (language !== undefined) options.language = language
+    if (maxLanguages !== undefined) options.maxLanguages = maxLanguages
+    if (maxScripts !== undefined) options.maxScripts = maxScripts
+    if (Object.keys(options).length > 0) {
+      instructions.options = options
+    }
+  }
+
   try {
-    const resolvedInputPath = await resolveReadFilePath(filePath)
-    fileBuffer = await fs.promises.readFile(resolvedInputPath)
-    fileName = path.basename(resolvedInputPath)
-  } catch (error) {
-    return createErrorResponse(
-      `Error with input file ${filePath}: ${error instanceof Error ? error.message : String(error)}`,
-    )
-  }
-
-  const instructions: Record<string, unknown> = {
-    mode,
-    output: format === 'spatial' ? { format, includeWords } : { format },
-  }
-  if (language && mode !== 'text') {
-    instructions.options = { language }
-  }
-
-  try {
-    const form = new FormData()
-    form.append('file', fileBuffer, { filename: fileName })
-    form.append('instructions', JSON.stringify(instructions))
-
-    const response = await apiClient.post(EXTRACTION_ENDPOINT, form)
+    let response: Awaited<ReturnType<DwsApiClient['post']>>
+    if (filePath) {
+      const form = new FormData()
+      form.append('file', fileBuffer!, { filename: fileName! })
+      form.append('instructions', JSON.stringify(instructions))
+      response = await apiClient.post(EXTRACTION_ENDPOINT, form, EXTRACTION_HEADERS)
+    } else {
+      response = await apiClient.post(EXTRACTION_ENDPOINT, { ...instructions, url }, EXTRACTION_HEADERS)
+    }
     const body = await pipeToString(response.data)
 
     let parsed: ExtractionResponse
@@ -152,35 +247,54 @@ export async function performExtractCall(args: DataExtractorArgs, apiClient: Dws
       return createErrorResponse('Error: the Data Extraction API returned a response that could not be parsed as JSON.')
     }
 
-    if (format === 'markdown') {
-      const markdown = parsed.output?.markdown
-      if (typeof markdown !== 'string') {
-        return createErrorResponse('Error: the Data Extraction API did not return markdown output.')
+    const runMetadata = formatRunMetadata(parsed)
+
+    if (formatSet.has('spatial')) {
+      // The early guard guarantees outputPath was provided.
+      if (!resolvedOutputPath) {
+        return createErrorResponse('Error: spatial output requires outputPath.')
       }
-      // Honor outputPath for markdown too — a large document returned inline
-      // would overflow the conversation. Only return inline when no path given.
-      if (resolvedOutputPath) {
-        await writeToResolvedPath(resolvedOutputPath, markdown)
-        return createSuccessResponse(`Wrote ${Buffer.byteLength(markdown)} bytes of Markdown to ${resolvedOutputPath}.`)
+      // Guard against a 2xx response that is not a spatial result, so we never
+      // overwrite the target file with a non-extraction body.
+      if (!Array.isArray(parsed.output?.elements)) {
+        return createErrorResponse(
+          'Error: the Data Extraction API response did not contain a spatial element list (output.elements). Nothing was written.',
+        )
       }
-      return createSuccessResponse(markdown)
+      // Validate every requested format before writing, so an incomplete
+      // response never leaves a file on disk behind an error result — the
+      // caller would retry and be billed for the extraction twice.
+      const markdown = formatSet.has('markdown') ? parsed.output?.markdown : undefined
+      if (formatSet.has('markdown') && typeof markdown !== 'string') {
+        return createErrorResponse(
+          'Error: the Data Extraction API did not return markdown output alongside the spatial result. Nothing was written.',
+        )
+      }
+      // Write the raw response body: avoids re-serializing a potentially large
+      // payload and preserves every field the API returned. When markdown was
+      // also requested, that same body already carries output.markdown.
+      await writeToResolvedPath(resolvedOutputPath, body)
+      let summary = summarizeSpatial(parsed, resolvedOutputPath, Buffer.byteLength(body))
+      if (typeof markdown === 'string') {
+        summary += `\nAlso wrote ${Buffer.byteLength(markdown)} bytes of Markdown to the same file, under output.markdown.`
+      }
+      return createSuccessResponse(summary + runMetadata)
     }
 
-    // Spatial. The early guard guarantees outputPath was provided.
-    if (!resolvedOutputPath) {
-      return createErrorResponse('Error: spatial output requires outputPath.')
+    // Markdown-only.
+    const markdown = parsed.output?.markdown
+    if (typeof markdown !== 'string') {
+      return createErrorResponse('Error: the Data Extraction API did not return markdown output.')
     }
-    // Guard against a 2xx response that is not a spatial result, so we never
-    // overwrite the target file with a non-extraction body.
-    if (!Array.isArray(parsed.output?.elements)) {
-      return createErrorResponse(
-        'Error: the Data Extraction API response did not contain a spatial element list (output.elements). Nothing was written.',
+    // Honor outputPath for markdown too — a large document returned inline
+    // would overflow the conversation. Only return inline when no path given.
+    if (resolvedOutputPath) {
+      await writeToResolvedPath(resolvedOutputPath, markdown)
+      return createSuccessResponse(
+        `Wrote ${Buffer.byteLength(markdown)} bytes of Markdown to ${resolvedOutputPath}.${runMetadata}`,
       )
     }
-    // Write the raw response body: avoids re-serializing a potentially large
-    // payload and preserves every field the API returned.
-    await writeToResolvedPath(resolvedOutputPath, body)
-    return createSuccessResponse(summarizeSpatial(parsed, resolvedOutputPath, Buffer.byteLength(body)))
+    return createSuccessResponse(markdown + runMetadata)
   } catch (error) {
     return handleApiError(error)
   }

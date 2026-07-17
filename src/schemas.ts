@@ -552,10 +552,12 @@ export type AiRedactArgs = z.infer<typeof AiRedactArgsSchema>
 
 // ----- Data Extraction API (POST /extraction/parse) -----
 //
-// Cross-field rules (spatial format requires outputPath; text mode supports
-// markdown only) are enforced in the handler rather than via a top-level
-// `.superRefine`, because tools are registered with `Schema.shape`, which only
-// exists on a plain ZodObject (a refined schema would be a ZodEffects).
+// Cross-field rules (exactly one of filePath/url; spatial format requires
+// outputPath; text mode supports markdown only; format and formats are
+// mutually exclusive; maxLanguages/maxScripts require an unset language) are
+// enforced in the handler rather than via a top-level `.superRefine`, because
+// tools are registered with `Schema.shape`, which only exists on a plain
+// ZodObject (a refined schema would be a ZodEffects).
 
 export const ExtractionModeSchema = z
   .enum(['text', 'structure', 'understand', 'agentic'])
@@ -586,13 +588,31 @@ export const ExtractionElementTypeSchema = z.enum([
 export const DataExtractorArgsSchema = z.object({
   filePath: z
     .string()
+    .optional()
     .describe(
-      'Path to the document to extract from (PDF, image, or Office file). Resolves to sandbox path if enabled, otherwise resolves to the local file system.',
+      'Path to the document to extract from (PDF, image, or Office file). Exactly one of filePath or url is required. ' +
+        'Resolves to sandbox path if enabled, otherwise resolves to the local file system.',
+    ),
+  url: z
+    .string()
+    .url()
+    .optional()
+    .describe(
+      'URL of the document to extract from — fetched directly by the API instead of uploading a local file. ' +
+        'Exactly one of filePath or url is required.',
     ),
   mode: ExtractionModeSchema.optional().default('understand'),
   format: ExtractionFormatSchema.optional().describe(
-    'Output format. Defaults to markdown for text mode and spatial for all other modes.',
+    'Single output format. Defaults to markdown for text mode and spatial for all other modes. Mutually exclusive with formats.',
   ),
+  formats: z
+    .array(ExtractionFormatSchema)
+    .min(1)
+    .optional()
+    .describe(
+      'Request multiple output formats in one call, e.g. ["spatial", "markdown"] — both output.elements and output.markdown ' +
+        'are returned, billed the same as a single format (no extra credits). Mutually exclusive with format.',
+    ),
   includeWords: z
     .boolean()
     .optional()
@@ -603,13 +623,52 @@ export const DataExtractorArgsSchema = z.object({
     .optional()
     .describe(
       'OCR language(s) — full name (e.g. "german"), ISO code (e.g. "deu"), or array for multilingual docs. ' +
-        'Only applies to structure/understand/agentic modes; ignored for text mode.',
+        'Only applies to structure/understand/agentic modes; ignored for text mode. Leave unset for auto-detection.',
+    ),
+  maxLanguages: z
+    .number()
+    .int()
+    .min(1)
+    .optional()
+    .describe(
+      'Maximum number of languages to auto-detect. Only valid when language is left unset (auto-detect). Server default: 2.',
+    ),
+  maxScripts: z
+    .number()
+    .int()
+    .min(1)
+    .optional()
+    .describe(
+      'Maximum number of scripts to auto-detect. Only valid when language is left unset (auto-detect). Server default: 2.',
+    ),
+  useHtmlTables: z
+    .boolean()
+    .optional()
+    .describe('Markdown only. Render tables as HTML instead of Markdown table syntax. Server default: true.'),
+  enableSemanticBlockFormatting: z
+    .boolean()
+    .optional()
+    .describe('Markdown only. Group related content into semantic blocks. Server default: true.'),
+  includeHeadersAndFooters: z
+    .boolean()
+    .optional()
+    .describe('Markdown only. Include page headers and footers in the Markdown output. Server default: false.'),
+  extractWordsFromPictures: z
+    .boolean()
+    .optional()
+    .describe('Markdown only. Extract words found inside pictures into the Markdown output. Server default: false.'),
+  storeRun: z
+    .boolean()
+    .optional()
+    .default(false)
+    .describe(
+      'Persist this extraction run server-side so its result can be retrieved later by runId (returned in the response when true).',
     ),
   outputPath: z
     .string()
     .optional()
     .describe(
-      'Where to write spatial JSON output. Required for the spatial format (the element list can be large and is kept out of the conversation). ' +
+      'Where to write spatial JSON output. Required when spatial is among the requested formats (the element list can be large and is kept out of the conversation). ' +
         'Resolves to sandbox path if enabled. Retrieve slices of it with query_extraction.',
     ),
 })

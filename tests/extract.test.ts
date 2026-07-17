@@ -55,6 +55,16 @@ function mockClient(payload: unknown): { client: DwsApiClient; post: ReturnType<
   return { client: { post } as unknown as DwsApiClient, post }
 }
 
+/** Parses the `instructions` field sent in a multipart form-data payload. */
+function parseFormInstructions(form: { getBuffer: () => Buffer }): Record<string, unknown> {
+  const raw = form.getBuffer().toString('utf-8')
+  const match = raw.match(/name="instructions"\r\n\r\n([\s\S]*?)\r\n--/)
+  if (!match) {
+    throw new Error('instructions field not found in form-data payload')
+  }
+  return JSON.parse(match[1]) as Record<string, unknown>
+}
+
 function text(result: CallToolResult): string {
   return result.content.map((c) => (c.type === 'text' ? c.text : '')).join('\n')
 }
@@ -79,12 +89,22 @@ async function writeInput(): Promise<string> {
 }
 
 function extractArgs(overrides: Partial<DataExtractorArgs>): DataExtractorArgs {
+  const noDocumentGiven = !('filePath' in overrides) && !('url' in overrides)
   return {
-    filePath: overrides.filePath ?? `input-${counter}.pdf`,
+    filePath: noDocumentGiven ? `input-${counter}.pdf` : overrides.filePath,
+    url: overrides.url,
     mode: overrides.mode ?? 'understand',
     format: overrides.format,
+    formats: overrides.formats,
     includeWords: overrides.includeWords ?? false,
     language: overrides.language,
+    maxLanguages: overrides.maxLanguages,
+    maxScripts: overrides.maxScripts,
+    useHtmlTables: overrides.useHtmlTables,
+    enableSemanticBlockFormatting: overrides.enableSemanticBlockFormatting,
+    includeHeadersAndFooters: overrides.includeHeadersAndFooters,
+    extractWordsFromPictures: overrides.extractWordsFromPictures,
+    storeRun: overrides.storeRun ?? false,
     outputPath: overrides.outputPath,
   }
 }
@@ -200,6 +220,255 @@ describe('performExtractCall', () => {
     // writing to the literal location, so nothing escapes.
     expect(result.isError).toBeFalsy()
     await expect(fs.promises.access(escape)).rejects.toThrow()
+  })
+
+  it('sends the x-nutrient-api-version header on the extraction call', async () => {
+    const input = await writeInput()
+    const { client, post } = mockClient({ output: { markdown: '# Hello' } })
+
+    await performExtractCall(extractArgs({ filePath: input, mode: 'text', format: 'markdown' }), client)
+
+    expect(post).toHaveBeenCalledWith(expect.any(String), expect.anything(), { 'x-nutrient-api-version': '2026-05-25' })
+  })
+
+  it('surfaces Data Extraction credit usage in the success message, distinct from Processor credits', async () => {
+    const input = await writeInput()
+    const { client } = mockClient({
+      output: { markdown: '# Hello' },
+      usage: { data_extraction_credits: { cost: 9, remainingCredits: 991 } },
+    })
+
+    const result = await performExtractCall(extractArgs({ filePath: input, mode: 'text', format: 'markdown' }), client)
+
+    const summary = text(result)
+    expect(summary).toContain('9 Data Extraction credit')
+    expect(summary).toContain('991 remaining')
+    expect(summary).toContain('separate')
+  })
+
+  it('surfaces runId in the success message when storeRun is true', async () => {
+    const input = await writeInput()
+    const { client } = mockClient({ output: { markdown: '# Hello' }, runId: 'run_abc123' })
+
+    const result = await performExtractCall(
+      extractArgs({ filePath: input, mode: 'text', format: 'markdown', storeRun: true }),
+      client,
+    )
+
+    expect(text(result)).toContain('run_abc123')
+  })
+
+  describe('document input: filePath vs url', () => {
+    it('sends a multipart request with a JSON-stringified instructions field for filePath', async () => {
+      const input = await writeInput()
+      const { client, post } = mockClient({ output: { markdown: '# Hello' } })
+
+      await performExtractCall(extractArgs({ filePath: input, mode: 'text', format: 'markdown' }), client)
+
+      const form = post.mock.calls[0][1]
+      expect(form.constructor.name).toBe('FormData')
+      const instructions = parseFormInstructions(form)
+      expect(instructions).toMatchObject({ mode: 'text', output: { format: 'markdown' } })
+    })
+
+    it('sends a JSON body containing the url for url input, not multipart', async () => {
+      const { client, post } = mockClient({ output: { markdown: '# Hello' } })
+
+      const result = await performExtractCall(
+        extractArgs({ filePath: undefined, url: 'https://example.com/doc.pdf', mode: 'text', format: 'markdown' }),
+        client,
+      )
+
+      expect(result.isError).toBeFalsy()
+      const body = post.mock.calls[0][1]
+      expect(body).toMatchObject({
+        mode: 'text',
+        output: { format: 'markdown' },
+        url: 'https://example.com/doc.pdf',
+      })
+      expect(body.constructor.name).not.toBe('FormData')
+    })
+
+    it('rejects when both filePath and url are provided', async () => {
+      const input = await writeInput()
+      const { client, post } = mockClient({ output: { markdown: '# Hello' } })
+
+      const result = await performExtractCall(
+        extractArgs({ filePath: input, url: 'https://example.com/doc.pdf', mode: 'text', format: 'markdown' }),
+        client,
+      )
+
+      expect(result.isError).toBe(true)
+      expect(text(result)).toContain('exactly one')
+      expect(post).not.toHaveBeenCalled()
+    })
+
+    it('rejects when neither filePath nor url is provided', async () => {
+      const { client, post } = mockClient({ output: { markdown: '# Hello' } })
+
+      const result = await performExtractCall(
+        extractArgs({ filePath: undefined, url: undefined, mode: 'text', format: 'markdown' }),
+        client,
+      )
+
+      expect(result.isError).toBe(true)
+      expect(text(result)).toContain('exactly one')
+      expect(post).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('format vs formats', () => {
+    it('rejects format and formats given together, before any API call', async () => {
+      const input = await writeInput()
+      const { client, post } = mockClient(spatialFixture)
+
+      const result = await performExtractCall(
+        extractArgs({
+          filePath: input,
+          format: 'markdown',
+          formats: ['spatial', 'markdown'],
+          outputPath: `out-${counter}.json`,
+        }),
+        client,
+      )
+
+      expect(result.isError).toBe(true)
+      expect(text(result)).toContain('one of format or formats')
+      expect(post).not.toHaveBeenCalled()
+    })
+
+    it('writes both spatial and markdown to outputPath and mentions markdown bytes in the summary', async () => {
+      const input = await writeInput()
+      const outName = `out-${counter}.json`
+      const markdown = '# Quarterly Report'
+      const { client } = mockClient({ ...spatialFixture, output: { ...spatialFixture.output, markdown } })
+
+      const result = await performExtractCall(
+        extractArgs({ filePath: input, mode: 'structure', formats: ['spatial', 'markdown'], outputPath: outName }),
+        client,
+      )
+
+      expect(result.isError).toBeFalsy()
+      const summary = text(result)
+      expect(summary).toContain('Extracted 3 elements')
+      expect(summary).toContain(`${Buffer.byteLength(markdown)} bytes of Markdown`)
+      expect(summary).toContain('output.markdown')
+      const written = await fs.promises.readFile(path.join(sandboxDir, outName), 'utf-8')
+      expect(JSON.parse(written).output.markdown).toBe(markdown)
+    })
+
+    it('requires outputPath for a multi-format request that includes spatial', async () => {
+      const input = await writeInput()
+      const { client, post } = mockClient(spatialFixture)
+
+      const result = await performExtractCall(
+        extractArgs({ filePath: input, mode: 'structure', formats: ['spatial', 'markdown'] }),
+        client,
+      )
+
+      expect(result.isError).toBe(true)
+      expect(text(result)).toContain('outputPath')
+      expect(post).not.toHaveBeenCalled()
+    })
+
+    it('writes nothing when a multi-format response is missing the requested markdown', async () => {
+      const input = await writeInput()
+      const outName = `out-${counter}.json`
+      const { client } = mockClient(spatialFixture)
+
+      const result = await performExtractCall(
+        extractArgs({ filePath: input, mode: 'structure', formats: ['spatial', 'markdown'], outputPath: outName }),
+        client,
+      )
+
+      expect(result.isError).toBe(true)
+      expect(text(result)).toContain('Nothing was written')
+      await expect(fs.promises.access(path.join(sandboxDir, outName))).rejects.toThrow()
+    })
+  })
+
+  describe('markdown-only formatting options', () => {
+    it('omits markdown-only options from the sent instructions when unset', async () => {
+      const input = await writeInput()
+      const { client, post } = mockClient({ output: { markdown: '# Hello' } })
+
+      await performExtractCall(extractArgs({ filePath: input, mode: 'text', format: 'markdown' }), client)
+
+      const instructions = parseFormInstructions(post.mock.calls[0][1])
+      const output = instructions.output as Record<string, unknown>
+      expect(output).not.toHaveProperty('useHtmlTables')
+      expect(output).not.toHaveProperty('enableSemanticBlockFormatting')
+      expect(output).not.toHaveProperty('includeHeadersAndFooters')
+      expect(output).not.toHaveProperty('extractWordsFromPictures')
+    })
+
+    it('includes markdown-only options in the sent instructions when set', async () => {
+      const input = await writeInput()
+      const { client, post } = mockClient({ output: { markdown: '# Hello' } })
+
+      await performExtractCall(
+        extractArgs({
+          filePath: input,
+          mode: 'text',
+          format: 'markdown',
+          useHtmlTables: false,
+          enableSemanticBlockFormatting: false,
+          includeHeadersAndFooters: true,
+          extractWordsFromPictures: true,
+        }),
+        client,
+      )
+
+      const instructions = parseFormInstructions(post.mock.calls[0][1])
+      expect(instructions.output).toMatchObject({
+        useHtmlTables: false,
+        enableSemanticBlockFormatting: false,
+        includeHeadersAndFooters: true,
+        extractWordsFromPictures: true,
+      })
+    })
+
+    it('omits markdown-only options from the sent instructions when output is spatial-only', async () => {
+      const input = await writeInput()
+      const { client, post } = mockClient(spatialFixture)
+
+      await performExtractCall(
+        extractArgs({
+          filePath: input,
+          mode: 'structure',
+          format: 'spatial',
+          outputPath: `out-${counter}.json`,
+          useHtmlTables: true,
+        }),
+        client,
+      )
+
+      const instructions = parseFormInstructions(post.mock.calls[0][1])
+      expect(instructions.output).not.toHaveProperty('useHtmlTables')
+    })
+  })
+
+  describe('language / maxLanguages / maxScripts', () => {
+    it('rejects maxLanguages when language is explicitly set', async () => {
+      const input = await writeInput()
+      const { client, post } = mockClient(spatialFixture)
+
+      const result = await performExtractCall(
+        extractArgs({
+          filePath: input,
+          mode: 'structure',
+          format: 'spatial',
+          outputPath: `out-${counter}.json`,
+          language: 'german',
+          maxLanguages: 3,
+        }),
+        client,
+      )
+
+      expect(result.isError).toBe(true)
+      expect(text(result)).toContain('maxLanguages')
+      expect(post).not.toHaveBeenCalled()
+    })
   })
 })
 

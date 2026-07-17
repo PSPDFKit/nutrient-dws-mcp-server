@@ -221,6 +221,16 @@ The `data_extractor` and `query_extraction` tools wrap the [DWS Data Extraction 
 
 - **Spatial** output returns typed elements (paragraphs, tables, key-value regions, formulas, pictures, handwriting) with bounding boxes, confidence scores, and reading order. Because the element list can be large, it is written to `outputPath` and the tool returns a content-free summary (element counts, low-confidence flags, page geometry).
 - **Markdown** output returns whole-document Markdown inline, or writes it to `outputPath` when provided (recommended for large documents) — useful for RAG and search indexing.
+- **Both at once**: pass `formats: ["spatial", "markdown"]` instead of `format` to get `output.elements` and `output.markdown` in one call. The second format is billed at no extra cost. `outputPath` is required (as for spatial alone); the summary also reports the markdown byte length.
+
+The document can be supplied either as `filePath` (uploaded from the local file system or sandbox) or `url` (fetched directly by the API) — provide exactly one.
+
+Additional options:
+
+- `language` — OCR language(s) for `structure`/`understand`/`agentic` modes; left unset, the API auto-detects. `maxLanguages` / `maxScripts` cap how many languages/scripts auto-detection considers, and only apply when `language` is left unset.
+- Markdown-only formatting: `useHtmlTables` (default `true`), `enableSemanticBlockFormatting` (default `true`), `includeHeadersAndFooters` (default `false`), `extractWordsFromPictures` (default `false`).
+- `storeRun: true` persists the run server-side; the response's `runId` is surfaced in the tool's success message so it can be retrieved later.
+- Each response reports Data Extraction credit usage. These are a separate balance from the Processor API credits reported by `check_credits`.
 
 Use `query_extraction` to pull just the elements you need from a saved spatial file — filter by `pages`, `region` (bounding box), `minConfidence`, or `elementTypes` — so coordinates and values enter the conversation only when you ask for them.
 

@@ -179,13 +179,16 @@ Returns: subscription type, total credits, used credits, and remaining credits.`
 
   server.tool(
     'data_extractor',
-    `Extract structured data from a document using the Nutrient DWS Data Extraction API. Reads the input file from the local file system or sandbox (if enabled).
+    `Extract structured data from a document using the Nutrient DWS Data Extraction API. Reads the input file from the local file system or sandbox (if enabled), or fetches it directly from a URL — provide exactly one of filePath or url.
 
 Output formats:
 • spatial — typed elements (paragraphs, tables, key-value pairs, formulas, pictures, handwriting) with bounding boxes, confidence scores, and reading order. Written to outputPath (the list can be large); retrieve slices with the query_extraction tool.
 • markdown — whole-document Markdown. Returned inline, or written to outputPath when provided (recommended for large documents). Good for RAG and search indexing.
+• Both at once via formats: ["spatial", "markdown"] — a second format costs no extra credits, so ask for both up front instead of extracting twice.
 
 Processing modes (cost per page): text = fast Markdown, no OCR (1 credit); structure = OCR spatial (1.5 credits); understand = AI-augmented, default (9 credits); agentic = VLM-augmented (18 credits).
+
+Set storeRun: true to persist the run server-side and retrieve it later by the runId returned in the response.
 
 Note: markdown output and any extracted content are returned into this conversation and may be logged by the host. For sensitive documents, prefer spatial output to a file plus scoped query_extraction calls.`,
     DataExtractorArgsSchema.shape,

@@ -106,11 +106,15 @@ export class DwsApiClient {
   }
 
   /** POST to a DWS endpoint. Automatically sets Content-Type based on the payload type. */
-  async post(endpoint: string, data: FormData | Record<string, unknown>): Promise<AxiosResponse> {
+  async post(
+    endpoint: string,
+    data: FormData | Record<string, unknown>,
+    extraHeaders?: Record<string, string>,
+  ): Promise<AxiosResponse> {
     const headers = await this.buildHeaders(data)
 
     return this.httpClient.post(this.buildUrl(endpoint), data, {
-      headers,
+      headers: { ...headers, ...extraHeaders },
       responseType: 'stream',
     })
   }
