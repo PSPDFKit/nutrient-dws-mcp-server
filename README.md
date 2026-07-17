@@ -248,8 +248,6 @@ Where `data_extractor` parses a whole document into elements or Markdown, `schem
 - `includeCitations` (server default `true`), `strict` (default `false`), and `multimodal` (default `false`, increases cost/latency) are only sent when you set them explicitly.
 - `instructions` (free text, up to 10000 characters) adds guidance for ambiguous fields. `language`/`maxLanguages`/`maxScripts` tune OCR the same way as `data_extractor`.
 
-For a worked extract → query → act walkthrough, see [examples/invoice-extraction-workflow.md](examples/invoice-extraction-workflow.md).
-
 ## Usage Examples
 
 These examples assume your files live inside the configured sandbox and that you use explicit paths.
