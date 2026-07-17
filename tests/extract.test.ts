@@ -55,6 +55,21 @@ function mockClient(payload: unknown): { client: DwsApiClient; post: ReturnType<
   return { client: { post } as unknown as DwsApiClient, post }
 }
 
+/** A client whose POST rejects with an axios-shaped error carrying a streamed body. */
+function mockErrorClient(
+  status: number,
+  payload: unknown,
+  options: { raw?: boolean } = {},
+): { client: DwsApiClient; post: ReturnType<typeof vi.fn> } {
+  const body = options.raw ? String(payload) : JSON.stringify(payload)
+  const error = Object.assign(new Error(`Request failed with status code ${status}`), {
+    isAxiosError: true,
+    response: { status, data: Readable.from([body]) },
+  })
+  const post = vi.fn().mockRejectedValue(error)
+  return { client: { post } as unknown as DwsApiClient, post }
+}
+
 /** Parses the `instructions` field sent in a multipart form-data payload. */
 function parseFormInstructions(form: { getBuffer: () => Buffer }): Record<string, unknown> {
   const raw = form.getBuffer().toString('utf-8')
@@ -468,6 +483,69 @@ describe('performExtractCall', () => {
       expect(result.isError).toBe(true)
       expect(text(result)).toContain('maxLanguages')
       expect(post).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('API errors', () => {
+    it('explains a 402 as a credit balance problem rather than a transient failure', async () => {
+      const input = await writeInput()
+      const { client } = mockErrorClient(402, {
+        status: 402,
+        requestId: 'req_402',
+        errorMessage: 'Insufficient credits. This request requires 2 credits, 0 remaining.',
+      })
+
+      const result = await performExtractCall(
+        extractArgs({ filePath: input, mode: 'text', format: 'markdown' }),
+        client,
+      )
+
+      expect(result.isError).toBe(true)
+      const message = text(result)
+      expect(message).toContain('Insufficient credits')
+      expect(message).toContain('Retrying will not help')
+      expect(message).toContain('req_402')
+    })
+
+    it('renders the Data Extraction error envelope, which the Processor handler does not recognize', async () => {
+      const input = await writeInput()
+      const { client } = mockErrorClient(400, {
+        status: 400,
+        requestId: 'req_400',
+        errorMessage: 'The request is malformed.',
+        errorDetails: {
+          source: 'request',
+          code: 'invalid_request',
+          failingPaths: [{ path: 'output.format', details: 'must be spatial or markdown' }],
+        },
+      })
+
+      const result = await performExtractCall(
+        extractArgs({ filePath: input, mode: 'text', format: 'markdown' }),
+        client,
+      )
+
+      expect(result.isError).toBe(true)
+      const message = text(result)
+      expect(message).toContain('HTTP 400')
+      expect(message).toContain('The request is malformed.')
+      expect(message).toContain('invalid_request')
+      expect(message).toContain('output.format')
+      expect(message).not.toContain('Error processing API response')
+    })
+
+    it('surfaces a non-JSON error body with its status', async () => {
+      const input = await writeInput()
+      const { client } = mockErrorClient(503, 'upstream unavailable', { raw: true })
+
+      const result = await performExtractCall(
+        extractArgs({ filePath: input, mode: 'text', format: 'markdown' }),
+        client,
+      )
+
+      expect(result.isError).toBe(true)
+      expect(text(result)).toContain('HTTP 503')
+      expect(text(result)).toContain('upstream unavailable')
     })
   })
 })

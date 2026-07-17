@@ -1,3 +1,4 @@
+import axios from 'axios'
 import FormData from 'form-data'
 import fs from 'fs'
 import path from 'path'
@@ -33,6 +34,86 @@ type ExtractionResponse = {
   metrics?: { pagesProcessed?: number }
   runId?: string
   usage?: { data_extraction_credits?: { cost?: number; remainingCredits?: number } }
+}
+
+/**
+ * Data Extraction error envelope. Deliberately not the Processor's shape —
+ * it carries `errorMessage`/`errorDetails` where the Processor sends `details`,
+ * so the shared handler doesn't recognize it and renders it as an unexplained blob.
+ */
+type ExtractionErrorResponse = {
+  status?: number
+  requestId?: string
+  errorMessage?: string
+  runId?: string
+  errorDetails?: {
+    source?: string
+    code?: string
+    failingPaths?: { path?: string; details?: string }[]
+  }
+}
+
+function formatExtractionError(body: ExtractionErrorResponse, httpStatus: number): string {
+  const status = body.status ?? httpStatus
+  const lines = [`Data Extraction API error (HTTP ${status}): ${body.errorMessage}`]
+
+  // 402 is a balance problem, not a blip. Say so, or an agent reads a generic
+  // failure and retries — burning another call that cannot succeed.
+  if (status === 402) {
+    lines.push(
+      'Out of Data Extraction credits. Retrying will not help — top up the Data Extraction balance, which is separate ' +
+        'from the Processor API credits reported by check_credits. A cheaper mode (text: 1 credit/page, structure: 1.5) ' +
+        'costs less per page than understand (9) or agentic (18).',
+    )
+  }
+
+  const details = body.errorDetails
+  if (details?.code) {
+    lines.push(`Code: ${details.code}${details.source ? ` (source: ${details.source})` : ''}`)
+  }
+  for (const failing of details?.failingPaths ?? []) {
+    lines.push(`Failing path ${failing.path}: ${failing.details}`)
+  }
+  if (body.requestId) {
+    lines.push(`requestId: ${body.requestId}${body.runId ? `, runId: ${body.runId}` : ''}`)
+  }
+
+  return lines.join('\n')
+}
+
+/**
+ * Renders a failed `/extraction/parse` call.
+ *
+ * Consumes the error stream itself rather than delegating to `handleApiError`,
+ * which only recognizes the Processor envelope — the response body can be read
+ * exactly once, so the two cannot both inspect it.
+ */
+async function handleExtractionApiError(error: unknown): Promise<CallToolResult> {
+  if (!axios.isAxiosError(error) || !error.response?.data) {
+    return handleApiError(error)
+  }
+
+  let body: string
+  try {
+    body = await pipeToString(error.response.data)
+  } catch (streamError) {
+    return createErrorResponse(
+      `Error reading the Data Extraction API error response: ${streamError instanceof Error ? streamError.message : String(streamError)}`,
+    )
+  }
+
+  let parsed: ExtractionErrorResponse
+  try {
+    parsed = JSON.parse(body) as ExtractionErrorResponse
+  } catch {
+    return createErrorResponse(`Data Extraction API error (HTTP ${error.response.status}): ${body}`)
+  }
+
+  if (typeof parsed.errorMessage !== 'string') {
+    return createErrorResponse(`Data Extraction API error (HTTP ${error.response.status}): ${body}`)
+  }
+
+  return createErrorResponse(formatExtractionError(parsed, error.response.status))
 }
 
 /** text mode defaults to markdown; every other mode defaults to spatial. `formats` wins over `format`. */
@@ -296,7 +377,7 @@ export async function performExtractCall(args: DataExtractorArgs, apiClient: Dws
     }
     return createSuccessResponse(markdown + runMetadata)
   } catch (error) {
-    return handleApiError(error)
+    return handleExtractionApiError(error)
   }
 }
 
