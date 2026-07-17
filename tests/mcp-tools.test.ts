@@ -43,7 +43,6 @@ describe('MCP tool metadata', () => {
       'data_extractor',
       'document_processor',
       'document_signer',
-      'query_extraction',
       'sandbox_file_tree',
       'schema_extractor',
     ])

@@ -17,11 +17,10 @@ import {
   DataExtractorArgsSchema,
   DirectoryTreeArgsSchema,
   ExtractStructuredArgsSchema,
-  QueryExtractionArgsSchema,
   SignAPIArgsSchema,
 } from './schemas.js'
 import { performBuildCall } from './dws/build.js'
-import { performExtractCall, performQueryCall } from './dws/extract.js'
+import { performExtractCall } from './dws/extract.js'
 import { performExtractStructuredCall } from './dws/extract-structured.js'
 import { performSignCall } from './dws/sign.js'
 import { performAiRedactCall } from './dws/ai-redact.js'
@@ -184,7 +183,7 @@ Returns: subscription type, total credits, used credits, and remaining credits.`
     `Extract structured data from a document using the Nutrient DWS Data Extraction API. Reads the input file from the local file system or sandbox (if enabled), or fetches it directly from a URL — provide exactly one of filePath or url.
 
 Output formats:
-• spatial — typed elements (paragraphs, tables, key-value pairs, formulas, pictures, handwriting) with bounding boxes, confidence scores, and reading order. Written to outputPath (the list can be large); retrieve slices with the query_extraction tool.
+• spatial — typed elements (paragraphs, tables, key-value pairs, formulas, pictures, handwriting) with bounding boxes, confidence scores, and reading order. Written to outputPath (the list can be large).
 • markdown — whole-document Markdown. Returned inline, or written to outputPath when provided (recommended for large documents). Good for RAG and search indexing.
 • Both at once via formats: ["spatial", "markdown"] — a second format costs no extra credits, so ask for both up front instead of extracting twice.
 
@@ -192,7 +191,7 @@ Processing modes (cost per page): text = fast Markdown, no OCR (1 credit); struc
 
 Set storeRun: true to persist the run server-side and retrieve it later by the runId returned in the response.
 
-Note: markdown output and any extracted content are returned into this conversation and may be logged by the host. For sensitive documents, prefer spatial output to a file plus scoped query_extraction calls.`,
+Note: markdown output and any extracted content are returned into this conversation and may be logged by the host. For sensitive documents, prefer spatial output to a file plus targeted schema_extractor calls.`,
     DataExtractorArgsSchema.shape,
     {
       title: 'Nutrient Data Extractor',
@@ -207,37 +206,6 @@ Note: markdown output and any extracted content are returned into this conversat
       }
       try {
         return await performExtractCall(args, extractApiClient)
-      } catch (error) {
-        return createErrorResponse(`Error: ${error instanceof Error ? error.message : String(error)}`)
-      }
-    },
-  )
-
-  server.tool(
-    'query_extraction',
-    `Query a spatial extraction file previously produced by data_extractor and return the matching elements inline. Reads the file from the local file system or sandbox (if enabled); does not call the Nutrient API.
-
-Filter by any combination of:
-• pages — 0-based page indices
-• region — a bounding box {x, y, width, height} in render-space pixels (top-left origin); returns elements whose bounds intersect it
-• minConfidence — only elements at or above this confidence (0-1)
-• maxConfidence — only elements at or below this confidence (0-1); pair with the low-confidence count in the data_extractor summary to triage weak fields
-• elementTypes — paragraph, table, formula, picture, keyValueRegion, handwriting
-
-Elements the API scored no confidence for are excluded whenever minConfidence or maxConfidence is set.
-
-Use this to pull just the elements you need (e.g. low-confidence fields, or everything in a table region) instead of loading the whole extraction. Returned elements include their text and coordinates, which enter this conversation.`,
-    QueryExtractionArgsSchema.shape,
-    {
-      title: 'Nutrient Extraction Query',
-      readOnlyHint: true,
-      destructiveHint: false,
-      idempotentHint: true,
-      openWorldHint: false,
-    },
-    async (args) => {
-      try {
-        return await performQueryCall(args)
       } catch (error) {
         return createErrorResponse(`Error: ${error instanceof Error ? error.message : String(error)}`)
       }

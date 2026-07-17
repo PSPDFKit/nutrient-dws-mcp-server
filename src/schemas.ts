@@ -572,18 +572,9 @@ export const ExtractionModeSchema = z
 export const ExtractionFormatSchema = z
   .enum(['spatial', 'markdown'])
   .describe(
-    'Output format. spatial: typed elements with bounding boxes, confidence, and reading order — written to outputPath and queried with query_extraction. ' +
+    'Output format. spatial: typed elements with bounding boxes, confidence, and reading order — written to outputPath. ' +
       'markdown: whole-document Markdown returned inline. text mode supports markdown only; other modes default to spatial.',
   )
-
-export const ExtractionElementTypeSchema = z.enum([
-  'paragraph',
-  'table',
-  'formula',
-  'picture',
-  'keyValueRegion',
-  'handwriting',
-])
 
 export const DataExtractorArgsSchema = z.object({
   filePath: z
@@ -672,64 +663,11 @@ export const DataExtractorArgsSchema = z.object({
     .optional()
     .describe(
       'Where to write spatial JSON output. Required when spatial is among the requested formats (the element list can be large and is kept out of the conversation). ' +
-        'Resolves to sandbox path if enabled. Retrieve slices of it with query_extraction.',
+        'Resolves to sandbox path if enabled.',
     ),
-})
-
-export const QueryExtractionArgsSchema = z.object({
-  filePath: z
-    .string()
-    .describe(
-      'Path to a spatial extraction JSON file previously produced by data_extractor. Resolves to sandbox path if enabled.',
-    ),
-  pages: z
-    .array(z.number().int().nonnegative())
-    .min(1)
-    .optional()
-    .describe('Only return elements on these 0-based page indices. Omit to search every page.'),
-  region: z
-    .object({
-      x: z.number().describe('Left edge in render-space pixels (top-left origin).'),
-      y: z.number().describe('Top edge in render-space pixels.'),
-      width: z.number().positive().describe('Region width in render-space pixels.'),
-      height: z.number().positive().describe('Region height in render-space pixels.'),
-    })
-    .optional()
-    .describe('Only return elements whose bounding box intersects this region.'),
-  minConfidence: z
-    .number()
-    .min(0)
-    .max(1)
-    .optional()
-    .describe(
-      'Only return elements with confidence greater than or equal to this value (0-1). ' +
-        'Elements the API returned without a confidence score are excluded whenever this or maxConfidence is set.',
-    ),
-  maxConfidence: z
-    .number()
-    .min(0)
-    .max(1)
-    .optional()
-    .describe(
-      'Only return elements with confidence less than or equal to this value (0-1). ' +
-        'Use this to triage the low-confidence elements reported by data_extractor, e.g. maxConfidence: 0.6.',
-    ),
-  elementTypes: z
-    .array(ExtractionElementTypeSchema)
-    .min(1)
-    .optional()
-    .describe('Only return elements of these types. Omit to return every type.'),
-  limit: z
-    .number()
-    .int()
-    .positive()
-    .optional()
-    .default(100)
-    .describe('Maximum number of elements to return inline. Narrow the filters if results are truncated.'),
 })
 
 export type DataExtractorArgs = z.infer<typeof DataExtractorArgsSchema>
-export type QueryExtractionArgs = z.infer<typeof QueryExtractionArgsSchema>
 
 // ----- Data Extraction API (POST /extraction/extract) -----
 //

@@ -182,7 +182,6 @@ Place documents in your sandbox directory and use explicit file names or paths i
 | -------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
 | `document_processor` | Document processing for conversions, OCR, watermarking, rotation, annotation flattening, and redaction workflows                             |
 | `data_extractor`     | Structured data extraction (DWS Data Extraction API): typed JSON elements with bounding boxes and confidence, or whole-document Markdown     |
-| `query_extraction`   | Read-only query over a saved extraction file — filter elements by page, region, confidence, or type without re-extracting or calling the API |
 | `schema_extractor`   | Schema-guided field extraction (DWS Data Extraction API): pulls specific named fields into a JSON shape you define, with per-field citations |
 | `document_signer`    | PDF signing with CMS / PKCS#7 and CAdES signatures plus visible or invisible appearance options                                              |
 | `ai_redactor`        | AI redaction for detecting and permanently removing sensitive content such as names, addresses, SSNs, emails, and custom criteria            |
@@ -206,7 +205,7 @@ Place documents in your sandbox directory and use explicit file names or paths i
 
 ### Data Extraction
 
-The `data_extractor`, `query_extraction`, and `schema_extractor` tools wrap the [DWS Data Extraction API](https://www.nutrient.io/guides/dws-data-extraction/). `query_extraction` is a local file reader and needs no credential. `data_extractor` and `schema_extractor` call the API and authenticate as follows:
+The `data_extractor` and `schema_extractor` tools wrap the [DWS Data Extraction API](https://www.nutrient.io/guides/dws-data-extraction/) and authenticate as follows:
 
 - **OAuth** (no `NUTRIENT_DWS_API_KEY` set): the same browser-flow token used by every other tool also covers Data Extraction. No extra configuration is needed.
 - **Static API key**: Data Extraction is a separate product with its own tenant, so the Processor key in `NUTRIENT_DWS_API_KEY` cannot be reused. Set `NUTRIENT_DWS_EXTRACT_API_KEY` to a Data Extraction key from the dashboard. Without it, `data_extractor` and `schema_extractor` return an error instead of calling the API.
@@ -233,9 +232,7 @@ Additional options:
 - `storeRun: true` persists the run server-side; the response's `runId` is surfaced in the tool's success message so it can be retrieved later.
 - Each response reports Data Extraction credit usage. These are a separate balance from the Processor API credits reported by `check_credits`.
 
-Use `query_extraction` to pull just the elements you need from a saved spatial file — filter by `pages`, `region` (bounding box), `minConfidence`/`maxConfidence`, or `elementTypes` — so coordinates and values enter the conversation only when you ask for them.
-
-> **Note:** Extracted content returned inline (Markdown output, or `query_extraction` results) enters the conversation and may be logged by the host. For sensitive documents, prefer spatial output to a file plus scoped `query_extraction` calls.
+> **Note:** Extracted content returned inline (Markdown output, or `schema_extractor` results) enters the conversation and may be logged by the host. For sensitive documents, prefer spatial output to a file plus targeted `schema_extractor` calls.
 
 ### Schema-Guided Extraction (`schema_extractor`)
 

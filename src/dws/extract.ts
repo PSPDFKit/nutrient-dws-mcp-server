@@ -4,7 +4,7 @@ import fs from 'fs'
 import path from 'path'
 import { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import { DwsApiClient } from './client.js'
-import { DataExtractorArgs, QueryExtractionArgs } from '../schemas.js'
+import { DataExtractorArgs } from '../schemas.js'
 import { resolveReadFilePath, resolveWriteFilePath } from '../fs/sandbox.js'
 import { pipeToString, handleApiError } from './utils.js'
 import { createSuccessResponse, createErrorResponse } from '../responses.js'
@@ -188,8 +188,7 @@ export function formatRunMetadata(response: RunMetadataResponse): string {
  *
  * Deliberately excludes extracted document text — it reports only counts,
  * confidence signal, page geometry, and where the full result was written, so
- * sensitive content never lands in the agent transcript (query it back with
- * `query_extraction` instead).
+ * sensitive content never lands in the agent transcript.
  */
 function summarizeSpatial(response: ExtractionResponse, outputPath: string, byteLength: number): string {
   const elements = response.output?.elements ?? []
@@ -200,10 +199,7 @@ function summarizeSpatial(response: ExtractionResponse, outputPath: string, byte
   for (const element of elements) {
     const type = element.type ?? 'unknown'
     typeCounts[type] = (typeCounts[type] ?? 0) + 1
-    // Inclusive, so the count matches exactly what the maxConfidence query
-    // suggested below returns — an element scored exactly at the threshold must
-    // not be counted here and then missing from the triage query.
-    if (typeof element.confidence === 'number' && element.confidence <= LOW_CONFIDENCE_THRESHOLD) {
+    if (typeof element.confidence === 'number' && element.confidence < LOW_CONFIDENCE_THRESHOLD) {
       lowConfidence += 1
     }
     if (typeof element.page?.pageIndex === 'number') {
@@ -219,9 +215,8 @@ function summarizeSpatial(response: ExtractionResponse, outputPath: string, byte
   return [
     `Extracted ${elements.length} elements across ${pageCount} page(s) and wrote the full spatial JSON to ${outputPath} (${byteLength} bytes).`,
     `Element types: ${typeSummary || 'none'}.`,
-    `Low-confidence elements (confidence <= ${LOW_CONFIDENCE_THRESHOLD}): ${lowConfidence}` +
-      `${lowConfidence > 0 ? ` — retrieve exactly these with query_extraction using maxConfidence: ${LOW_CONFIDENCE_THRESHOLD}` : ''}.`,
-    `Retrieve specific elements with query_extraction (filter by page, region, minConfidence, maxConfidence, or elementTypes). The document content is not included here.`,
+    `Low-confidence elements (confidence < ${LOW_CONFIDENCE_THRESHOLD}): ${lowConfidence}.`,
+    `The document content is not included here — use schema_extractor to pull specific field values.`,
   ].join('\n')
 }
 
@@ -312,8 +307,7 @@ export async function performExtractCall(args: DataExtractorArgs, apiClient: Dws
   }
   if (formatSet.has('spatial') && !outputPath) {
     return createErrorResponse(
-      'Error: spatial output requires outputPath — the element list can be large and is written to a file, ' +
-        'then queried with query_extraction.',
+      'Error: spatial output requires outputPath — the element list can be large and is written to a file.',
     )
   }
 
@@ -450,89 +444,4 @@ export async function performExtractCall(args: DataExtractorArgs, apiClient: Dws
     )
   }
   return createSuccessResponse(markdown + runMetadata)
-}
-
-/** Does element `bounds` intersect the query `region`? */
-function intersects(bounds: SpatialElement['bounds'], region: NonNullable<QueryExtractionArgs['region']>): boolean {
-  if (!bounds) {
-    return false
-  }
-  const right = bounds.x + bounds.width
-  const bottom = bounds.y + bounds.height
-  const regionRight = region.x + region.width
-  const regionBottom = region.y + region.height
-  return !(right < region.x || bounds.x > regionRight || bottom < region.y || bounds.y > regionBottom)
-}
-
-/**
- * Reads a spatial extraction file produced by `data_extractor` and returns the
- * subset of elements matching the given filters, inline.
- */
-export async function performQueryCall(args: QueryExtractionArgs): Promise<CallToolResult> {
-  const { filePath, pages, region, minConfidence, maxConfidence, elementTypes, limit } = args
-
-  if (typeof minConfidence === 'number' && typeof maxConfidence === 'number' && minConfidence > maxConfidence) {
-    return createErrorResponse(
-      `Error: minConfidence (${minConfidence}) must be less than or equal to maxConfidence (${maxConfidence}) — no element can match both.`,
-    )
-  }
-
-  let parsed: ExtractionResponse
-  try {
-    const resolvedPath = await resolveReadFilePath(filePath)
-    const body = await fs.promises.readFile(resolvedPath, 'utf-8')
-    parsed = JSON.parse(body) as ExtractionResponse
-  } catch (error) {
-    return createErrorResponse(
-      `Error reading extraction file ${filePath}: ${error instanceof Error ? error.message : String(error)}`,
-    )
-  }
-
-  const elements = parsed.output?.elements
-  if (!Array.isArray(elements)) {
-    return createErrorResponse(
-      'Error: this file does not look like a spatial extraction result (no output.elements array). ' +
-        'Produce one with data_extractor using format: spatial.',
-    )
-  }
-
-  const pageSet = pages ? new Set(pages) : undefined
-  const typeSet = elementTypes ? new Set<string>(elementTypes) : undefined
-  const filtersByConfidence = typeof minConfidence === 'number' || typeof maxConfidence === 'number'
-
-  const matches = elements.filter((element) => {
-    if (pageSet && (typeof element.page?.pageIndex !== 'number' || !pageSet.has(element.page.pageIndex))) {
-      return false
-    }
-    if (typeSet && (typeof element.type !== 'string' || !typeSet.has(element.type))) {
-      return false
-    }
-    if (filtersByConfidence) {
-      // An element the API scored no confidence for cannot be placed inside a
-      // confidence bound either way, so a bounded query excludes it.
-      if (typeof element.confidence !== 'number') {
-        return false
-      }
-      if (typeof minConfidence === 'number' && element.confidence < minConfidence) {
-        return false
-      }
-      if (typeof maxConfidence === 'number' && element.confidence > maxConfidence) {
-        return false
-      }
-    }
-    if (region && !intersects(element.bounds, region)) {
-      return false
-    }
-    return true
-  })
-
-  const limited = matches.slice(0, limit)
-  const truncatedNote =
-    matches.length > limited.length
-      ? `\n\nShowing the first ${limited.length} of ${matches.length} matches. Narrow the filters (page, region, minConfidence, maxConfidence, elementTypes) to see the rest.`
-      : ''
-
-  return createSuccessResponse(
-    `${limited.length} matching element(s):\n${JSON.stringify(limited, null, 2)}${truncatedNote}`,
-  )
 }
