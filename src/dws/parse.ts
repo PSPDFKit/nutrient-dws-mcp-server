@@ -32,7 +32,6 @@ type SpatialElement = {
 type ExtractionResponse = {
   output?: { elements?: SpatialElement[]; markdown?: string }
   metrics?: { pagesProcessed?: number }
-  runId?: string
   usage?: { data_extraction_credits?: { cost?: number; remainingCredits?: number } }
 }
 
@@ -143,7 +142,6 @@ export type PriceComponent = { units?: number; unit_cost?: number; cost?: number
 
 /** The subset of an extraction response `formatRunMetadata` reads — shared by `/extraction/parse` and `/extraction/extract`. */
 export type RunMetadataResponse = {
-  runId?: string
   usage?: {
     data_extraction_credits?: { cost?: number; remainingCredits?: number }
     // Only present on /extraction/extract — the parse-mode component plus the fixed per-page extract component.
@@ -151,12 +149,9 @@ export type RunMetadataResponse = {
   }
 }
 
-/** `runId` (present when `storeRun: true`) and Data Extraction credit usage, appended to the success message. */
+/** Data Extraction credit usage, appended to the success message. */
 export function formatRunMetadata(response: RunMetadataResponse): string {
   const notes: string[] = []
-  if (response.runId) {
-    notes.push(`This run was stored server-side (runId: ${response.runId}) and can be retrieved later.`)
-  }
   const credits = response.usage?.data_extraction_credits
   // Either half alone is worth reporting: the remaining balance is what stops an
   // agent from walking into a 402, and it must survive a response that omits cost.
@@ -270,7 +265,6 @@ export async function performParseDocumentCall(args: ParseDocumentArgs, apiClien
     enableSemanticBlockFormatting,
     includeHeadersAndFooters,
     extractWordsFromPictures,
-    storeRun,
     outputPath,
   } = args
 
@@ -355,7 +349,7 @@ export async function performParseDocumentCall(args: ParseDocumentArgs, apiClien
     if (extractWordsFromPictures !== undefined) output.extractWordsFromPictures = extractWordsFromPictures
   }
 
-  const instructions: Record<string, unknown> = { mode, storeRun, output }
+  const instructions: Record<string, unknown> = { mode, output }
   if (mode !== 'text') {
     const options: Record<string, unknown> = {}
     if (language !== undefined) options.language = language

@@ -651,13 +651,6 @@ export const ParseDocumentArgsSchema = z.object({
     .boolean()
     .optional()
     .describe('Markdown only. Extract words found inside pictures into the Markdown output. Server default: false.'),
-  storeRun: z
-    .boolean()
-    .optional()
-    .default(false)
-    .describe(
-      'Persist this extraction run server-side so its result can be retrieved later by runId (returned in the response when true).',
-    ),
   outputPath: z
     .string()
     .optional()
@@ -762,13 +755,6 @@ export const ExtractFieldsArgsSchema = z.object({
     .optional()
     .describe(
       'Use multimodal (vision) extraction for higher accuracy on visual fields. Increases cost and latency. Server default: false.',
-    ),
-  storeRun: z
-    .boolean()
-    .optional()
-    .default(false)
-    .describe(
-      'Persist this extraction run server-side so its result can be retrieved later by runId (returned in the response when true).',
     ),
   outputPath: z
     .string()

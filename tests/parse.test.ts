@@ -119,7 +119,6 @@ function extractArgs(overrides: Partial<ParseDocumentArgs>): ParseDocumentArgs {
     enableSemanticBlockFormatting: overrides.enableSemanticBlockFormatting,
     includeHeadersAndFooters: overrides.includeHeadersAndFooters,
     extractWordsFromPictures: overrides.extractWordsFromPictures,
-    storeRun: overrides.storeRun ?? false,
     outputPath: overrides.outputPath,
   }
 }
@@ -259,18 +258,6 @@ describe('performParseDocumentCall', () => {
     expect(summary).toContain('9 Data Extraction credit')
     expect(summary).toContain('991 remaining')
     expect(summary).toContain('separate')
-  })
-
-  it('surfaces runId in the success message when storeRun is true', async () => {
-    const input = await writeInput()
-    const { client } = mockClient({ output: { markdown: '# Hello' }, runId: 'run_abc123' })
-
-    const result = await performParseDocumentCall(
-      extractArgs({ filePath: input, mode: 'text', format: 'markdown', storeRun: true }),
-      client,
-    )
-
-    expect(text(result)).toContain('run_abc123')
   })
 
   it('reports remaining Data Extraction credits even when the response omits cost', async () => {

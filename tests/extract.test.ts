@@ -27,7 +27,6 @@ const invoiceSchema = {
 const extractFixture = {
   status: 200,
   requestId: 'req_test',
-  runId: 'run_abc123',
   output: {
     data: { invoiceNumber: 'INV-001', total: 42.5 },
     metadata: {
@@ -111,7 +110,6 @@ function extractArgs(overrides: Partial<ExtractFieldsArgs>): ExtractFieldsArgs {
     includeCitations: overrides.includeCitations,
     strict: overrides.strict,
     multimodal: overrides.multimodal,
-    storeRun: overrides.storeRun ?? false,
     outputPath: overrides.outputPath,
   }
 }
@@ -266,19 +264,18 @@ describe('performExtractFieldsCall', () => {
       expect(instructions.options).toEqual({ includeCitations: false, strict: true, multimodal: true })
     })
 
-    it('nests free-text instructions and storeRun alongside schema', async () => {
+    it('nests free-text instructions alongside schema', async () => {
       const input = await writeInput()
       const { client, post } = mockClient(extractFixture)
 
       await performExtractFieldsCall(
-        extractArgs({ filePath: input, instructions: 'Prefer the most recent invoice date.', storeRun: true }),
+        extractArgs({ filePath: input, instructions: 'Prefer the most recent invoice date.' }),
         client,
       )
 
       const instructions = parseFormInstructions(post.mock.calls[0][1])
       expect(instructions).toMatchObject({
         instructions: 'Prefer the most recent invoice date.',
-        storeRun: true,
       })
     })
   })
@@ -379,14 +376,13 @@ describe('performExtractFieldsCall', () => {
       await expect(fs.promises.access(path.join(sandboxDir, outName))).rejects.toThrow()
     })
 
-    it('surfaces runId and the credits/price_composition split in the success message', async () => {
+    it('surfaces the credits/price_composition split in the success message', async () => {
       const input = await writeInput()
       const { client } = mockClient(extractFixture)
 
       const result = await performExtractFieldsCall(extractArgs({ filePath: input }), client)
 
       const output = text(result)
-      expect(output).toContain('run_abc123')
       expect(output).toContain('10.5 Data Extraction credit')
       expect(output).toContain('989.5 remaining')
       expect(output).toContain('parse')
@@ -455,11 +451,10 @@ describe('ExtractFieldsArgsSchema', () => {
     expect(parsed.multimodal).toBeUndefined()
   })
 
-  it('defaults mode to understand and storeRun to false', () => {
+  it('defaults mode to understand', () => {
     const parsed = ExtractFieldsArgsSchema.parse(minimal)
 
     expect(parsed.mode).toBe('understand')
-    expect(parsed.storeRun).toBe(false)
   })
 
   it('rejects text mode, which this endpoint does not offer', () => {

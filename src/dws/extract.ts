@@ -122,7 +122,6 @@ export async function performExtractFieldsCall(
     includeCitations,
     strict,
     multimodal,
-    storeRun,
     outputPath,
   } = args
 
@@ -184,7 +183,7 @@ export async function performExtractFieldsCall(
   if (strict !== undefined) extractOptions.strict = strict
   if (multimodal !== undefined) extractOptions.multimodal = multimodal
 
-  const instructions: Record<string, unknown> = { schema, storeRun, parseConfig }
+  const instructions: Record<string, unknown> = { schema, parseConfig }
   if (freeTextInstructions !== undefined) {
     instructions.instructions = freeTextInstructions
   }
