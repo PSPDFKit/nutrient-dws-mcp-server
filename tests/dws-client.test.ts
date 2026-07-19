@@ -2,10 +2,29 @@ import { describe, expect, it, vi, afterEach } from 'vitest'
 import { createServer, type Server } from 'node:http'
 import FormData from 'form-data'
 import { DwsApiClient } from '../src/dws/client.js'
+import { StaticKeyCredentialProvider } from '../src/dws/credential-provider.js'
+import type { CredentialProvider, Product } from '../src/dws/credential-provider.js'
+
+/** A `CredentialProvider` fake: static tokens by product, with an `invalidate` spy. */
+function fakeProvider(tokens: Partial<Record<Product, string[]>>): CredentialProvider {
+  const calls: Record<Product, number> = { processor: 0, extraction: 0 }
+  return {
+    token: vi.fn(async (product: Product) => {
+      const sequence = tokens[product] ?? []
+      const token = sequence[Math.min(calls[product], sequence.length - 1)]
+      calls[product]++
+      if (!token) throw new Error(`fakeProvider: no token configured for ${product}`)
+      return token
+    }),
+    invalidate: vi.fn(),
+    canRefresh: () => true,
+    supports: () => true,
+  }
+}
 
 describe('DwsApiClient.buildUrl', () => {
   function buildUrl(baseUrl: string, endpoint: string): string {
-    const client = new DwsApiClient({ baseUrl, tokenResolver: async () => 'tok' })
+    const client = new DwsApiClient({ baseUrl, provider: fakeProvider({ processor: ['tok'] }) })
     return client['buildUrl'](endpoint)
   }
 
@@ -19,8 +38,28 @@ describe('DwsApiClient.buildUrl', () => {
   })
 
   it('uses default base URL when not specified', () => {
-    const client = new DwsApiClient({ tokenResolver: async () => 'tok' })
+    const client = new DwsApiClient({ provider: fakeProvider({ processor: ['tok'] }) })
     expect(client['buildUrl']('/api/build')).toBe('https://api.nutrient.io/api/build')
+  })
+})
+
+describe('DwsApiClient.productFor', () => {
+  function productFor(endpoint: string): Product {
+    const client = new DwsApiClient({ provider: fakeProvider({ processor: ['tok'], extraction: ['tok'] }) })
+    return client['productFor'](endpoint)
+  }
+
+  it.each([
+    ['extraction/parse', 'extraction'],
+    ['/extraction/parse', 'extraction'],
+    ['extraction/extract', 'extraction'],
+    ['build', 'processor'],
+    ['/build', 'processor'],
+    ['sign', 'processor'],
+    ['ai/redact', 'processor'],
+    ['account/info', 'processor'],
+  ] as const)('productFor(%s) => %s', (endpoint, expected) => {
+    expect(productFor(endpoint)).toBe(expected)
   })
 })
 
@@ -60,38 +99,86 @@ describe('DwsApiClient token rotation (401 retry)', () => {
     })
     server = srv.server
 
-    let tokenCall = 0
-    const onTokenRejected = vi.fn()
+    const provider = fakeProvider({ processor: ['stale-token', 'fresh-token'] })
     const client = new DwsApiClient({
       baseUrl: srv.url,
-      tokenResolver: async () => {
-        tokenCall++
-        return tokenCall === 1 ? 'stale-token' : 'fresh-token'
-      },
-      onTokenRejected,
+      provider,
       retryDelayMs: 0,
     })
 
     const response = await client.get('/test')
     expect(response.status).toBe(200)
-    expect(onTokenRejected).toHaveBeenCalledOnce()
-    expect(tokenCall).toBeGreaterThanOrEqual(2)
+    expect(provider.invalidate).toHaveBeenCalledOnce()
+    expect(provider.invalidate).toHaveBeenCalledWith('processor')
+    expect(provider.token).toHaveBeenCalledTimes(2)
+  })
+
+  it('awaits invalidate before re-resolving the token on a 401 retry', async () => {
+    const srv = await startTestServer((reqCount) =>
+      reqCount === 1
+        ? { status: 401, body: '{"error":"unauthorized"}' }
+        : { status: 200, body: '{"ok":true}' },
+    )
+    server = srv.server
+
+    let invalidateResolved = false
+    let tokenCalls = 0
+    let retrySawInvalidateResolved: boolean | undefined
+    const provider: CredentialProvider = {
+      token: vi.fn(async () => {
+        tokenCalls++
+        if (tokenCalls === 2) retrySawInvalidateResolved = invalidateResolved
+        return 'token'
+      }),
+      // Resolves on a later tick; with retryDelayMs 0, only a real `await` on invalidate
+      // makes the retry's token() observe it as done.
+      invalidate: vi.fn(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 5))
+        invalidateResolved = true
+      }),
+      canRefresh: () => true,
+      supports: () => true,
+    }
+
+    const client = new DwsApiClient({ baseUrl: srv.url, provider, retryDelayMs: 0 })
+    const response = await client.get('/test')
+
+    expect(response.status).toBe(200)
+    expect(provider.invalidate).toHaveBeenCalledOnce()
+    expect(retrySawInvalidateResolved).toBe(true)
   })
 
   it('does not retry non-401 errors', async () => {
     const srv = await startTestServer(() => ({ status: 500, body: '{"error":"internal"}' }))
     server = srv.server
 
-    const onTokenRejected = vi.fn()
+    const provider = fakeProvider({ processor: ['tok'] })
     const client = new DwsApiClient({
       baseUrl: srv.url,
-      tokenResolver: async () => 'tok',
-      onTokenRejected,
+      provider,
       retryDelayMs: 0,
     })
 
     await expect(client.get('/test')).rejects.toThrow()
-    expect(onTokenRejected).not.toHaveBeenCalled()
+    expect(provider.invalidate).not.toHaveBeenCalled()
+  })
+
+  it('does not retry a 401 for a static (non-refreshable) credential', async () => {
+    let requestCount = 0
+    const srv = await startTestServer(() => {
+      requestCount++
+      return { status: 401, body: '{"error":"unauthorized"}' }
+    })
+    server = srv.server
+
+    const client = new DwsApiClient({
+      baseUrl: srv.url,
+      provider: new StaticKeyCredentialProvider({ processor: 'bad-key' }),
+      retryDelayMs: 0,
+    })
+
+    await expect(client.get('/test')).rejects.toThrow()
+    expect(requestCount).toBe(1)
   })
 
   it('gives up after max retries on persistent 401', async () => {
@@ -102,22 +189,20 @@ describe('DwsApiClient token rotation (401 retry)', () => {
     })
     server = srv.server
 
-    const onTokenRejected = vi.fn()
+    const provider = fakeProvider({ processor: ['always-bad-token'] })
     const client = new DwsApiClient({
       baseUrl: srv.url,
-      tokenResolver: async () => 'always-bad-token',
-      onTokenRejected,
+      provider,
       retryDelayMs: 0,
     })
 
     await expect(client.get('/test')).rejects.toThrow()
     // 1 initial + 3 retries = 4 total requests
     expect(requestCount).toBe(4)
-    expect(onTokenRejected).toHaveBeenCalledTimes(3)
+    expect(provider.invalidate).toHaveBeenCalledTimes(3)
   })
 
-  it('calls tokenResolver for each retry to get a fresh token', async () => {
-    const tokens: string[] = []
+  it('calls the provider for each retry to get a fresh token', async () => {
     let reqCount = 0
 
     const srv = await startTestServer(() => {
@@ -128,25 +213,16 @@ describe('DwsApiClient token rotation (401 retry)', () => {
     })
     server = srv.server
 
-    let tokenCall = 0
+    const provider = fakeProvider({ processor: ['token-1', 'token-2', 'token-3'] })
     const client = new DwsApiClient({
       baseUrl: srv.url,
-      tokenResolver: async () => {
-        tokenCall++
-        const token = `token-${tokenCall}`
-        tokens.push(token)
-        return token
-      },
-      onTokenRejected: vi.fn(),
+      provider,
       retryDelayMs: 0,
     })
 
     await client.get('/test')
-    // Initial buildHeaders call + 2 retries = at least 3 token resolutions
-    expect(tokens.length).toBeGreaterThanOrEqual(3)
-    // Each retry should produce a different token
-    const retryTokens = tokens.slice(1)
-    expect(new Set(retryTokens).size).toBe(retryTokens.length)
+    // Initial buildHeaders call + 2 retries = 3 token resolutions
+    expect(provider.token).toHaveBeenCalledTimes(3)
   })
 
   it('retries a FormData POST with the same non-empty body after a 401', async () => {
@@ -165,14 +241,10 @@ describe('DwsApiClient token rotation (401 retry)', () => {
     const addr = server.address()
     if (addr === null || typeof addr === 'string') throw new Error('expected a bound TCP address')
 
-    let tokenCall = 0
+    const provider = fakeProvider({ processor: ['stale-token', 'fresh-token'] })
     const client = new DwsApiClient({
       baseUrl: `http://127.0.0.1:${addr.port}`,
-      tokenResolver: async () => {
-        tokenCall++
-        return tokenCall === 1 ? 'stale-token' : 'fresh-token'
-      },
-      onTokenRejected: vi.fn(),
+      provider,
       retryDelayMs: 0,
     })
 
@@ -190,17 +262,22 @@ describe('DwsApiClient token rotation (401 retry)', () => {
     }
   })
 
-  it('works normally when no onTokenRejected is provided', async () => {
-    const srv = await startTestServer(() => ({ status: 401, body: '{"error":"unauthorized"}' }))
+  it('invalidates the extraction credential (not processor) when an extraction request 401s', async () => {
+    const srv = await startTestServer((reqCount) => {
+      if (reqCount === 1) return { status: 401, body: '{"error":"unauthorized"}' }
+      return { status: 200, body: '{"ok":true}' }
+    })
     server = srv.server
 
+    const provider = fakeProvider({ extraction: ['stale-token', 'fresh-token'] })
     const client = new DwsApiClient({
       baseUrl: srv.url,
-      tokenResolver: async () => 'tok',
-      // no onTokenRejected — no interceptor installed
+      provider,
+      retryDelayMs: 0,
     })
 
-    // Should fail immediately without retrying
-    await expect(client.get('/test')).rejects.toThrow()
+    const response = await client.get('/extraction/parse')
+    expect(response.status).toBe(200)
+    expect(provider.invalidate).toHaveBeenCalledWith('extraction')
   })
 })

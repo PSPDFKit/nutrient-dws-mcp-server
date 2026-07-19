@@ -32,7 +32,6 @@ import { getVersion } from './version.js'
 import { parseSandboxPath } from './utils/sandbox.js'
 import { createApiClient } from './dws/api.js'
 import { DwsApiClient } from './dws/client.js'
-import { getToken, invalidateCachedToken, type NutrientOAuthConfig } from './auth/nutrient-oauth.js'
 import { Environment, getEnvironment } from './utils/environment.js'
 import { logger } from './logger.js'
 
@@ -43,13 +42,19 @@ const EXTRACT_CLIENT_MISSING_ERROR =
   'the dashboard (starts with pdf_live_), or omit NUTRIENT_DWS_API_KEY entirely to authenticate via OAuth, which ' +
   'covers both products with one token.'
 
+/** Returned by the Processor tools when the server was started with only a Data Extraction credential. */
+const PROCESSOR_CLIENT_MISSING_ERROR =
+  'Error: This server was started with only a Data Extraction API key configured, so the Processor tools ' +
+  '(document_processor, document_signer, ai_redactor, check_credits) are unavailable. Set NUTRIENT_DWS_API_KEY to ' +
+  'a Processor API key from the dashboard, or omit all API keys entirely to authenticate via OAuth, which covers ' +
+  'both products with one token.'
+
 function addToolsToServer(options: {
   server: McpServer
   sandboxEnabled: boolean
   apiClient: DwsApiClient
-  extractApiClient: DwsApiClient | null
 }) {
-  const { server, sandboxEnabled, apiClient, extractApiClient } = options
+  const { server, sandboxEnabled, apiClient } = options
 
   server.tool(
     'document_processor',
@@ -75,6 +80,9 @@ For structured data extraction (typed JSON or Markdown with bounding boxes and c
       openWorldHint: true,
     },
     async ({ instructions, outputPath }) => {
+      if (!apiClient.supports('processor')) {
+        return createErrorResponse(PROCESSOR_CLIENT_MISSING_ERROR)
+      }
       try {
         return await performBuildCall(instructions, outputPath, apiClient)
       } catch (error) {
@@ -109,6 +117,9 @@ Positioning:
       openWorldHint: true,
     },
     async ({ filePath, signatureOptions, watermarkImagePath, graphicImagePath, outputPath }) => {
+      if (!apiClient.supports('processor')) {
+        return createErrorResponse(PROCESSOR_CLIENT_MISSING_ERROR)
+      }
       try {
         return await performSignCall(
           filePath,
@@ -146,6 +157,9 @@ By default (when neither stage nor apply is set), redactions are detected and im
       openWorldHint: true,
     },
     async ({ filePath, criteria, outputPath, stage, apply }) => {
+      if (!apiClient.supports('processor')) {
+        return createErrorResponse(PROCESSOR_CLIENT_MISSING_ERROR)
+      }
       try {
         return await performAiRedactCall(filePath, criteria, outputPath, apiClient, stage, apply)
       } catch (error) {
@@ -170,6 +184,9 @@ Returns: subscription type, total credits, used credits, and remaining credits.`
       openWorldHint: true,
     },
     async () => {
+      if (!apiClient.supports('processor')) {
+        return createErrorResponse(PROCESSOR_CLIENT_MISSING_ERROR)
+      }
       try {
         return await performCheckCreditsCall(apiClient)
       } catch (error) {
@@ -189,8 +206,6 @@ Output formats:
 
 Processing modes (cost per page): text = fast Markdown, no OCR (1 credit); structure = OCR spatial (1.5 credits); understand = AI-augmented, default (9 credits); agentic = VLM-augmented (18 credits).
 
-Set storeRun: true to persist the run server-side and retrieve it later by the runId returned in the response.
-
 Note: markdown output and any extracted content are returned into this conversation and may be logged by the host. For sensitive documents, prefer spatial output to a file plus targeted extract_fields calls.`,
     ParseDocumentArgsSchema.shape,
     {
@@ -201,11 +216,11 @@ Note: markdown output and any extracted content are returned into this conversat
       openWorldHint: true,
     },
     async (args) => {
-      if (!extractApiClient) {
+      if (!apiClient.supports('extraction')) {
         return createErrorResponse(EXTRACT_CLIENT_MISSING_ERROR)
       }
       try {
-        return await performParseDocumentCall(args, extractApiClient)
+        return await performParseDocumentCall(args, apiClient)
       } catch (error) {
         return createErrorResponse(`Error: ${error instanceof Error ? error.message : String(error)}`)
       }
@@ -220,7 +235,7 @@ Unlike parse_document, which parses a whole document into elements or Markdown, 
 
 Processing modes (cost per page, parse component only — no text mode here): structure = OCR spatial parse (1.5 credits); understand = AI-augmented, default (9 credits); agentic = VLM-augmented (18 credits). Total cost per page is this parse component plus a fixed extract component, billed in Data Extraction credits — a separate balance from the Processor API credits reported by check_credits.
 
-output.data (the extracted values) is always returned inline. Per-field citations and page geometry are large and are only kept when outputPath is provided; otherwise a note says they were omitted. Set storeRun: true to persist the run server-side and retrieve it later by the runId returned in the response.`,
+output.data (the extracted values) is always returned inline. Per-field citations and page geometry are large and are only kept when outputPath is provided; otherwise a note says they were omitted.`,
     ExtractFieldsArgsSchema.shape,
     {
       title: 'Nutrient Field Extractor',
@@ -232,11 +247,11 @@ output.data (the extracted values) is always returned inline. Per-field citation
       openWorldHint: true,
     },
     async (args) => {
-      if (!extractApiClient) {
+      if (!apiClient.supports('extraction')) {
         return createErrorResponse(EXTRACT_CLIENT_MISSING_ERROR)
       }
       try {
-        return await performExtractFieldsCall(args, extractApiClient)
+        return await performExtractFieldsCall(args, apiClient)
       } catch (error) {
         return createErrorResponse(`Error: ${error instanceof Error ? error.message : String(error)}`)
       }
@@ -274,11 +289,7 @@ output.data (the extracted values) is always returned inline. Per-field citation
   }
 }
 
-export function createMcpServer(options: {
-  sandboxEnabled: boolean
-  apiClient: DwsApiClient
-  extractApiClient: DwsApiClient | null
-}) {
+export function createMcpServer(options: { sandboxEnabled: boolean; apiClient: DwsApiClient }) {
   const server = new McpServer(
     {
       name: 'nutrient-dws-mcp-server',
@@ -296,7 +307,6 @@ export function createMcpServer(options: {
     server,
     sandboxEnabled: options.sandboxEnabled,
     apiClient: options.apiClient,
-    extractApiClient: options.extractApiClient,
   })
 
   return server
@@ -320,72 +330,6 @@ async function prepareSandbox(sandboxDir: string | null) {
   )
 }
 
-function buildOAuthConfig(environment: Environment): NutrientOAuthConfig {
-  return {
-    authorizeUrl: `${environment.authServerUrl}/oauth/authorize`,
-    tokenUrl: `${environment.authServerUrl}/oauth/token`,
-    registrationUrl: `${environment.authServerUrl}/oauth/register`,
-    clientId: environment.clientId,
-    scopes: ['mcp:invoke', 'product:all', 'offline_access'],
-    resource: environment.dwsApiBaseUrl,
-  }
-}
-
-type StdioApiClients = {
-  apiClient: DwsApiClient
-  extractApiClient: DwsApiClient | null
-}
-
-/**
- * Builds the Processor client and the Data Extraction client for stdio mode.
- *
- * Under OAuth, `product:all` covers both products, so one token resolver
- * serves both clients. Under a static API key, the key is pinned to a single
- * tenant on the gateway — the Processor key cannot also authenticate
- * extraction requests, so extraction gets its own client (or none, if
- * `NUTRIENT_DWS_EXTRACT_API_KEY` isn't set).
- *
- * `NUTRIENT_DWS_EXTRACT_API_KEY` without `NUTRIENT_DWS_API_KEY` is rejected
- * rather than falling through to OAuth: silently switching auth mode would
- * discard the configured extraction key and start a browser consent flow
- * the user never asked for.
- */
-export function createStdioApiClients(environment: Environment): StdioApiClients {
-  if (environment.nutrientExtractApiKey && !environment.nutrientApiKey) {
-    throw new Error(
-      'NUTRIENT_DWS_EXTRACT_API_KEY is set but NUTRIENT_DWS_API_KEY is not. Static-key auth requires both: ' +
-        'a Processor API key is pinned to the Processor tenant and cannot authenticate extraction requests. ' +
-        'Either also set NUTRIENT_DWS_API_KEY, or unset NUTRIENT_DWS_EXTRACT_API_KEY to authenticate via the ' +
-        'OAuth browser flow instead, whose product:all scope covers both products.',
-    )
-  }
-
-  if (environment.nutrientApiKey) {
-    const apiClient = createApiClient({
-      apiKey: environment.nutrientApiKey,
-      baseUrl: environment.dwsApiBaseUrl,
-    })
-
-    const extractApiClient = environment.nutrientExtractApiKey
-      ? createApiClient({
-          apiKey: environment.nutrientExtractApiKey,
-          baseUrl: environment.dwsApiBaseUrl,
-        })
-      : null
-
-    return { apiClient, extractApiClient }
-  }
-
-  const oauthConfig = buildOAuthConfig(environment)
-  const apiClient = createApiClient({
-    tokenResolver: () => getToken(oauthConfig),
-    onTokenRejected: () => invalidateCachedToken(oauthConfig),
-    baseUrl: environment.dwsApiBaseUrl,
-  })
-
-  return { apiClient, extractApiClient: apiClient }
-}
-
 type RunServerResult = {
   close: () => Promise<void>
 }
@@ -397,16 +341,16 @@ export async function runServer(environment: Environment): Promise<RunServerResu
 
   const sandboxEnabled = sandboxDir !== null
 
-  const { apiClient, extractApiClient } = createStdioApiClients(environment)
+  const apiClient = createApiClient(environment)
+
+  const staticKeyMode = Boolean(environment.nutrientApiKey || environment.nutrientExtractApiKey)
 
   logger.info('Starting stdio transport', {
     version: getVersion(),
-    authMethod: environment.nutrientApiKey ? 'api-key' : 'oauth-browser-flow',
-    extractAuthMethod: environment.nutrientApiKey
-      ? extractApiClient
-        ? 'api-key'
-        : 'unconfigured'
-      : 'oauth-browser-flow',
+    authMethod: apiClient.supports('processor') ? (staticKeyMode ? 'api-key' : 'oauth-browser-flow') : 'unconfigured',
+    extractAuthMethod: apiClient.supports('extraction')
+      ? (staticKeyMode ? 'api-key' : 'oauth-browser-flow')
+      : 'unconfigured',
     sandboxEnabled,
     dwsApiBaseUrl: environment.dwsApiBaseUrl,
   })
@@ -414,7 +358,6 @@ export async function runServer(environment: Environment): Promise<RunServerResu
   const server = createMcpServer({
     sandboxEnabled,
     apiClient,
-    extractApiClient,
   })
 
   const transport = new StdioServerTransport()

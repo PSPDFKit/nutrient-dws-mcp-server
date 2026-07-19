@@ -12,6 +12,7 @@ function createMockApiClient(): DwsApiClient {
     get: async () => {
       throw new Error('not implemented')
     },
+    supports: () => true,
   } as unknown as DwsApiClient
 }
 
@@ -27,7 +28,6 @@ function getRegisteredTools(sandboxEnabled: boolean): Record<string, RegisteredT
   const server = createMcpServer({
     sandboxEnabled,
     apiClient: createMockApiClient(),
-    extractApiClient: createMockApiClient(),
   })
 
   return (server as unknown as { _registeredTools: Record<string, RegisteredTool> })._registeredTools

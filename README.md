@@ -229,7 +229,6 @@ Additional options:
 
 - `language` — OCR language(s) for `structure`/`understand`/`agentic` modes; left unset, the API auto-detects. `maxLanguages` / `maxScripts` cap how many languages/scripts auto-detection considers, and only apply when `language` is left unset.
 - Markdown-only formatting: `useHtmlTables` (default `true`), `enableSemanticBlockFormatting` (default `true`), `includeHeadersAndFooters` (default `false`), `extractWordsFromPictures` (default `false`).
-- `storeRun: true` persists the run server-side; the response's `runId` is surfaced in the tool's success message so it can be retrieved later.
 - Each response reports Data Extraction credit usage. These are a separate balance from the Processor API credits reported by `check_credits`.
 
 > **Note:** Extracted content returned inline (Markdown output, or `extract_fields` results) enters the conversation and may be logged by the host. For sensitive documents, prefer spatial output to a file plus targeted `extract_fields` calls.
@@ -329,6 +328,8 @@ The server authenticates to the Nutrient DWS API (`https://api.nutrient.io`) usi
 When no API key is configured, the server stays connected and opens a browser-based OAuth flow on the first request that uses the Nutrient API (similar to `gh auth login`). Tokens are cached at `$XDG_CONFIG_HOME/nutrient/credentials.json` or `~/.config/nutrient/credentials.json` and refreshed automatically.
 
 **Data Extraction (`parse_document`, `extract_fields`) is a separate product with its own tenant.** Under OAuth, one token covers both products — nothing extra to configure. Under a static API key, the Processor key in `NUTRIENT_DWS_API_KEY` cannot be reused for extraction; set `NUTRIENT_DWS_EXTRACT_API_KEY` to a Data Extraction key from the dashboard, or omit `NUTRIENT_DWS_API_KEY` entirely to use OAuth instead.
+
+Setting only `NUTRIENT_DWS_EXTRACT_API_KEY` (with no `NUTRIENT_DWS_API_KEY`) runs the server in extraction-only mode: `parse_document` and `extract_fields` work normally, while the Processor tools (`document_processor`, `document_signer`, `ai_redactor`, `check_credits`) return an error instead of calling the API.
 
 ### Environment Variables
 
