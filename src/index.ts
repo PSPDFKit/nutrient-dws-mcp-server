@@ -20,8 +20,8 @@ import {
   SignAPIArgsSchema,
 } from './schemas.js'
 import { performBuildCall } from './dws/build.js'
-import { performParseDocumentCall } from './dws/extract.js'
-import { performExtractFieldsCall } from './dws/extract-structured.js'
+import { performParseDocumentCall } from './dws/parse.js'
+import { performExtractFieldsCall } from './dws/extract.js'
 import { performSignCall } from './dws/sign.js'
 import { performAiRedactCall } from './dws/ai-redact.js'
 import { performCheckCreditsCall } from './dws/credits.js'
