@@ -661,6 +661,7 @@ export const ParseDocumentArgsSchema = z.object({
 })
 
 export type ParseDocumentArgs = z.infer<typeof ParseDocumentArgsSchema>
+export type ExtractionFormat = z.infer<typeof ExtractionFormatSchema>
 
 // ----- Data Extraction API (POST /extraction/extract) -----
 //

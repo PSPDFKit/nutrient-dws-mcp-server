@@ -4,7 +4,7 @@ import fs from 'fs'
 import path from 'path'
 import { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import { DwsApiClient } from './client.js'
-import { ParseDocumentArgs } from '../schemas.js'
+import { ExtractionFormat, ParseDocumentArgs } from '../schemas.js'
 import { resolveReadFilePath, resolveWriteFilePath } from '../fs/sandbox.js'
 import { pipeToString, handleApiError } from './utils.js'
 import { createSuccessResponse, createErrorResponse } from '../responses.js'
@@ -16,8 +16,6 @@ const LOW_CONFIDENCE_THRESHOLD = 0.6
 // when the API key was created, not the version this server was built against.
 const EXTRACTION_API_VERSION = '2026-05-25'
 export const EXTRACTION_HEADERS = { 'x-nutrient-api-version': EXTRACTION_API_VERSION }
-
-type ExtractionFormat = 'spatial' | 'markdown'
 
 /** A single spatial element from the Data Extraction API (`output.format: spatial`). */
 type SpatialElement = {
