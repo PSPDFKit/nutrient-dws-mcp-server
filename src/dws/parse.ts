@@ -140,8 +140,8 @@ function resolveFormats(
 /** A parse or extract line item within `usage.price_composition` (returned by `/extraction/extract`). */
 export type PriceComponent = { units?: number; unit_cost?: number; cost?: number; currency?: string }
 
-/** The subset of an extraction response `formatRunMetadata` reads — shared by `/extraction/parse` and `/extraction/extract`. */
-export type RunMetadataResponse = {
+/** The subset of an extraction response `formatCreditUsage` reads — shared by `/extraction/parse` and `/extraction/extract`. */
+export type CreditUsageResponse = {
   usage?: {
     data_extraction_credits?: { cost?: number; remainingCredits?: number }
     // Only present on /extraction/extract — the parse-mode component plus the fixed per-page extract component.
@@ -150,7 +150,7 @@ export type RunMetadataResponse = {
 }
 
 /** Data Extraction credit usage, appended to the success message. */
-export function formatRunMetadata(response: RunMetadataResponse): string {
+export function formatCreditUsage(response: CreditUsageResponse): string {
   const notes: string[] = []
   const credits = response.usage?.data_extraction_credits
   // Either half alone is worth reporting: the remaining balance is what stops an
@@ -386,7 +386,7 @@ export async function performParseDocumentCall(args: ParseDocumentArgs, apiClien
     return createErrorResponse('Error: the Data Extraction API returned a response that could not be parsed as JSON.')
   }
 
-  const runMetadata = formatRunMetadata(parsed)
+  const creditUsage = formatCreditUsage(parsed)
 
   if (formatSet.has('spatial') && resolvedOutputPath) {
     // Guard against a 2xx response that is not a spatial result, so we never
@@ -417,7 +417,7 @@ export async function performParseDocumentCall(args: ParseDocumentArgs, apiClien
     if (typeof markdown === 'string') {
       summary += `\nAlso wrote ${Buffer.byteLength(markdown)} bytes of Markdown to the same file, under output.markdown.`
     }
-    return createSuccessResponse(summary + runMetadata)
+    return createSuccessResponse(summary + creditUsage)
   }
 
   // Markdown-only.
@@ -434,8 +434,8 @@ export async function performParseDocumentCall(args: ParseDocumentArgs, apiClien
       return billedWriteFailure(resolvedOutputPath, error)
     }
     return createSuccessResponse(
-      `Wrote ${Buffer.byteLength(markdown)} bytes of Markdown to ${resolvedOutputPath}.${runMetadata}`,
+      `Wrote ${Buffer.byteLength(markdown)} bytes of Markdown to ${resolvedOutputPath}.${creditUsage}`,
     )
   }
-  return createSuccessResponse(markdown + runMetadata)
+  return createSuccessResponse(markdown + creditUsage)
 }

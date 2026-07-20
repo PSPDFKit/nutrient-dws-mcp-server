@@ -37,6 +37,11 @@ export type DwsApiClientOptions = {
  * Handles authentication, content-type negotiation, and streaming responses.
  * All responses are returned as streams (`responseType: 'stream'`).
  */
+/** DWS endpoints are written without a leading slash; tolerate one anyway. */
+function stripLeadingSlash(endpoint: string): string {
+  return endpoint.startsWith('/') ? endpoint.slice(1) : endpoint
+}
+
 export class DwsApiClient {
   private readonly baseUrl: string
   private readonly provider: CredentialProvider
@@ -57,7 +62,7 @@ export class DwsApiClient {
 
   /** `'extraction/parse'` and `/extraction/parse'` both target the extraction product; everything else is processor. */
   private productFor(endpoint: string): Product {
-    const normalizedEndpoint = endpoint.startsWith('/') ? endpoint.slice(1) : endpoint
+    const normalizedEndpoint = stripLeadingSlash(endpoint)
     return normalizedEndpoint.startsWith('extraction/') ? 'extraction' : 'processor'
   }
 
@@ -129,7 +134,7 @@ export class DwsApiClient {
   }
 
   private buildUrl(endpoint: string): string {
-    const normalizedEndpoint = endpoint.startsWith('/') ? endpoint.slice(1) : endpoint
+    const normalizedEndpoint = stripLeadingSlash(endpoint)
     return new URL(normalizedEndpoint, this.baseUrl.endsWith('/') ? this.baseUrl : `${this.baseUrl}/`).toString()
   }
 

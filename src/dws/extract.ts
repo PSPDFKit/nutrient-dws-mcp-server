@@ -12,10 +12,10 @@ import {
   SAME_PATH_ERROR,
   billedWriteFailure,
   handleExtractionApiError,
-  formatRunMetadata,
+  formatCreditUsage,
   writeToResolvedPath,
 } from './parse.js'
-import type { RunMetadataResponse } from './parse.js'
+import type { CreditUsageResponse } from './parse.js'
 
 const EXTRACT_STRUCTURED_ENDPOINT = 'extraction/extract'
 const NOT_FOUND_DISPLAY_LIMIT = 10
@@ -27,7 +27,7 @@ const EXTRACT_CHEAPER_MODE_HINT =
   'this endpoint bills that parse component plus a fixed extract component per page. There is no text mode.'
 
 /** Parsed `/extraction/extract` response (the fields this handler reads). */
-type ExtractFieldsResponse = RunMetadataResponse & {
+type ExtractFieldsResponse = CreditUsageResponse & {
   output?: {
     data?: unknown
     metadata?: unknown
@@ -227,7 +227,7 @@ export async function performExtractFieldsCall(
     )
   }
 
-  const runMetadata = formatRunMetadata(parsed)
+  const creditUsage = formatCreditUsage(parsed)
   const metadata = parsed.output?.metadata
   const groundingSignal = formatGroundingSignal(metadata)
   const metadataIsEmpty =
@@ -254,5 +254,5 @@ export async function performExtractFieldsCall(
     lines.push('Per-field citations were returned but omitted from this reply. Pass outputPath to keep them.')
   }
 
-  return createSuccessResponse(lines.join('\n\n') + runMetadata)
+  return createSuccessResponse(lines.join('\n\n') + creditUsage)
 }
