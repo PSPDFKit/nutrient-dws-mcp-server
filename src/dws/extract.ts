@@ -15,7 +15,7 @@ import {
   formatCreditUsage,
   writeToResolvedPath,
 } from './parse.js'
-import type { CreditUsageResponse } from './parse.js'
+import type { ExtractFieldsResponse } from '../schemas.js'
 
 const EXTRACT_STRUCTURED_ENDPOINT = 'extraction/extract'
 const NOT_FOUND_DISPLAY_LIMIT = 10
@@ -25,15 +25,6 @@ const NOT_FOUND_DISPLAY_LIMIT = 10
 const EXTRACT_CHEAPER_MODE_HINT =
   'The cheapest parse mode here is structure (1.5 credits/page) versus understand (9) or agentic (18); ' +
   'this endpoint bills that parse component plus a fixed extract component per page. There is no text mode.'
-
-/** Parsed `/extraction/extract` response (the fields this handler reads). */
-type ExtractFieldsResponse = CreditUsageResponse & {
-  output?: {
-    data?: unknown
-    metadata?: unknown
-    pages?: unknown[]
-  }
-}
 
 /**
  * Tallies citation `match` values across `output.metadata` and lists the
@@ -231,9 +222,7 @@ export async function performExtractFieldsCall(
   const metadata = parsed.output?.metadata
   const groundingSignal = formatGroundingSignal(metadata)
   const metadataIsEmpty =
-    metadata === undefined ||
-    metadata === null ||
-    (typeof metadata === 'object' && Object.keys(metadata).length === 0)
+    metadata === undefined || metadata === null || (typeof metadata === 'object' && Object.keys(metadata).length === 0)
 
   const lines = [JSON.stringify(data, null, 2)]
   if (groundingSignal) {

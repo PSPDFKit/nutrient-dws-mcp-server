@@ -4,7 +4,13 @@ import fs from 'fs'
 import path from 'path'
 import { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import { DwsApiClient } from './client.js'
-import { ExtractionFormat, ParseDocumentArgs } from '../schemas.js'
+import {
+  CreditUsageResponse,
+  ExtractionErrorResponse,
+  ExtractionFormat,
+  ExtractionResponse,
+  ParseDocumentArgs,
+} from '../schemas.js'
 import { resolveReadFilePath, resolveWriteFilePath } from '../fs/sandbox.js'
 import { pipeToString, handleApiError } from './utils.js'
 import { createSuccessResponse, createErrorResponse } from '../responses.js'
@@ -16,39 +22,6 @@ const LOW_CONFIDENCE_THRESHOLD = 0.6
 // when the API key was created, not the version this server was built against.
 const EXTRACTION_API_VERSION = '2026-05-25'
 export const EXTRACTION_HEADERS = { 'x-nutrient-api-version': EXTRACTION_API_VERSION }
-
-/** A single spatial element from the Data Extraction API (`output.format: spatial`). */
-type SpatialElement = {
-  type?: string
-  role?: string
-  confidence?: number
-  bounds?: { x: number; y: number; width: number; height: number }
-  page?: { pageIndex?: number; pageNumber?: number; width?: number; height?: number }
-}
-
-/** Parsed `/extraction/parse` response (the fields this server reads). */
-type ExtractionResponse = {
-  output?: { elements?: SpatialElement[]; markdown?: string }
-  metrics?: { pagesProcessed?: number }
-  usage?: { data_extraction_credits?: { cost?: number; remainingCredits?: number } }
-}
-
-/**
- * Data Extraction error envelope. Deliberately not the Processor's shape —
- * it carries `errorMessage`/`errorDetails` where the Processor sends `details`,
- * so the shared handler doesn't recognize it and renders it as an unexplained blob.
- */
-type ExtractionErrorResponse = {
-  status?: number
-  requestId?: string
-  errorMessage?: string
-  runId?: string
-  errorDetails?: {
-    source?: string
-    code?: string
-    failingPaths?: { path?: string; details?: string }[]
-  }
-}
 
 function formatExtractionError(body: ExtractionErrorResponse, httpStatus: number, cheaperModeHint?: string): string {
   const status = body.status ?? httpStatus
@@ -133,18 +106,6 @@ function resolveFormats(
     return [format]
   }
   return mode === 'text' ? ['markdown'] : ['spatial']
-}
-
-/** A parse or extract line item within `usage.price_composition` (returned by `/extraction/extract`). */
-export type PriceComponent = { units?: number; unit_cost?: number; cost?: number; currency?: string }
-
-/** The subset of an extraction response `formatCreditUsage` reads — shared by `/extraction/parse` and `/extraction/extract`. */
-export type CreditUsageResponse = {
-  usage?: {
-    data_extraction_credits?: { cost?: number; remainingCredits?: number }
-    // Only present on /extraction/extract — the parse-mode component plus the fixed per-page extract component.
-    price_composition?: { parse?: PriceComponent; extract?: PriceComponent }
-  }
 }
 
 /** Data Extraction credit usage, appended to the success message. */
@@ -248,7 +209,10 @@ export function billedWriteFailure(resolvedPath: string, error: unknown): CallTo
  * both are requested, the spatial file is written and the summary also notes
  * the markdown that landed alongside it under `output.markdown`.
  */
-export async function performParseDocumentCall(args: ParseDocumentArgs, apiClient: DwsApiClient): Promise<CallToolResult> {
+export async function performParseDocumentCall(
+  args: ParseDocumentArgs,
+  apiClient: DwsApiClient,
+): Promise<CallToolResult> {
   const {
     filePath,
     url,
