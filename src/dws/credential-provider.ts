@@ -92,10 +92,10 @@ export function buildOAuthConfig(environment: Environment): NutrientOAuthConfig 
  * flow on what may be a headless machine.
  */
 export function createCredentialProvider(environment: Environment): CredentialProvider {
-  if (environment.nutrientApiKey || environment.nutrientExtractApiKey) {
+  if (environment.nutrientApiKey || environment.nutrientExtractionApiKey) {
     return new StaticKeyCredentialProvider({
       processor: environment.nutrientApiKey,
-      extraction: environment.nutrientExtractApiKey,
+      extraction: environment.nutrientExtractionApiKey,
     })
   }
 

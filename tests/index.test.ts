@@ -37,8 +37,8 @@ describe('createApiClient', () => {
     expect(apiClient.supports('extraction')).toBe(false)
   })
 
-  it('supports only the extraction product when NUTRIENT_DWS_EXTRACT_API_KEY alone is set', () => {
-    const apiClient = createApiClient(baseEnvironment({ nutrientExtractApiKey: 'pdf_live_extract-key' }))
+  it('supports only the extraction product when NUTRIENT_DWS_EXTRACTION_API_KEY alone is set', () => {
+    const apiClient = createApiClient(baseEnvironment({ nutrientExtractionApiKey: 'pdf_live_extract-key' }))
 
     expect(apiClient.supports('processor')).toBe(false)
     expect(apiClient.supports('extraction')).toBe(true)
@@ -46,7 +46,7 @@ describe('createApiClient', () => {
 
   it('supports both products when both static keys are set', () => {
     const apiClient = createApiClient(
-      baseEnvironment({ nutrientApiKey: 'processor-key', nutrientExtractApiKey: 'pdf_live_extract-key' }),
+      baseEnvironment({ nutrientApiKey: 'processor-key', nutrientExtractionApiKey: 'pdf_live_extract-key' }),
     )
 
     expect(apiClient.supports('processor')).toBe(true)
@@ -55,7 +55,7 @@ describe('createApiClient', () => {
 })
 
 describe('parse_document with no extraction credential', () => {
-  it('fails fast without calling the API and names NUTRIENT_DWS_EXTRACT_API_KEY', async () => {
+  it('fails fast without calling the API and names NUTRIENT_DWS_EXTRACTION_API_KEY', async () => {
     const apiClient = createMockApiClient({ supports: (product) => product === 'processor' })
     const server = createMcpServer({ sandboxEnabled: true, apiClient })
 
@@ -68,7 +68,7 @@ describe('parse_document with no extraction credential', () => {
     const result = await tool.handler({ filePath: 'input.pdf', mode: 'text' })
 
     expect(result.isError).toBe(true)
-    expect(text(result)).toContain('NUTRIENT_DWS_EXTRACT_API_KEY')
+    expect(text(result)).toContain('NUTRIENT_DWS_EXTRACTION_API_KEY')
     expect(apiClient.post).not.toHaveBeenCalled()
   })
 })

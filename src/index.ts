@@ -38,7 +38,7 @@ import { logger } from './logger.js'
 /** Returned by the `parse_document` tool when no Data Extraction credential is configured (fail fast, no API call). */
 const EXTRACT_CLIENT_MISSING_ERROR =
   'Error: Data Extraction is a separate product whose static API key is bound to its own tenant — the Processor key ' +
-  '(NUTRIENT_DWS_API_KEY) cannot be reused here. Set NUTRIENT_DWS_EXTRACT_API_KEY to a Data Extraction API key from ' +
+  '(NUTRIENT_DWS_API_KEY) cannot be reused here. Set NUTRIENT_DWS_EXTRACTION_API_KEY to a Data Extraction API key from ' +
   'the dashboard (starts with pdf_live_), or omit NUTRIENT_DWS_API_KEY entirely to authenticate via OAuth, which ' +
   'covers both products with one token.'
 
@@ -343,7 +343,7 @@ export async function runServer(environment: Environment): Promise<RunServerResu
 
   const apiClient = createApiClient(environment)
 
-  const staticKeyMode = Boolean(environment.nutrientApiKey || environment.nutrientExtractApiKey)
+  const staticKeyMode = Boolean(environment.nutrientApiKey || environment.nutrientExtractionApiKey)
 
   logger.info('Starting stdio transport', {
     version: getVersion(),

@@ -208,7 +208,7 @@ Place documents in your sandbox directory and use explicit file names or paths i
 The `parse_document` and `extract_fields` tools wrap the [DWS Data Extraction API](https://www.nutrient.io/guides/dws-data-extraction/) and authenticate as follows:
 
 - **OAuth** (no `NUTRIENT_DWS_API_KEY` set): the same browser-flow token used by every other tool also covers Data Extraction. No extra configuration is needed.
-- **Static API key**: Data Extraction is a separate product with its own tenant, so the Processor key in `NUTRIENT_DWS_API_KEY` cannot be reused. Set `NUTRIENT_DWS_EXTRACT_API_KEY` to a Data Extraction key from the dashboard. Without it, `parse_document` and `extract_fields` return an error instead of calling the API.
+- **Static API key**: Data Extraction is a separate product with its own tenant, so the Processor key in `NUTRIENT_DWS_API_KEY` cannot be reused. Set `NUTRIENT_DWS_EXTRACTION_API_KEY` to a Data Extraction key from the dashboard. Without it, `parse_document` and `extract_fields` return an error instead of calling the API.
 
 `parse_document` runs one of four processing modes:
 
@@ -327,16 +327,16 @@ The server authenticates to the Nutrient DWS API (`https://api.nutrient.io`) usi
 
 When no API key is configured, the server stays connected and opens a browser-based OAuth flow on the first request that uses the Nutrient API (similar to `gh auth login`). Tokens are cached at `$XDG_CONFIG_HOME/nutrient/credentials.json` or `~/.config/nutrient/credentials.json` and refreshed automatically.
 
-**Data Extraction (`parse_document`, `extract_fields`) is a separate product with its own tenant.** Under OAuth, one token covers both products — nothing extra to configure. Under a static API key, the Processor key in `NUTRIENT_DWS_API_KEY` cannot be reused for extraction; set `NUTRIENT_DWS_EXTRACT_API_KEY` to a Data Extraction key from the dashboard, or omit `NUTRIENT_DWS_API_KEY` entirely to use OAuth instead.
+**Data Extraction (`parse_document`, `extract_fields`) is a separate product with its own tenant.** Under OAuth, one token covers both products — nothing extra to configure. Under a static API key, the Processor key in `NUTRIENT_DWS_API_KEY` cannot be reused for extraction; set `NUTRIENT_DWS_EXTRACTION_API_KEY` to a Data Extraction key from the dashboard, or omit `NUTRIENT_DWS_API_KEY` entirely to use OAuth instead.
 
-Setting only `NUTRIENT_DWS_EXTRACT_API_KEY` (with no `NUTRIENT_DWS_API_KEY`) runs the server in extraction-only mode: `parse_document` and `extract_fields` work normally, while the Processor tools (`document_processor`, `document_signer`, `ai_redactor`, `check_credits`) return an error instead of calling the API.
+Setting only `NUTRIENT_DWS_EXTRACTION_API_KEY` (with no `NUTRIENT_DWS_API_KEY`) runs the server in extraction-only mode: `parse_document` and `extract_fields` work normally, while the Processor tools (`document_processor`, `document_signer`, `ai_redactor`, `check_credits`) return an error instead of calling the API.
 
 ### Environment Variables
 
 | Variable                       | Required                | Description                                                                                                            |
 | ------------------------------ | ----------------------- | ---------------------------------------------------------------------------------------------------------------------- |
 | `NUTRIENT_DWS_API_KEY`         | No\*                    | Nutrient DWS API key ([get one free](https://dashboard.nutrient.io/sign_up/))                                          |
-| `NUTRIENT_DWS_EXTRACT_API_KEY` | Only with a static key† | Data Extraction API key from the dashboard (starts with `pdf_live_`), needed for `parse_document` / `extract_fields` |
+| `NUTRIENT_DWS_EXTRACTION_API_KEY` | Only with a static key† | Data Extraction API key from the dashboard (starts with `pdf_live_`), needed for `parse_document` / `extract_fields` |
 | `SANDBOX_PATH`                 | Recommended             | Directory to restrict file operations to                                                                               |
 | `AUTH_SERVER_URL`              | No                      | OAuth server base URL (default: `https://api.nutrient.io`)                                                             |
 | `CLIENT_ID`                    | No                      | OAuth client ID. Skips DCR and enables refresh token reuse when set                                                    |

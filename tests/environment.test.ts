@@ -54,27 +54,27 @@ describe('environment', () => {
     expect(environment.nutrientApiKey).toBeUndefined()
   })
 
-  it('reads NUTRIENT_DWS_EXTRACT_API_KEY', () => {
-    const environment = getEnvironment({ NUTRIENT_DWS_EXTRACT_API_KEY: 'pdf_live_extract-key' })
+  it('reads NUTRIENT_DWS_EXTRACTION_API_KEY', () => {
+    const environment = getEnvironment({ NUTRIENT_DWS_EXTRACTION_API_KEY: 'pdf_live_extract-key' })
 
-    expect(environment.nutrientExtractApiKey).toBe('pdf_live_extract-key')
+    expect(environment.nutrientExtractionApiKey).toBe('pdf_live_extract-key')
   })
 
-  it('trims NUTRIENT_DWS_EXTRACT_API_KEY', () => {
-    const environment = getEnvironment({ NUTRIENT_DWS_EXTRACT_API_KEY: '  pdf_live_extract-key  ' })
+  it('trims NUTRIENT_DWS_EXTRACTION_API_KEY', () => {
+    const environment = getEnvironment({ NUTRIENT_DWS_EXTRACTION_API_KEY: '  pdf_live_extract-key  ' })
 
-    expect(environment.nutrientExtractApiKey).toBe('pdf_live_extract-key')
+    expect(environment.nutrientExtractionApiKey).toBe('pdf_live_extract-key')
   })
 
-  it('treats a whitespace-only NUTRIENT_DWS_EXTRACT_API_KEY as unset', () => {
-    const environment = getEnvironment({ NUTRIENT_DWS_EXTRACT_API_KEY: '   ' })
+  it('treats a whitespace-only NUTRIENT_DWS_EXTRACTION_API_KEY as unset', () => {
+    const environment = getEnvironment({ NUTRIENT_DWS_EXTRACTION_API_KEY: '   ' })
 
-    expect(environment.nutrientExtractApiKey).toBeUndefined()
+    expect(environment.nutrientExtractionApiKey).toBeUndefined()
   })
 
-  it('leaves NUTRIENT_DWS_EXTRACT_API_KEY undefined when unset', () => {
+  it('leaves NUTRIENT_DWS_EXTRACTION_API_KEY undefined when unset', () => {
     const environment = getEnvironment({})
 
-    expect(environment.nutrientExtractApiKey).toBeUndefined()
+    expect(environment.nutrientExtractionApiKey).toBeUndefined()
   })
 })

@@ -2,7 +2,7 @@ import { z } from 'zod'
 
 export type Environment = {
   nutrientApiKey?: string
-  nutrientExtractApiKey?: string
+  nutrientExtractionApiKey?: string
   dwsApiBaseUrl: string
   authServerUrl: string
   clientId?: string
@@ -21,7 +21,7 @@ const RawEnvironmentSchema = z.object({
   // Data Extraction is a separate product with its own tenant; a Processor
   // static key is bound to the Processor tenant and is rejected at
   // /extraction/parse, so it needs its own key when not using OAuth.
-  NUTRIENT_DWS_EXTRACT_API_KEY: z.string().optional().transform(trimmedOrUndefined),
+  NUTRIENT_DWS_EXTRACTION_API_KEY: z.string().optional().transform(trimmedOrUndefined),
   DWS_API_BASE_URL: z.string().url().default('https://api.nutrient.io'),
   AUTH_SERVER_URL: z
     .string()
@@ -39,7 +39,7 @@ export function getEnvironment(rawEnv: NodeJS.ProcessEnv = process.env): Environ
 
   return {
     nutrientApiKey: raw.NUTRIENT_DWS_API_KEY,
-    nutrientExtractApiKey: raw.NUTRIENT_DWS_EXTRACT_API_KEY,
+    nutrientExtractionApiKey: raw.NUTRIENT_DWS_EXTRACTION_API_KEY,
     dwsApiBaseUrl: raw.DWS_API_BASE_URL,
     authServerUrl: raw.AUTH_SERVER_URL,
     clientId: raw.CLIENT_ID,
