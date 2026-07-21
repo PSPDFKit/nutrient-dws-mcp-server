@@ -198,6 +198,19 @@ export function billedWriteFailure(resolvedPath: string, error: unknown): CallTo
 }
 
 /**
+ * Renders a 2xx response that is missing an expected output field. The call
+ * already succeeded and was billed, so a bare error would invite a retry that
+ * pays again — surface the billed framing and the credit usage instead.
+ */
+export function billedMalformedResponse(missingField: string, creditUsage: string): CallToolResult {
+  return createErrorResponse(
+    'Error: the extraction succeeded and was billed, but the Data Extraction API response was malformed ' +
+      `(missing ${missingField}). Retrying will be billed again — this is a server-side response problem, ` +
+      `not a transient error.${creditUsage}`,
+  )
+}
+
+/**
  * Calls the Nutrient DWS Data Extraction API (`POST /extraction/parse`).
  *
  * Spatial output is written to `outputPath` and summarized inline; markdown
@@ -350,8 +363,9 @@ export async function performParseDocumentCall(
     // Guard against a 2xx response that is not a spatial result, so we never
     // overwrite the target file with a non-extraction body.
     if (!Array.isArray(parsed.output?.elements)) {
-      return createErrorResponse(
-        'Error: the Data Extraction API response did not contain a spatial element list (output.elements). Nothing was written.',
+      return billedMalformedResponse(
+        'the spatial element list (output.elements)',
+        creditUsage,
       )
     }
     // Validate every requested format before writing, so an incomplete
@@ -359,9 +373,7 @@ export async function performParseDocumentCall(
     // caller would retry and be billed for the extraction twice.
     const markdown = formatSet.has('markdown') ? parsed.output?.markdown : undefined
     if (formatSet.has('markdown') && typeof markdown !== 'string') {
-      return createErrorResponse(
-        'Error: the Data Extraction API did not return markdown output alongside the spatial result. Nothing was written.',
-      )
+      return billedMalformedResponse('markdown output (output.markdown)', creditUsage)
     }
     // Write the raw response body: avoids re-serializing a potentially large
     // payload and preserves every field the API returned. When markdown was
@@ -381,7 +393,7 @@ export async function performParseDocumentCall(
   // Markdown-only.
   const markdown = parsed.output?.markdown
   if (typeof markdown !== 'string') {
-    return createErrorResponse('Error: the Data Extraction API did not return markdown output.')
+    return billedMalformedResponse('markdown output (output.markdown)', creditUsage)
   }
   // Honor outputPath for markdown too — a large document returned inline
   // would overflow the conversation. Only return inline when no path given.

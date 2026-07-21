@@ -169,6 +169,27 @@ describe('performParseDocumentCall', () => {
     await expect(fs.promises.access(path.join(sandboxDir, outName))).rejects.toThrow()
   })
 
+  it('reports billed credit usage when a 2xx spatial response lacks elements', async () => {
+    const input = await writeInput()
+    const outName = `out-${counter}.json`
+    const { client } = mockClient({
+      status: 200,
+      output: { markdown: 'wrong shape' },
+      usage: { data_extraction_credits: { cost: 2, remainingCredits: 98 } },
+    })
+
+    const result = await performParseDocumentCall(
+      extractArgs({ filePath: input, mode: 'structure', format: 'spatial', outputPath: outName }),
+      client,
+    )
+
+    expect(result.isError).toBe(true)
+    const message = text(result)
+    expect(message).toContain('billed')
+    expect(message).toContain('Retrying will be billed again')
+    expect(message).toContain('2 Data Extraction credit')
+  })
+
   it('writes spatial output to a file and returns a content-free summary', async () => {
     const input = await writeInput()
     const outName = `out-${counter}.json`
@@ -496,9 +517,45 @@ describe('performParseDocumentCall', () => {
       )
 
       expect(result.isError).toBe(true)
-      expect(text(result)).toContain('Nothing was written')
       await expect(fs.promises.access(path.join(sandboxDir, outName))).rejects.toThrow()
     })
+
+    it('reports billed credit usage when a 2xx spatial response lacks requested markdown', async () => {
+      const input = await writeInput()
+      const outName = `out-${counter}.json`
+      const { client } = mockClient({
+        ...spatialFixture,
+        usage: { data_extraction_credits: { cost: 3, remainingCredits: 97 } },
+      })
+
+      const result = await performParseDocumentCall(
+        extractArgs({ filePath: input, mode: 'structure', formats: ['spatial', 'markdown'], outputPath: outName }),
+        client,
+      )
+
+      expect(result.isError).toBe(true)
+      const message = text(result)
+      expect(message).toContain('billed')
+      expect(message).toContain('Retrying will be billed again')
+      expect(message).toContain('3 Data Extraction credit')
+    })
+  })
+
+  it('reports billed credit usage when a 2xx markdown response lacks markdown output', async () => {
+    const input = await writeInput()
+    const { client } = mockClient({
+      status: 200,
+      output: {},
+      usage: { data_extraction_credits: { cost: 1, remainingCredits: 99 } },
+    })
+
+    const result = await performParseDocumentCall(extractArgs({ filePath: input, mode: 'text', format: 'markdown' }), client)
+
+    expect(result.isError).toBe(true)
+    const message = text(result)
+    expect(message).toContain('billed')
+    expect(message).toContain('Retrying will be billed again')
+    expect(message).toContain('1 Data Extraction credit')
   })
 
   describe('markdown-only formatting options', () => {
