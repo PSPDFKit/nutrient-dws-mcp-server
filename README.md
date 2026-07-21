@@ -402,6 +402,11 @@ The server will automatically register a new client and open the browser for con
 - This happens in headless or remote environments (SSH, Docker, CI). Set `NUTRIENT_DWS_API_KEY` instead — the server skips the browser flow when an API key is configured.
 - On macOS, ensure a default browser is set in System Settings → Desktop & Dock → Default web browser.
 
+**Asked to sign in again after upgrading?**
+
+- To support Data Extraction (`parse_document`, `extract_fields`), the server now requests a broader OAuth scope so a single token covers both the Processor and Data Extraction products. Tokens cached by an older version predate that scope, so the server prompts for consent once more on the next tool call. This is expected and happens only once — the new token is cached and refreshed as usual.
+- In headless or CI environments where the browser can't open for that one-time consent, set `NUTRIENT_DWS_API_KEY` (and `NUTRIENT_DWS_EXTRACTION_API_KEY` for Data Extraction) to skip the OAuth flow.
+
 **"Token exchange failed" or "OAuth authorization failed"?**
 
 - Delete `${XDG_CONFIG_HOME:-$HOME/.config}/nutrient/credentials.json` and try again.
