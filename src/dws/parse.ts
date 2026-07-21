@@ -177,11 +177,7 @@ function summarizeSpatial(response: ExtractionResponse, outputPath: string, byte
 /** Writes `data` to `resolvedPath`, creating parent directories as needed. */
 export async function writeToResolvedPath(resolvedPath: string, data: string): Promise<void> {
   const outputDir = path.dirname(resolvedPath)
-  try {
-    await fs.promises.access(outputDir)
-  } catch {
-    await fs.promises.mkdir(outputDir, { recursive: true })
-  }
+  await fs.promises.mkdir(outputDir, { recursive: true })
   await fs.promises.writeFile(resolvedPath, data)
 }
 
