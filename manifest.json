@@ -2,7 +2,7 @@
   "manifest_version": "0.3",
   "name": "nutrient-dws-mcp-server",
   "display_name": "Nutrient DWS",
-  "version": "0.0.6",
+  "version": "0.1.0",
   "description": "Process, sign, redact, and transform documents from Claude Desktop using Nutrient.",
   "long_description": "A local Claude Desktop extension for document processing with Nutrient. It runs as a stdio MCP server, reads files from a user-selected sandbox directory, opens a browser for OAuth on the first request that uses the Nutrient API, and writes processed results back to local output paths.",
   "author": {
