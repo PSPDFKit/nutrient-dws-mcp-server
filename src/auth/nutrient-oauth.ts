@@ -143,6 +143,7 @@ async function refreshAccessToken(
   config: NutrientOAuthConfig,
   clientId: string,
   refreshToken: string,
+  cachedScopes?: string[],
 ): Promise<CachedCredentials | null> {
   try {
     logger.debug('Attempting token refresh', { tokenUrl: config.tokenUrl, clientId })
@@ -166,12 +167,14 @@ async function refreshAccessToken(
       access_token: string
       refresh_token?: string
       expires_in?: number
+      scope?: string
     }
 
     return {
       accessToken: data.access_token,
       refreshToken: data.refresh_token ?? refreshToken,
       expiresAt: Date.now() + (data.expires_in ? data.expires_in * 1000 : DEFAULT_TOKEN_TTL_MS),
+      scopes: data.scope ? data.scope.split(' ') : cachedScopes,
     }
   } catch {
     return null
@@ -208,6 +211,7 @@ async function exchangeCodeForToken(
     access_token: string
     refresh_token?: string
     expires_in?: number
+    scope?: string
   }
 
   return {
@@ -215,7 +219,7 @@ async function exchangeCodeForToken(
     refreshToken: data.refresh_token,
     expiresAt: data.expires_in ? Date.now() + data.expires_in * 1000 : undefined,
     clientId,
-    scopes: config.scopes,
+    scopes: data.scope ? data.scope.split(' ') : config.scopes,
   }
 }
 
@@ -417,11 +421,10 @@ async function getTokenUncached(config: NutrientOAuthConfig, credentialsPath: st
     const effectiveClientId = config.clientId ?? cached.clientId
     if (cached.refreshToken && effectiveClientId) {
       logger.info('Attempting token refresh')
-      const refreshed = await refreshAccessToken(config, effectiveClientId, cached.refreshToken)
+      const refreshed = await refreshAccessToken(config, effectiveClientId, cached.refreshToken, cached.scopes)
       if (refreshed) {
         logger.info('Token refreshed successfully')
         refreshed.clientId = effectiveClientId
-        refreshed.scopes = cached.scopes
         await writeCachedCredentials(credentialsPath, refreshed)
         return refreshed.accessToken
       }
