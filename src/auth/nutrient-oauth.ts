@@ -34,6 +34,7 @@ const CachedCredentialsSchema = z.object({
   refreshToken: z.string().optional(),
   expiresAt: z.number().optional(),
   clientId: z.string().optional(),
+  scopes: z.array(z.string()).optional(),
 })
 
 type CachedCredentials = z.infer<typeof CachedCredentialsSchema>
@@ -132,10 +133,17 @@ export function isTokenExpired(credentials: CachedCredentials): boolean {
   return Date.now() >= (credentials.expiresAt - 60_000)
 }
 
+/** Cached credentials are only reusable if they were minted under every scope the current config requests. */
+function coversRequestedScopes(cached: CachedCredentials, config: NutrientOAuthConfig): boolean {
+  const granted = new Set(cached.scopes ?? [])
+  return config.scopes.every((scope) => granted.has(scope))
+}
+
 async function refreshAccessToken(
   config: NutrientOAuthConfig,
   clientId: string,
   refreshToken: string,
+  cachedScopes?: string[],
 ): Promise<CachedCredentials | null> {
   try {
     logger.debug('Attempting token refresh', { tokenUrl: config.tokenUrl, clientId })
@@ -159,12 +167,14 @@ async function refreshAccessToken(
       access_token: string
       refresh_token?: string
       expires_in?: number
+      scope?: string
     }
 
     return {
       accessToken: data.access_token,
       refreshToken: data.refresh_token ?? refreshToken,
       expiresAt: Date.now() + (data.expires_in ? data.expires_in * 1000 : DEFAULT_TOKEN_TTL_MS),
+      scopes: data.scope ? data.scope.split(' ') : cachedScopes,
     }
   } catch {
     return null
@@ -201,13 +211,15 @@ async function exchangeCodeForToken(
     access_token: string
     refresh_token?: string
     expires_in?: number
+    scope?: string
   }
 
   return {
     accessToken: data.access_token,
     refreshToken: data.refresh_token,
     expiresAt: data.expires_in ? Date.now() + data.expires_in * 1000 : undefined,
-    clientId
+    clientId,
+    scopes: data.scope ? data.scope.split(' ') : config.scopes,
   }
 }
 
@@ -388,7 +400,13 @@ async function getTokenUncached(config: NutrientOAuthConfig, credentialsPath: st
   logger.debug('Starting token acquisition', { credentialsPath })
 
   // 1. Check cached token
-  const cached = await readCachedCredentials(credentialsPath)
+  let cached = await readCachedCredentials(credentialsPath)
+
+  if (cached && !coversRequestedScopes(cached, config)) {
+    const missing = config.scopes.filter((scope) => !(cached?.scopes ?? []).includes(scope))
+    logger.info('Cached credentials do not cover configured scopes, re-authorizing', { missing })
+    cached = null
+  }
 
   if (cached) {
     // 2. Valid token — return it
@@ -403,7 +421,7 @@ async function getTokenUncached(config: NutrientOAuthConfig, credentialsPath: st
     const effectiveClientId = config.clientId ?? cached.clientId
     if (cached.refreshToken && effectiveClientId) {
       logger.info('Attempting token refresh')
-      const refreshed = await refreshAccessToken(config, effectiveClientId, cached.refreshToken)
+      const refreshed = await refreshAccessToken(config, effectiveClientId, cached.refreshToken, cached.scopes)
       if (refreshed) {
         logger.info('Token refreshed successfully')
         refreshed.clientId = effectiveClientId

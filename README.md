@@ -74,9 +74,9 @@ Open Settings → Developer → Edit Config, then add:
         // "C:\\your\\sandbox\\directory" for Windows
         // Optional for CI or headless usage:
         // "NUTRIENT_DWS_API_KEY": "YOUR_API_KEY_HERE"
-      }
-    }
-  }
+      },
+    },
+  },
 }
 ```
 
@@ -98,9 +98,9 @@ Create `.cursor/mcp.json` in your project root:
         // "C:\\your\\project\\documents" for Windows
         // Optional for CI or headless usage:
         // "NUTRIENT_DWS_API_KEY": "YOUR_API_KEY_HERE"
-      }
-    }
-  }
+      },
+    },
+  },
 }
 ```
 
@@ -122,9 +122,9 @@ Add to `~/.codeium/windsurf/mcp_config.json`:
         // "C:\\your\\sandbox\\directory" for Windows
         // Optional for CI or headless usage:
         // "NUTRIENT_DWS_API_KEY": "YOUR_API_KEY_HERE"
-      }
-    }
-  }
+      },
+    },
+  },
 }
 ```
 
@@ -146,9 +146,9 @@ Create `.vscode/mcp.json` in your project, or add the same server definition to 
         "SANDBOX_PATH": "${workspaceFolder}",
         // Optional for CI or headless usage:
         // "NUTRIENT_DWS_API_KEY": "YOUR_API_KEY_HERE"
-      }
-    }
-  }
+      },
+    },
+  },
 }
 ```
 
@@ -178,28 +178,71 @@ Place documents in your sandbox directory and use explicit file names or paths i
 
 ## Available Tools
 
-| Tool | Description |
-| ---- | ----------- |
-| `document_processor` | Document processing for conversions, OCR, extraction, watermarking, rotation, annotation flattening, and redaction workflows |
-| `document_signer` | PDF signing with CMS / PKCS#7 and CAdES signatures plus visible or invisible appearance options |
-| `ai_redactor` | AI redaction for detecting and permanently removing sensitive content such as names, addresses, SSNs, emails, and custom criteria |
-| `check_credits` | Read-only account lookup for current DWS credits and usage. No document content is uploaded |
-| `sandbox_file_tree` | Read-only view of files inside the configured sandbox directory |
-| `directory_tree` | Read-only view of local files when sandbox mode is disabled. Sandbox mode is strongly recommended |
+| Tool                 | Description                                                                                                                                  |
+| -------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| `document_processor` | Document processing for conversions, OCR, watermarking, rotation, annotation flattening, and redaction workflows                             |
+| `parse_document`     | Structured data extraction (DWS Data Extraction API): typed JSON elements with bounding boxes and confidence, or whole-document Markdown     |
+| `extract_fields`     | Schema-guided field extraction (DWS Data Extraction API): pulls specific named fields into a JSON shape you define, with per-field citations |
+| `document_signer`    | PDF signing with CMS / PKCS#7 and CAdES signatures plus visible or invisible appearance options                                              |
+| `ai_redactor`        | AI redaction for detecting and permanently removing sensitive content such as names, addresses, SSNs, emails, and custom criteria            |
+| `check_credits`      | Read-only account lookup for current DWS credits and usage. No document content is uploaded                                                  |
+| `sandbox_file_tree`  | Read-only view of files inside the configured sandbox directory                                                                              |
+| `directory_tree`     | Read-only view of local files when sandbox mode is disabled. Sandbox mode is strongly recommended                                            |
 
 ### Document Processor Capabilities
 
-| Feature           | Description                                                                                       |
-| ----------------- | ------------------------------------------------------------------------------------------------- |
-| Document Creation | Merge PDFs, Office docs (DOCX, XLSX, PPTX), and images into a single document                     |
-| Format Conversion | PDF ↔ DOCX, images (PNG, JPEG, WebP), PDF/A, PDF/UA, HTML, Markdown                               |
-| Editing           | Watermark (text/image), rotate pages, flatten annotations                                         |
-| Security          | Redact sensitive data (SSNs, credit cards, emails, etc.), password protection, permission control |
-| Data Extraction   | Extract text, tables, or key-value pairs as structured JSON                                       |
-| OCR               | Multi-language optical character recognition for scanned documents                                |
-| Optimization      | Compress and linearize PDFs without quality loss                                                  |
-| Annotations       | Import XFDF annotations, flatten annotations                                                      |
-| Digital Signing   | PAdES-compliant CMS and CAdES digital signatures (via document_signer tool)                       |
+| Feature           | Description                                                                                                                               |
+| ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| Document Creation | Merge PDFs, Office docs (DOCX, XLSX, PPTX), and images into a single document                                                             |
+| Format Conversion | PDF ↔ DOCX, images (PNG, JPEG, WebP), PDF/A, PDF/UA, HTML, Markdown                                                                       |
+| Editing           | Watermark (text/image), rotate pages, flatten annotations                                                                                 |
+| Security          | Redact sensitive data (SSNs, credit cards, emails, etc.), password protection, permission control                                         |
+| Data Extraction   | Now a dedicated tool — see [Data Extraction](#data-extraction) (`parse_document`) for typed JSON/Markdown with coordinates and confidence |
+| OCR               | Multi-language optical character recognition for scanned documents                                                                        |
+| Optimization      | Compress and linearize PDFs without quality loss                                                                                          |
+| Annotations       | Import XFDF annotations, flatten annotations                                                                                              |
+| Digital Signing   | PAdES-compliant CMS and CAdES digital signatures (via document_signer tool)                                                               |
+
+### Data Extraction
+
+The `parse_document` and `extract_fields` tools wrap the [DWS Data Extraction API](https://www.nutrient.io/guides/dws-data-extraction/) and authenticate as follows:
+
+- **OAuth** (no `NUTRIENT_DWS_API_KEY` set): the same browser-flow token used by every other tool also covers Data Extraction. No extra configuration is needed.
+- **Static API key**: Data Extraction is a separate product with its own tenant, so the Processor key in `NUTRIENT_DWS_API_KEY` cannot be reused. Set `NUTRIENT_DWS_EXTRACTION_API_KEY` to a Data Extraction key from the dashboard. Without it, `parse_document` and `extract_fields` return an error instead of calling the API.
+
+`parse_document` runs one of four processing modes:
+
+| Mode                   | Output              | OCR                | Cost per page |
+| ---------------------- | ------------------- | ------------------ | ------------- |
+| `text`                 | Markdown only       | No                 | 1 credit      |
+| `structure`            | Spatial or Markdown | Yes                | 1.5 credits   |
+| `understand` (default) | Spatial or Markdown | Yes (AI-augmented) | 9 credits     |
+| `agentic`              | Spatial or Markdown | Yes (VLM)          | 18 credits    |
+
+- **Spatial** output returns typed elements (paragraphs, tables, key-value regions, formulas, pictures, handwriting) with bounding boxes, confidence scores, and reading order. Because the element list can be large, it is written to `outputPath` and the tool returns a content-free summary (element counts, low-confidence flags, page geometry).
+- **Markdown** output returns whole-document Markdown inline, or writes it to `outputPath` when provided (recommended for large documents) — useful for RAG and search indexing.
+- **Both at once**: pass `formats: ["spatial", "markdown"]` instead of `format` to get `output.elements` and `output.markdown` in one call. The second format is billed at no extra cost. `outputPath` is required (as for spatial alone); the summary also reports the markdown byte length.
+
+The document can be supplied either as `filePath` (uploaded from the local file system or sandbox) or `url` (fetched directly by the API) — provide exactly one.
+
+Additional options:
+
+- `language` — OCR language(s) for `structure`/`understand`/`agentic` modes; left unset, the API auto-detects. `maxLanguages` / `maxScripts` cap how many languages/scripts auto-detection considers, and only apply when `language` is left unset.
+- Markdown-only formatting: `useHtmlTables` (default `true`), `enableSemanticBlockFormatting` (default `true`), `includeHeadersAndFooters` (default `false`), `extractWordsFromPictures` (default `false`).
+- Each response reports Data Extraction credit usage. These are a separate balance from the Processor API credits reported by `check_credits`.
+
+> **Note:** Extracted content returned inline (Markdown output, or `extract_fields` results) enters the conversation and may be logged by the host. For sensitive documents, prefer spatial output to a file plus targeted `extract_fields` calls.
+
+### Schema-Guided Extraction (`extract_fields`)
+
+Where `parse_document` parses a whole document into elements or Markdown, `extract_fields` pulls out only the fields you name. Pass a JSON schema (`schema`) whose root is `type: "object"` with `properties` — the response's `output.data` matches that shape, e.g. `{ invoiceNumber, total, lineItems: [...] }`.
+
+- Supported schema keywords: `type`, `properties`, `required`, `items`, `description`, string `enum`, and `format: "date"`. `$ref`/`$defs` and composition/conditional keywords (`allOf`/`anyOf`/`oneOf`/`if`/`then`/`else`) are rejected. Schemas are closed — do not set `additionalProperties` yourself. Limits: 32 KB serialized, 500 fields, 50 properties per object, 5 nesting levels, enum values capped at 50.
+- `mode` runs the parse feeding the extraction: `structure` (1.5 credits/page), `understand` (default, 9 credits/page), or `agentic` (18 credits/page) — no `text` mode, since schema-guided extraction needs the structural parse text mode skips. Total cost per page is that parse component plus a fixed extract component, in Data Extraction credits.
+- `output.data` is always returned inline, pretty-printed — it is the answer, bounded by your own schema. Alongside it, a citation match summary reports how each field was grounded (`id_match`, `id_match_multiblock`, `id_match_partial`, `fuzzy_match`, `not_found`) and lists which field paths came back `not_found` (capped at 10, then "+N more"). Field paths come from your schema, not the document, so this leaks no document content.
+- Per-field citations (bounding box, confidence, match quality) and page geometry are only kept when `outputPath` is set — they can be large and add little without the document open alongside them. Without `outputPath`, a note says they were omitted.
+- `includeCitations` (server default `true`), `strict` (default `false`), and `multimodal` (default `false`, increases cost/latency) are only sent when you set them explicitly.
+- `instructions` (free text, up to 10000 characters) adds guidance for ambiguous fields. `language`/`maxLanguages`/`maxScripts` tune OCR the same way as `parse_document`.
 
 ## Usage Examples
 
@@ -277,26 +320,32 @@ Processed files are saved to a location determined by the AI. To guide output pl
 
 The server authenticates to the Nutrient DWS API (`https://api.nutrient.io`) using one of:
 
-| Method | When | Config |
-|--------|------|--------|
-| **API key** | `NUTRIENT_DWS_API_KEY` is set | Static key passed as Bearer token to DWS API |
-| **OAuth browser flow** | No API key set | Opens browser for Nutrient OAuth consent on the first request that uses the Nutrient API, caches token locally |
+| Method                 | When                          | Config                                                                                                         |
+| ---------------------- | ----------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| **API key**            | `NUTRIENT_DWS_API_KEY` is set | Static key passed as Bearer token to DWS API                                                                   |
+| **OAuth browser flow** | No API key set                | Opens browser for Nutrient OAuth consent on the first request that uses the Nutrient API, caches token locally |
 
 When no API key is configured, the server stays connected and opens a browser-based OAuth flow on the first request that uses the Nutrient API (similar to `gh auth login`). Tokens are cached at `$XDG_CONFIG_HOME/nutrient/credentials.json` or `~/.config/nutrient/credentials.json` and refreshed automatically.
 
+**Data Extraction (`parse_document`, `extract_fields`) is a separate product with its own tenant.** Under OAuth, one token covers both products — nothing extra to configure. Under a static API key, the Processor key in `NUTRIENT_DWS_API_KEY` cannot be reused for extraction; set `NUTRIENT_DWS_EXTRACTION_API_KEY` to a Data Extraction key from the dashboard, or omit `NUTRIENT_DWS_API_KEY` entirely to use OAuth instead.
+
+Setting only `NUTRIENT_DWS_EXTRACTION_API_KEY` (with no `NUTRIENT_DWS_API_KEY`) runs the server in extraction-only mode: `parse_document` and `extract_fields` work normally, while the Processor tools (`document_processor`, `document_signer`, `ai_redactor`, `check_credits`) return an error instead of calling the API.
+
 ### Environment Variables
 
-| Variable               | Required    | Description                                                                                  |
-| ---------------------- | ----------- | -------------------------------------------------------------------------------------------- |
-| `NUTRIENT_DWS_API_KEY` | No*         | Nutrient DWS API key ([get one free](https://dashboard.nutrient.io/sign_up/))               |
-| `SANDBOX_PATH`         | Recommended | Directory to restrict file operations to                                                    |
-| `AUTH_SERVER_URL`      | No          | OAuth server base URL (default: `https://api.nutrient.io`)                                 |
-| `CLIENT_ID`            | No          | OAuth client ID. Skips DCR and enables refresh token reuse when set                         |
-| `DWS_API_BASE_URL`     | No          | DWS API base URL (default: `https://api.nutrient.io`)                                      |
-| `LOG_LEVEL`            | No          | Winston logger level (`info` default). Logs are written to `MCP_LOG_FILE` in stdio mode     |
-| `MCP_LOG_FILE`         | No          | Override log file path (default: system temp directory)                                     |
+| Variable                       | Required                | Description                                                                                                            |
+| ------------------------------ | ----------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| `NUTRIENT_DWS_API_KEY`         | No\*                    | Nutrient DWS API key ([get one free](https://dashboard.nutrient.io/sign_up/))                                          |
+| `NUTRIENT_DWS_EXTRACTION_API_KEY` | Only with a static key† | Data Extraction API key from the dashboard (starts with `pdf_live_`), needed for `parse_document` / `extract_fields` |
+| `SANDBOX_PATH`                 | Recommended             | Directory to restrict file operations to                                                                               |
+| `AUTH_SERVER_URL`              | No                      | OAuth server base URL (default: `https://api.nutrient.io`)                                                             |
+| `CLIENT_ID`                    | No                      | OAuth client ID. Skips DCR and enables refresh token reuse when set                                                    |
+| `DWS_API_BASE_URL`             | No                      | DWS API base URL (default: `https://api.nutrient.io`)                                                                  |
+| `LOG_LEVEL`                    | No                      | Winston logger level (`info` default). Logs are written to `MCP_LOG_FILE` in stdio mode                                |
+| `MCP_LOG_FILE`                 | No                      | Override log file path (default: system temp directory)                                                                |
 
 \* If omitted, the server uses an OAuth browser flow to authenticate with the Nutrient API.
+† Only relevant when `NUTRIENT_DWS_API_KEY` is set — Data Extraction is a separate product/tenant, so the Processor key cannot also authenticate it. Not needed under OAuth, which covers both products with one token.
 
 ## Data Handling
 
@@ -352,6 +401,11 @@ The server will automatically register a new client and open the browser for con
 
 - This happens in headless or remote environments (SSH, Docker, CI). Set `NUTRIENT_DWS_API_KEY` instead — the server skips the browser flow when an API key is configured.
 - On macOS, ensure a default browser is set in System Settings → Desktop & Dock → Default web browser.
+
+**Asked to sign in again after upgrading?**
+
+- To support Data Extraction (`parse_document`, `extract_fields`), the server now requests a broader OAuth scope so a single token covers both the Processor and Data Extraction products. Tokens cached by an older version predate that scope, so the server prompts for consent once more on the next tool call. This is expected and happens only once — the new token is cached and refreshed as usual.
+- In headless or CI environments where the browser can't open for that one-time consent, set `NUTRIENT_DWS_API_KEY` (and `NUTRIENT_DWS_EXTRACTION_API_KEY` for Data Extraction) to skip the OAuth flow.
 
 **"Token exchange failed" or "OAuth authorization failed"?**
 

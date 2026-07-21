@@ -549,3 +549,301 @@ export type Action = z.infer<typeof BuildActionSchema>
 export type SignAPIArgs = z.infer<typeof SignAPIArgsSchema>
 export type SignatureOptions = z.infer<typeof CreateDigitalSignatureSchema>
 export type AiRedactArgs = z.infer<typeof AiRedactArgsSchema>
+
+// ----- Data Extraction API (POST /extraction/parse) -----
+//
+// Cross-field rules (exactly one of filePath/url; spatial format requires
+// outputPath; text mode supports markdown only; format and formats are
+// mutually exclusive; maxLanguages/maxScripts require an unset language) are
+// enforced in the handler rather than via a top-level `.superRefine`, because
+// tools are registered with `Schema.shape`, which only exists on a plain
+// ZodObject (a refined schema would be a ZodEffects).
+
+export const ExtractionModeSchema = z
+  .enum(['text', 'structure', 'understand', 'agentic'])
+  .describe(
+    'Processing mode (cost/quality trade-off). ' +
+      'text: fast Markdown from digital-born documents, no OCR (1 credit/page). ' +
+      'structure: OCR-based spatial elements (1.5 credits/page). ' +
+      'understand: AI-augmented spatial extraction, the default (9 credits/page). ' +
+      'agentic: VLM-augmented for the most complex documents (18 credits/page).',
+  )
+
+export const ExtractionFormatSchema = z
+  .enum(['spatial', 'markdown'])
+  .describe(
+    'Output format. spatial: typed elements with bounding boxes, confidence, and reading order — written to outputPath. ' +
+      'markdown: whole-document Markdown returned inline. text mode supports markdown only; other modes default to spatial.',
+  )
+
+export const ParseDocumentArgsSchema = z.object({
+  filePath: z
+    .string()
+    .optional()
+    .describe(
+      'Path to the document to extract from (PDF, image, or Office file). Exactly one of filePath or url is required. ' +
+        'Resolves to sandbox path if enabled, otherwise resolves to the local file system.',
+    ),
+  url: z
+    .string()
+    .url()
+    .optional()
+    .describe(
+      'URL of the document to extract from — fetched directly by the API instead of uploading a local file. ' +
+        'Exactly one of filePath or url is required.',
+    ),
+  mode: ExtractionModeSchema.optional().default('understand'),
+  format: ExtractionFormatSchema.optional().describe(
+    'Single output format. Defaults to markdown for text mode and spatial for all other modes. Mutually exclusive with formats.',
+  ),
+  formats: z
+    .array(ExtractionFormatSchema)
+    .min(1)
+    .optional()
+    .describe(
+      'Request multiple output formats in one call, e.g. ["spatial", "markdown"] — both output.elements and output.markdown ' +
+        'are returned, billed the same as a single format (no extra credits). Mutually exclusive with format.',
+    ),
+  includeWords: z
+    .boolean()
+    .optional()
+    .describe(
+      'Include word-level bounding boxes in spatial output. Server default: false. Ignored for markdown output.',
+    ),
+  language: z
+    .union([z.string(), z.array(z.string())])
+    .optional()
+    .describe(
+      'OCR language(s) — full name (e.g. "german"), ISO code (e.g. "deu"), or array for multilingual docs. ' +
+        'Only applies to structure/understand/agentic modes; ignored for text mode. Leave unset for auto-detection.',
+    ),
+  maxLanguages: z
+    .number()
+    .int()
+    .min(1)
+    .optional()
+    .describe(
+      'Maximum number of languages to auto-detect. Only valid when language is left unset (auto-detect), and not in text mode, ' +
+        'which does no OCR. Server default: 2.',
+    ),
+  maxScripts: z
+    .number()
+    .int()
+    .min(1)
+    .optional()
+    .describe(
+      'Maximum number of scripts to auto-detect. Only valid when language is left unset (auto-detect), and not in text mode, ' +
+        'which does no OCR. Server default: 2.',
+    ),
+  useHtmlTables: z
+    .boolean()
+    .optional()
+    .describe('Markdown only. Render tables as HTML instead of Markdown table syntax. Server default: true.'),
+  enableSemanticBlockFormatting: z
+    .boolean()
+    .optional()
+    .describe('Markdown only. Group related content into semantic blocks. Server default: true.'),
+  includeHeadersAndFooters: z
+    .boolean()
+    .optional()
+    .describe('Markdown only. Include page headers and footers in the Markdown output. Server default: false.'),
+  extractWordsFromPictures: z
+    .boolean()
+    .optional()
+    .describe('Markdown only. Extract words found inside pictures into the Markdown output. Server default: false.'),
+  outputPath: z
+    .string()
+    .optional()
+    .describe(
+      'Where to write spatial JSON output. Required when spatial is among the requested formats (the element list can be large and is kept out of the conversation). ' +
+        'Resolves to sandbox path if enabled.',
+    ),
+})
+
+export type ParseDocumentArgs = z.infer<typeof ParseDocumentArgsSchema>
+export type ExtractionFormat = z.infer<typeof ExtractionFormatSchema>
+
+// ----- Data Extraction API (POST /extraction/extract) -----
+//
+// Cross-field rules (exactly one of filePath/url; maxLanguages/maxScripts
+// require an unset language) are enforced in the handler, for the same
+// ZodObject-vs-ZodEffects reason noted above the parse-endpoint schemas.
+
+export const ExtractFieldsModeSchema = z
+  .enum(['structure', 'understand', 'agentic'])
+  .describe(
+    'Parse mode feeding the extraction (cost/quality trade-off). No text mode — schema-guided extraction needs the ' +
+      'structural parse (OCR/layout) that text mode skips. structure: OCR-based spatial parse (1.5 credits/page). ' +
+      'understand: AI-augmented, the default (9 credits/page). agentic: VLM-augmented for the most complex documents ' +
+      '(18 credits/page). Total cost per page is this parse component plus a fixed extract component, in Data Extraction credits.',
+  )
+
+export const ExtractJsonSchemaSchema = z
+  .object({
+    type: z.literal('object').describe('The schema root must be an object.'),
+    description: z.string().optional().describe('Optional description of the object.'),
+    properties: z
+      .record(z.unknown())
+      .describe(
+        'Field definitions. Supported keywords only: type, properties, items, description, required, string enum, ' +
+          'and format: "date". $ref/$defs and composition/conditional keywords (allOf/anyOf/oneOf/if/then/else) are rejected.',
+      ),
+    required: z.array(z.string()).optional().describe('Names of properties that must be present.'),
+  })
+  .describe(
+    'JSON Schema describing the fields to extract. Root must be type: "object" with properties. Schemas are closed — ' +
+      'do NOT set additionalProperties yourself, the API rejects a schema that sets it. Limits: 32 KB serialized, ' +
+      '500 fields, 50 properties per object, 5 nesting levels, enum values capped at 50.',
+  )
+
+export const ExtractFieldsArgsSchema = z.object({
+  filePath: z
+    .string()
+    .optional()
+    .describe(
+      'Path to the document to extract from (PDF, image, or Office file). Exactly one of filePath or url is required. ' +
+        'Resolves to sandbox path if enabled, otherwise resolves to the local file system.',
+    ),
+  url: z
+    .string()
+    .url()
+    .optional()
+    .describe(
+      'URL of the document to extract from — fetched directly by the API instead of uploading a local file. ' +
+        'Exactly one of filePath or url is required.',
+    ),
+  schema: ExtractJsonSchemaSchema,
+  instructions: z
+    .string()
+    .max(10000)
+    .optional()
+    .describe('Free-text guidance for the extraction, e.g. clarifying an ambiguous field. Max 10000 characters.'),
+  mode: ExtractFieldsModeSchema.optional().default('understand'),
+  language: z
+    .union([z.string(), z.array(z.string())])
+    .optional()
+    .describe(
+      'OCR language(s) — full name (e.g. "german"), ISO code (e.g. "deu"), or array for multilingual docs. ' +
+        'Leave unset for auto-detection.',
+    ),
+  maxLanguages: z
+    .number()
+    .int()
+    .min(1)
+    .optional()
+    .describe('Maximum number of languages to auto-detect. Only valid when language is left unset. Server default: 2.'),
+  maxScripts: z
+    .number()
+    .int()
+    .min(1)
+    .optional()
+    .describe('Maximum number of scripts to auto-detect. Only valid when language is left unset. Server default: 2.'),
+  includeCitations: z
+    .boolean()
+    .optional()
+    .describe(
+      'Include per-field citations (bounding box, confidence, match quality) in output.metadata. Server default: ' +
+        'true. Leave unset to keep that default — passing false here disables citations.',
+    ),
+  strict: z
+    .boolean()
+    .optional()
+    .describe(
+      'Fail the extraction if a required field cannot be found, instead of returning a partial result. Server default: false.',
+    ),
+  multimodal: z
+    .boolean()
+    .optional()
+    .describe(
+      'Use multimodal (vision) extraction for higher accuracy on visual fields. Increases cost and latency. Server default: false.',
+    ),
+  outputPath: z
+    .string()
+    .optional()
+    .describe(
+      'Where to write the full response (data, per-field citations, and pages). Resolves to sandbox path if enabled. ' +
+        'output.data is always returned inline regardless of this option; set it to also keep the citations.',
+    ),
+})
+
+export type ExtractFieldsArgs = z.infer<typeof ExtractFieldsArgsSchema>
+
+// ----- Data Extraction API response shapes -----
+//
+// Partial views over the response bodies — only the fields the handlers read,
+// every field optional so a benign API change degrades to "field absent" rather
+// than throwing. Defined as schemas for the inferred types; the handlers keep
+// their explicit shape guards and `JSON.parse(...) as X` assertions (not runtime
+// validated).
+
+const DataExtractionCreditsSchema = z.object({
+  cost: z.number().optional(),
+  remainingCredits: z.number().optional(),
+})
+
+export const SpatialElementSchema = z.object({
+  type: z.string().optional(),
+  role: z.string().optional(),
+  confidence: z.number().optional(),
+  bounds: z.object({ x: z.number(), y: z.number(), width: z.number(), height: z.number() }).optional(),
+  page: z
+    .object({
+      pageIndex: z.number().optional(),
+      pageNumber: z.number().optional(),
+      width: z.number().optional(),
+      height: z.number().optional(),
+    })
+    .optional(),
+})
+export type SpatialElement = z.infer<typeof SpatialElementSchema>
+
+export const ExtractionResponseSchema = z.object({
+  output: z.object({ elements: z.array(SpatialElementSchema).optional(), markdown: z.string().optional() }).optional(),
+  metrics: z.object({ pagesProcessed: z.number().optional() }).optional(),
+  usage: z.object({ data_extraction_credits: DataExtractionCreditsSchema.optional() }).optional(),
+})
+export type ExtractionResponse = z.infer<typeof ExtractionResponseSchema>
+
+// Deliberately not the Processor's error shape — carries errorMessage/errorDetails
+// where the Processor sends `details`, so the shared handler leaves it to us.
+export const ExtractionErrorResponseSchema = z.object({
+  status: z.number().optional(),
+  requestId: z.string().optional(),
+  errorMessage: z.string().optional(),
+  runId: z.string().optional(),
+  errorDetails: z
+    .object({
+      source: z.string().optional(),
+      code: z.string().optional(),
+      failingPaths: z.array(z.object({ path: z.string().optional(), details: z.string().optional() })).optional(),
+    })
+    .optional(),
+})
+export type ExtractionErrorResponse = z.infer<typeof ExtractionErrorResponseSchema>
+
+export const PriceComponentSchema = z.object({
+  units: z.number().optional(),
+  unit_cost: z.number().optional(),
+  cost: z.number().optional(),
+  currency: z.string().optional(),
+})
+export type PriceComponent = z.infer<typeof PriceComponentSchema>
+
+/** Credit usage reported in the success message — shared by /extraction/parse and /extraction/extract. */
+export const CreditUsageResponseSchema = z.object({
+  usage: z
+    .object({
+      data_extraction_credits: DataExtractionCreditsSchema.optional(),
+      // Only present on /extraction/extract — the parse component plus the fixed extract component.
+      price_composition: z
+        .object({ parse: PriceComponentSchema.optional(), extract: PriceComponentSchema.optional() })
+        .optional(),
+    })
+    .optional(),
+})
+export type CreditUsageResponse = z.infer<typeof CreditUsageResponseSchema>
+
+export const ExtractFieldsResponseSchema = CreditUsageResponseSchema.extend({
+  output: z.object({ data: z.unknown(), metadata: z.unknown(), pages: z.array(z.unknown()).optional() }).optional(),
+})
+export type ExtractFieldsResponse = z.infer<typeof ExtractFieldsResponseSchema>

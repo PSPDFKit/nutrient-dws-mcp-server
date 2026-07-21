@@ -1,30 +1,11 @@
-import { DwsApiClient, createApiClientFromApiKey, createApiClientFromTokenResolver } from './client.js'
+import { DwsApiClient } from './client.js'
+import { createCredentialProvider } from './credential-provider.js'
+import type { Environment } from '../utils/environment.js'
 
-/**
- * Discriminated union describing how to authenticate with the DWS API.
- *
- * - Provide `apiKey` for static API-key auth (stdio mode).
- * - Provide `tokenResolver` for dynamic token auth (OAuth mode).
- */
-export type ApiClientAuthContext =
-  | {
-      apiKey: string
-      baseUrl?: string
-    }
-  | {
-      tokenResolver: () => Promise<string>
-      onTokenRejected?: () => void | Promise<void>
-      baseUrl?: string
-    }
-
-/**
- * Factory that creates a {@link DwsApiClient} from an auth context.
- * Selects the appropriate authentication strategy based on the context shape.
- */
-export function createApiClient(context: ApiClientAuthContext): DwsApiClient {
-  if ('apiKey' in context) {
-    return createApiClientFromApiKey(context.apiKey, context.baseUrl)
-  }
-
-  return createApiClientFromTokenResolver(context.tokenResolver, context.baseUrl, context.onTokenRejected)
+/** Creates a single {@link DwsApiClient} that routes each request to the credential for its product. */
+export function createApiClient(environment: Environment): DwsApiClient {
+  return new DwsApiClient({
+    provider: createCredentialProvider(environment),
+    baseUrl: environment.dwsApiBaseUrl,
+  })
 }

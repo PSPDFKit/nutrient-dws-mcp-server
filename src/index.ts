@@ -15,9 +15,13 @@ import {
   BuildAPIArgsSchema,
   CheckCreditsArgsSchema,
   DirectoryTreeArgsSchema,
+  ExtractFieldsArgsSchema,
+  ParseDocumentArgsSchema,
   SignAPIArgsSchema,
 } from './schemas.js'
 import { performBuildCall } from './dws/build.js'
+import { performParseDocumentCall } from './dws/parse.js'
+import { performExtractFieldsCall } from './dws/extract.js'
 import { performSignCall } from './dws/sign.js'
 import { performAiRedactCall } from './dws/ai-redact.js'
 import { performCheckCreditsCall } from './dws/credits.js'
@@ -28,9 +32,22 @@ import { getVersion } from './version.js'
 import { parseSandboxPath } from './utils/sandbox.js'
 import { createApiClient } from './dws/api.js'
 import { DwsApiClient } from './dws/client.js'
-import { getToken, invalidateCachedToken, type NutrientOAuthConfig } from './auth/nutrient-oauth.js'
 import { Environment, getEnvironment } from './utils/environment.js'
 import { logger } from './logger.js'
+
+/** Returned by the `parse_document` tool when no Data Extraction credential is configured (fail fast, no API call). */
+const EXTRACT_CLIENT_MISSING_ERROR =
+  'Error: Data Extraction is a separate product whose static API key is bound to its own tenant — the Processor key ' +
+  '(NUTRIENT_DWS_API_KEY) cannot be reused here. Set NUTRIENT_DWS_EXTRACTION_API_KEY to a Data Extraction API key from ' +
+  'the dashboard (starts with pdf_live_), or omit NUTRIENT_DWS_API_KEY entirely to authenticate via OAuth, which ' +
+  'covers both products with one token.'
+
+/** Returned by the Processor tools when the server was started with only a Data Extraction credential. */
+const PROCESSOR_CLIENT_MISSING_ERROR =
+  'Error: This server was started with only a Data Extraction API key configured, so the Processor tools ' +
+  '(document_processor, document_signer, ai_redactor, check_credits) are unavailable. Set NUTRIENT_DWS_API_KEY to ' +
+  'a Processor API key from the dashboard, or omit all API keys entirely to authenticate via OAuth, which covers ' +
+  'both products with one token.'
 
 function addToolsToServer(options: {
   server: McpServer
@@ -51,7 +68,9 @@ Features:
 • Watermarking (text/image)
 • Redaction creation and application
 
-Output formats: PDF, PDF/A, images (PNG, JPEG, WebP), JSON extraction, Office (DOCX, XLSX, PPTX)`,
+Output formats: PDF, PDF/A, images (PNG, JPEG, WebP), Office (DOCX, XLSX, PPTX)
+
+For structured data extraction (typed JSON or Markdown with bounding boxes and confidence scores), use the dedicated parse_document tool instead.`,
     BuildAPIArgsSchema.shape,
     {
       title: 'Nutrient Document Processor',
@@ -61,6 +80,9 @@ Output formats: PDF, PDF/A, images (PNG, JPEG, WebP), JSON extraction, Office (D
       openWorldHint: true,
     },
     async ({ instructions, outputPath }) => {
+      if (!apiClient.supports('processor')) {
+        return createErrorResponse(PROCESSOR_CLIENT_MISSING_ERROR)
+      }
       try {
         return await performBuildCall(instructions, outputPath, apiClient)
       } catch (error) {
@@ -95,6 +117,9 @@ Positioning:
       openWorldHint: true,
     },
     async ({ filePath, signatureOptions, watermarkImagePath, graphicImagePath, outputPath }) => {
+      if (!apiClient.supports('processor')) {
+        return createErrorResponse(PROCESSOR_CLIENT_MISSING_ERROR)
+      }
       try {
         return await performSignCall(
           filePath,
@@ -132,6 +157,9 @@ By default (when neither stage nor apply is set), redactions are detected and im
       openWorldHint: true,
     },
     async ({ filePath, criteria, outputPath, stage, apply }) => {
+      if (!apiClient.supports('processor')) {
+        return createErrorResponse(PROCESSOR_CLIENT_MISSING_ERROR)
+      }
       try {
         return await performAiRedactCall(filePath, criteria, outputPath, apiClient, stage, apply)
       } catch (error) {
@@ -156,8 +184,74 @@ Returns: subscription type, total credits, used credits, and remaining credits.`
       openWorldHint: true,
     },
     async () => {
+      if (!apiClient.supports('processor')) {
+        return createErrorResponse(PROCESSOR_CLIENT_MISSING_ERROR)
+      }
       try {
         return await performCheckCreditsCall(apiClient)
+      } catch (error) {
+        return createErrorResponse(`Error: ${error instanceof Error ? error.message : String(error)}`)
+      }
+    },
+  )
+
+  server.tool(
+    'parse_document',
+    `Extract structured data from a document using the Nutrient DWS Data Extraction API. Reads the input file from the local file system or sandbox (if enabled), or fetches it directly from a URL — provide exactly one of filePath or url.
+
+Output formats:
+• spatial — typed elements (paragraphs, tables, key-value pairs, formulas, pictures, handwriting) with bounding boxes, confidence scores, and reading order. Written to outputPath (the list can be large).
+• markdown — whole-document Markdown. Returned inline, or written to outputPath when provided (recommended for large documents). Good for RAG and search indexing.
+• Both at once via formats: ["spatial", "markdown"] — a second format costs no extra credits, so ask for both up front instead of extracting twice.
+
+Processing modes (cost per page): text = fast Markdown, no OCR (1 credit); structure = OCR spatial (1.5 credits); understand = AI-augmented, default (9 credits); agentic = VLM-augmented (18 credits).
+
+Note: markdown output and any extracted content are returned into this conversation and may be logged by the host. For sensitive documents, prefer spatial output to a file plus targeted extract_fields calls.`,
+    ParseDocumentArgsSchema.shape,
+    {
+      title: 'Nutrient Document Parser',
+      readOnlyHint: false,
+      destructiveHint: true,
+      idempotentHint: false,
+      openWorldHint: true,
+    },
+    async (args) => {
+      if (!apiClient.supports('extraction')) {
+        return createErrorResponse(EXTRACT_CLIENT_MISSING_ERROR)
+      }
+      try {
+        return await performParseDocumentCall(args, apiClient)
+      } catch (error) {
+        return createErrorResponse(`Error: ${error instanceof Error ? error.message : String(error)}`)
+      }
+    },
+  )
+
+  server.tool(
+    'extract_fields',
+    `Pull specific named fields out of a document into a JSON shape you define, using the Nutrient DWS Data Extraction API. Reads the input file from the local file system or sandbox (if enabled), or fetches it directly from a URL — provide exactly one of filePath or url.
+
+Unlike parse_document, which parses a whole document into elements or Markdown, extract_fields takes a JSON schema (root type: "object", with properties) and returns only the values matching it — e.g. { invoiceNumber, total, lineItems: [...] } — each with a per-field citation (bounding box, confidence, and match quality) tying it back to where it was found.
+
+Processing modes (cost per page, parse component only — no text mode here): structure = OCR spatial parse (1.5 credits); understand = AI-augmented, default (9 credits); agentic = VLM-augmented (18 credits). Total cost per page is this parse component plus a fixed extract component, billed in Data Extraction credits — a separate balance from the Processor API credits reported by check_credits.
+
+output.data (the extracted values) is always returned inline. Per-field citations and page geometry are large and are only kept when outputPath is provided; otherwise a note says they were omitted.`,
+    ExtractFieldsArgsSchema.shape,
+    {
+      title: 'Nutrient Field Extractor',
+      // Writes to outputPath, like parse_document — not read-only, whatever the
+      // "extractor" name suggests.
+      readOnlyHint: false,
+      destructiveHint: true,
+      idempotentHint: false,
+      openWorldHint: true,
+    },
+    async (args) => {
+      if (!apiClient.supports('extraction')) {
+        return createErrorResponse(EXTRACT_CLIENT_MISSING_ERROR)
+      }
+      try {
+        return await performExtractFieldsCall(args, apiClient)
       } catch (error) {
         return createErrorResponse(`Error: ${error instanceof Error ? error.message : String(error)}`)
       }
@@ -236,34 +330,6 @@ async function prepareSandbox(sandboxDir: string | null) {
   )
 }
 
-function buildOAuthConfig(environment: Environment): NutrientOAuthConfig {
-  return {
-    authorizeUrl: `${environment.authServerUrl}/oauth/authorize`,
-    tokenUrl: `${environment.authServerUrl}/oauth/token`,
-    registrationUrl: `${environment.authServerUrl}/oauth/register`,
-    clientId: environment.clientId,
-    scopes: ['mcp:invoke', 'offline_access'],
-    resource: environment.dwsApiBaseUrl,
-  }
-}
-
-function createStdioApiClient(environment: Environment): DwsApiClient {
-  if (environment.nutrientApiKey) {
-    return createApiClient({
-      apiKey: environment.nutrientApiKey,
-      baseUrl: environment.dwsApiBaseUrl,
-    })
-  }
-
-  const oauthConfig = buildOAuthConfig(environment)
-
-  return createApiClient({
-    tokenResolver: () => getToken(oauthConfig),
-    onTokenRejected: () => invalidateCachedToken(oauthConfig),
-    baseUrl: environment.dwsApiBaseUrl,
-  })
-}
-
 type RunServerResult = {
   close: () => Promise<void>
 }
@@ -275,14 +341,19 @@ export async function runServer(environment: Environment): Promise<RunServerResu
 
   const sandboxEnabled = sandboxDir !== null
 
+  const apiClient = createApiClient(environment)
+
+  const staticKeyMode = Boolean(environment.nutrientApiKey || environment.nutrientExtractionApiKey)
+
   logger.info('Starting stdio transport', {
     version: getVersion(),
-    authMethod: environment.nutrientApiKey ? 'api-key' : 'oauth-browser-flow',
+    authMethod: apiClient.supports('processor') ? (staticKeyMode ? 'api-key' : 'oauth-browser-flow') : 'unconfigured',
+    extractAuthMethod: apiClient.supports('extraction')
+      ? (staticKeyMode ? 'api-key' : 'oauth-browser-flow')
+      : 'unconfigured',
     sandboxEnabled,
     dwsApiBaseUrl: environment.dwsApiBaseUrl,
   })
-
-  const apiClient = createStdioApiClient(environment)
 
   const server = createMcpServer({
     sandboxEnabled,

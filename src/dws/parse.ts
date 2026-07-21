@@ -1,0 +1,411 @@
+import axios from 'axios'
+import FormData from 'form-data'
+import fs from 'fs'
+import path from 'path'
+import { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
+import { DwsApiClient } from './client.js'
+import {
+  CreditUsageResponse,
+  ExtractionErrorResponse,
+  ExtractionFormat,
+  ExtractionResponse,
+  ParseDocumentArgs,
+} from '../schemas.js'
+import { resolveReadFilePath, resolveWriteFilePath } from '../fs/sandbox.js'
+import { pipeToString, handleApiError } from './utils.js'
+import { createSuccessResponse, createErrorResponse } from '../responses.js'
+
+const EXTRACTION_ENDPOINT = 'extraction/parse'
+const LOW_CONFIDENCE_THRESHOLD = 0.6
+
+// Omitting this header pins the request to whichever spec version was current
+// when the API key was created, not the version this server was built against.
+const EXTRACTION_API_VERSION = '2026-05-25'
+export const EXTRACTION_HEADERS = { 'x-nutrient-api-version': EXTRACTION_API_VERSION }
+
+function formatExtractionError(body: ExtractionErrorResponse, httpStatus: number, cheaperModeHint?: string): string {
+  const status = body.status ?? httpStatus
+  const lines = [`Data Extraction API error (HTTP ${status}): ${body.errorMessage}`]
+
+  // 402 is a balance problem, not a blip. Say so, or an agent reads a generic
+  // failure and retries — burning another call that cannot succeed.
+  if (status === 402) {
+    lines.push(
+      'Out of Data Extraction credits. Retrying will not help — top up the Data Extraction balance, which is separate ' +
+        `from the Processor API credits reported by check_credits.${cheaperModeHint ? ` ${cheaperModeHint}` : ''}`,
+    )
+  }
+
+  const details = body.errorDetails
+  if (details?.code) {
+    lines.push(`Code: ${details.code}${details.source ? ` (source: ${details.source})` : ''}`)
+  }
+  for (const failing of details?.failingPaths ?? []) {
+    lines.push(`Failing path ${failing.path}: ${failing.details}`)
+  }
+  if (body.requestId) {
+    lines.push(`requestId: ${body.requestId}${body.runId ? `, runId: ${body.runId}` : ''}`)
+  }
+
+  return lines.join('\n')
+}
+
+/** Advice appended to a 402 from `/extraction/parse`, whose cheapest mode is `text`. */
+export const PARSE_CHEAPER_MODE_HINT =
+  'A cheaper mode (text: 1 credit/page, structure: 1.5) costs less per page than understand (9) or agentic (18).'
+
+/**
+ * Renders a failed Data Extraction call.
+ *
+ * Consumes the error stream itself rather than delegating to `handleApiError`,
+ * which only recognizes the Processor envelope — the response body can be read
+ * exactly once, so the two cannot both inspect it.
+ *
+ * `cheaperModeHint` is per-endpoint: the modes and per-page costs differ between
+ * /extraction/parse and /extraction/extract, and naming a mode the caller's
+ * endpoint rejects would send it into a guaranteed-failing retry.
+ */
+export async function handleExtractionApiError(error: unknown, cheaperModeHint?: string): Promise<CallToolResult> {
+  if (!axios.isAxiosError(error) || !error.response?.data) {
+    return handleApiError(error)
+  }
+
+  let body: string
+  try {
+    body = await pipeToString(error.response.data)
+  } catch (streamError) {
+    return createErrorResponse(
+      `Error reading the Data Extraction API error response: ${streamError instanceof Error ? streamError.message : String(streamError)}`,
+    )
+  }
+
+  let parsed: ExtractionErrorResponse
+  try {
+    parsed = JSON.parse(body) as ExtractionErrorResponse
+  } catch {
+    return createErrorResponse(`Data Extraction API error (HTTP ${error.response.status}): ${body}`)
+  }
+
+  if (typeof parsed.errorMessage !== 'string') {
+    return createErrorResponse(`Data Extraction API error (HTTP ${error.response.status}): ${body}`)
+  }
+
+  return createErrorResponse(formatExtractionError(parsed, error.response.status, cheaperModeHint))
+}
+
+/** text mode defaults to markdown; every other mode defaults to spatial. Callers pass `format` or `formats`, never both. */
+function resolveFormats(
+  mode: ParseDocumentArgs['mode'],
+  format: ParseDocumentArgs['format'],
+  formats: ParseDocumentArgs['formats'],
+): ExtractionFormat[] {
+  if (formats) {
+    return Array.from(new Set(formats))
+  }
+  if (format) {
+    return [format]
+  }
+  return mode === 'text' ? ['markdown'] : ['spatial']
+}
+
+/** Data Extraction credit usage, appended to the success message. */
+export function formatCreditUsage(response: CreditUsageResponse): string {
+  const notes: string[] = []
+  const credits = response.usage?.data_extraction_credits
+  // Either half alone is worth reporting: the remaining balance is what stops an
+  // agent from walking into a 402, and it must survive a response that omits cost.
+  if (credits && (typeof credits.cost === 'number' || typeof credits.remainingCredits === 'number')) {
+    const used =
+      typeof credits.cost === 'number'
+        ? `Used ${credits.cost} Data Extraction credit(s)`
+        : 'Used an unreported number of Data Extraction credits'
+    const remaining =
+      typeof credits.remainingCredits === 'number' ? `${credits.remainingCredits} remaining` : 'remaining unknown'
+    notes.push(
+      `${used} (${remaining}). These are Data Extraction credits — a separate ` +
+        'balance from the Processor API credits reported by check_credits.',
+    )
+    const composition = response.usage?.price_composition
+    const parse = composition?.parse
+    const extract = composition?.extract
+    if (parse && extract) {
+      notes.push(
+        `Cost breakdown: parse ${parse.cost ?? '?'} + extract ${extract.cost ?? '?'} (per-page, ${extract.units ?? '?'} page(s)).`,
+      )
+    }
+  }
+  return notes.length > 0 ? `\n\n${notes.join('\n')}` : ''
+}
+
+/**
+ * Build a decision-grade summary of a spatial extraction result.
+ *
+ * Deliberately excludes extracted document text — it reports only counts,
+ * confidence signal, page geometry, and where the full result was written, so
+ * sensitive content never lands in the agent transcript.
+ */
+function summarizeSpatial(response: ExtractionResponse, outputPath: string, byteLength: number): string {
+  const elements = response.output?.elements ?? []
+  const typeCounts: Record<string, number> = {}
+  const pageIndexes = new Set<number>()
+  let lowConfidence = 0
+
+  for (const element of elements) {
+    const type = element.type ?? 'unknown'
+    typeCounts[type] = (typeCounts[type] ?? 0) + 1
+    if (typeof element.confidence === 'number' && element.confidence < LOW_CONFIDENCE_THRESHOLD) {
+      lowConfidence += 1
+    }
+    if (typeof element.page?.pageIndex === 'number') {
+      pageIndexes.add(element.page.pageIndex)
+    }
+  }
+
+  const pageCount = response.metrics?.pagesProcessed ?? pageIndexes.size
+  const typeSummary = Object.entries(typeCounts)
+    .map(([type, count]) => `${type}: ${count}`)
+    .join(', ')
+
+  return [
+    `Extracted ${elements.length} elements across ${pageCount} page(s) and wrote the full spatial JSON to ${outputPath} (${byteLength} bytes).`,
+    `Element types: ${typeSummary || 'none'}.`,
+    `Low-confidence elements (confidence < ${LOW_CONFIDENCE_THRESHOLD}): ${lowConfidence}.`,
+    `The document content is not included here — use extract_fields to pull specific field values.`,
+  ].join('\n')
+}
+
+/** Writes `data` to `resolvedPath`, creating parent directories as needed. */
+export async function writeToResolvedPath(resolvedPath: string, data: string): Promise<void> {
+  const outputDir = path.dirname(resolvedPath)
+  await fs.promises.mkdir(outputDir, { recursive: true })
+  await fs.promises.writeFile(resolvedPath, data)
+}
+
+export const SAME_PATH_ERROR =
+  'Error: outputPath must be different from the input filePath — writing the extraction there would destroy the source document.'
+
+/**
+ * Renders a write failure that happened *after* the extraction succeeded and was
+ * billed. A bare filesystem error reads as a failed call, so the agent retries
+ * and pays for the same extraction twice.
+ */
+export function billedWriteFailure(resolvedPath: string, error: unknown): CallToolResult {
+  return createErrorResponse(
+    `Error: the extraction succeeded and was billed, but writing the result to ${resolvedPath} failed: ` +
+      `${error instanceof Error ? error.message : String(error)}. ` +
+      'Retrying the extraction will be billed again — free up space or pass a different outputPath.',
+  )
+}
+
+/**
+ * Renders a 2xx response that is missing an expected output field. The call
+ * already succeeded and was billed, so a bare error would invite a retry that
+ * pays again — surface the billed framing and the credit usage instead.
+ */
+export function billedMalformedResponse(missingField: string, creditUsage: string): CallToolResult {
+  return createErrorResponse(
+    'Error: the extraction succeeded and was billed, but the Data Extraction API response was malformed ' +
+      `(missing ${missingField}). Retrying will be billed again — this is a server-side response problem, ` +
+      `not a transient error.${creditUsage}`,
+  )
+}
+
+/**
+ * Calls the Nutrient DWS Data Extraction API (`POST /extraction/parse`).
+ *
+ * Spatial output is written to `outputPath` and summarized inline; markdown
+ * output is returned inline (or written to `outputPath` when given). When
+ * both are requested, the spatial file is written and the summary also notes
+ * the markdown that landed alongside it under `output.markdown`.
+ */
+export async function performParseDocumentCall(
+  args: ParseDocumentArgs,
+  apiClient: DwsApiClient,
+): Promise<CallToolResult> {
+  const {
+    filePath,
+    url,
+    mode,
+    format,
+    formats,
+    language,
+    maxLanguages,
+    maxScripts,
+    includeWords,
+    useHtmlTables,
+    enableSemanticBlockFormatting,
+    includeHeadersAndFooters,
+    extractWordsFromPictures,
+    outputPath,
+  } = args
+
+  if (filePath && url) {
+    return createErrorResponse('Error: provide exactly one of filePath or url, not both.')
+  }
+  if (!filePath && !url) {
+    return createErrorResponse('Error: provide exactly one of filePath or url.')
+  }
+  if (format && formats) {
+    return createErrorResponse(
+      'Error: provide only one of format or formats — the Data Extraction API rejects a request with both set.',
+    )
+  }
+  if (language !== undefined && (maxLanguages !== undefined || maxScripts !== undefined)) {
+    return createErrorResponse(
+      'Error: maxLanguages and maxScripts only apply when language is left unset (auto-detect). Remove language, or drop these options.',
+    )
+  }
+  if (mode === 'text' && (maxLanguages !== undefined || maxScripts !== undefined)) {
+    return createErrorResponse(
+      'Error: maxLanguages and maxScripts tune OCR language auto-detection, which text mode does not perform. ' +
+        'Drop them, or use structure/understand/agentic.',
+    )
+  }
+
+  const resolvedFormats = resolveFormats(mode, format, formats)
+  const formatSet = new Set(resolvedFormats)
+
+  if (mode === 'text' && formatSet.has('spatial')) {
+    return createErrorResponse(
+      'Error: text mode only supports markdown output. Use a different mode for spatial output.',
+    )
+  }
+  if (formatSet.has('spatial') && !outputPath) {
+    return createErrorResponse(
+      'Error: spatial output requires outputPath — the element list can be large and is written to a file.',
+    )
+  }
+
+  // Resolve any provided output path first (fail early on a sandbox escape,
+  // before the API call). Required for spatial, optional for markdown.
+  let resolvedOutputPath: string | undefined
+  if (outputPath) {
+    try {
+      resolvedOutputPath = await resolveWriteFilePath(outputPath)
+    } catch (error) {
+      return createErrorResponse(`Error: ${error instanceof Error ? error.message : String(error)}`)
+    }
+  }
+
+  let fileBuffer: Buffer | undefined
+  let fileName: string | undefined
+  if (filePath) {
+    try {
+      const resolvedInputPath = await resolveReadFilePath(filePath)
+      if (resolvedInputPath === resolvedOutputPath) {
+        return createErrorResponse(SAME_PATH_ERROR)
+      }
+      fileBuffer = await fs.promises.readFile(resolvedInputPath)
+      fileName = path.basename(resolvedInputPath)
+    } catch (error) {
+      return createErrorResponse(
+        `Error with input file ${filePath}: ${error instanceof Error ? error.message : String(error)}`,
+      )
+    }
+  }
+
+  const output: Record<string, unknown> =
+    resolvedFormats.length === 1 ? { format: resolvedFormats[0] } : { formats: resolvedFormats }
+  if (formatSet.has('spatial') && includeWords !== undefined) {
+    output.includeWords = includeWords
+  }
+  if (formatSet.has('markdown')) {
+    // Markdown-only knobs: send only when the caller set them, never a zod
+    // default — useHtmlTables/enableSemanticBlockFormatting default to true
+    // server-side, so sending an implicit `false` would silently change output.
+    if (useHtmlTables !== undefined) output.useHtmlTables = useHtmlTables
+    if (enableSemanticBlockFormatting !== undefined)
+      output.enableSemanticBlockFormatting = enableSemanticBlockFormatting
+    if (includeHeadersAndFooters !== undefined) output.includeHeadersAndFooters = includeHeadersAndFooters
+    if (extractWordsFromPictures !== undefined) output.extractWordsFromPictures = extractWordsFromPictures
+  }
+
+  const instructions: Record<string, unknown> = { mode, output }
+  if (mode !== 'text') {
+    const options: Record<string, unknown> = {}
+    if (language !== undefined) options.language = language
+    if (maxLanguages !== undefined) options.maxLanguages = maxLanguages
+    if (maxScripts !== undefined) options.maxScripts = maxScripts
+    if (Object.keys(options).length > 0) {
+      instructions.options = options
+    }
+  }
+
+  // Only the billable call is guarded by the API error handler: a failure after
+  // it has succeeded is not an API error, and rendering it as one hides the fact
+  // that the extraction was already paid for.
+  let body: string
+  try {
+    let response: Awaited<ReturnType<DwsApiClient['post']>>
+    if (filePath) {
+      const form = new FormData()
+      form.append('file', fileBuffer!, { filename: fileName! })
+      form.append('instructions', JSON.stringify(instructions))
+      response = await apiClient.post(EXTRACTION_ENDPOINT, form, EXTRACTION_HEADERS)
+    } else {
+      response = await apiClient.post(EXTRACTION_ENDPOINT, { ...instructions, url }, EXTRACTION_HEADERS)
+    }
+    body = await pipeToString(response.data)
+  } catch (error) {
+    return handleExtractionApiError(error, PARSE_CHEAPER_MODE_HINT)
+  }
+
+  let parsed: ExtractionResponse
+  try {
+    parsed = JSON.parse(body) as ExtractionResponse
+  } catch {
+    return createErrorResponse('Error: the Data Extraction API returned a response that could not be parsed as JSON.')
+  }
+
+  const creditUsage = formatCreditUsage(parsed)
+
+  if (formatSet.has('spatial') && resolvedOutputPath) {
+    // Guard against a 2xx response that is not a spatial result, so we never
+    // overwrite the target file with a non-extraction body.
+    if (!Array.isArray(parsed.output?.elements)) {
+      return billedMalformedResponse(
+        'the spatial element list (output.elements)',
+        creditUsage,
+      )
+    }
+    // Validate every requested format before writing, so an incomplete
+    // response never leaves a file on disk behind an error result — the
+    // caller would retry and be billed for the extraction twice.
+    const markdown = formatSet.has('markdown') ? parsed.output?.markdown : undefined
+    if (formatSet.has('markdown') && typeof markdown !== 'string') {
+      return billedMalformedResponse('markdown output (output.markdown)', creditUsage)
+    }
+    // Write the raw response body: avoids re-serializing a potentially large
+    // payload and preserves every field the API returned. When markdown was
+    // also requested, that same body already carries output.markdown.
+    try {
+      await writeToResolvedPath(resolvedOutputPath, body)
+    } catch (error) {
+      return billedWriteFailure(resolvedOutputPath, error)
+    }
+    let summary = summarizeSpatial(parsed, resolvedOutputPath, Buffer.byteLength(body))
+    if (typeof markdown === 'string') {
+      summary += `\nAlso wrote ${Buffer.byteLength(markdown)} bytes of Markdown to the same file, under output.markdown.`
+    }
+    return createSuccessResponse(summary + creditUsage)
+  }
+
+  // Markdown-only.
+  const markdown = parsed.output?.markdown
+  if (typeof markdown !== 'string') {
+    return billedMalformedResponse('markdown output (output.markdown)', creditUsage)
+  }
+  // Honor outputPath for markdown too — a large document returned inline
+  // would overflow the conversation. Only return inline when no path given.
+  if (resolvedOutputPath) {
+    try {
+      await writeToResolvedPath(resolvedOutputPath, markdown)
+    } catch (error) {
+      return billedWriteFailure(resolvedOutputPath, error)
+    }
+    return createSuccessResponse(
+      `Wrote ${Buffer.byteLength(markdown)} bytes of Markdown to ${resolvedOutputPath}.${creditUsage}`,
+    )
+  }
+  return createSuccessResponse(markdown + creditUsage)
+}

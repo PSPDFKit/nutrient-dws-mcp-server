@@ -47,4 +47,34 @@ describe('environment', () => {
 
     expect(environment.authServerUrl).toBe('http://localhost:4000')
   })
+
+  it('treats a whitespace-only NUTRIENT_DWS_API_KEY as unset, so it cannot suppress the OAuth flow', () => {
+    const environment = getEnvironment({ NUTRIENT_DWS_API_KEY: '   ' })
+
+    expect(environment.nutrientApiKey).toBeUndefined()
+  })
+
+  it('reads NUTRIENT_DWS_EXTRACTION_API_KEY', () => {
+    const environment = getEnvironment({ NUTRIENT_DWS_EXTRACTION_API_KEY: 'pdf_live_extract-key' })
+
+    expect(environment.nutrientExtractionApiKey).toBe('pdf_live_extract-key')
+  })
+
+  it('trims NUTRIENT_DWS_EXTRACTION_API_KEY', () => {
+    const environment = getEnvironment({ NUTRIENT_DWS_EXTRACTION_API_KEY: '  pdf_live_extract-key  ' })
+
+    expect(environment.nutrientExtractionApiKey).toBe('pdf_live_extract-key')
+  })
+
+  it('treats a whitespace-only NUTRIENT_DWS_EXTRACTION_API_KEY as unset', () => {
+    const environment = getEnvironment({ NUTRIENT_DWS_EXTRACTION_API_KEY: '   ' })
+
+    expect(environment.nutrientExtractionApiKey).toBeUndefined()
+  })
+
+  it('leaves NUTRIENT_DWS_EXTRACTION_API_KEY undefined when unset', () => {
+    const environment = getEnvironment({})
+
+    expect(environment.nutrientExtractionApiKey).toBeUndefined()
+  })
 })

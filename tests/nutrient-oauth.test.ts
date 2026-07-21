@@ -197,6 +197,7 @@ describe('getToken integration', () => {
       refreshToken: 'rt',
       expiresAt: Date.now() + 3600_000,
       clientId: 'cid',
+      scopes: ['dws'],
     }
     await writeFile(credsPath, JSON.stringify(creds))
 
@@ -210,12 +211,88 @@ describe('getToken integration', () => {
     expect(token).toBe('cached-access-token')
   })
 
+  it('returns cached token when its scopes are a superset of the configured scopes', async () => {
+    const creds = {
+      accessToken: 'cached-access-token',
+      refreshToken: 'rt',
+      expiresAt: Date.now() + 3600_000,
+      clientId: 'cid',
+      scopes: ['dws', 'product:all', 'offline_access'],
+    }
+    await writeFile(credsPath, JSON.stringify(creds))
+
+    const { getToken } = await import('../src/auth/nutrient-oauth.js')
+    const config = makeConfig({
+      tokenUrl: 'http://should-not-be-called',
+      credentialsPath: credsPath,
+    })
+
+    const token = await getToken(config)
+    expect(token).toBe('cached-access-token')
+  })
+
+  it('re-authorizes instead of reusing cached credentials with no recorded scopes', async () => {
+    const creds = {
+      accessToken: 'cached-access-token',
+      refreshToken: 'rt',
+      expiresAt: Date.now() + 3600_000,
+      clientId: 'cid',
+    }
+    await writeFile(credsPath, JSON.stringify(creds))
+
+    const { getToken } = await import('../src/auth/nutrient-oauth.js')
+    const config = makeConfig({
+      tokenUrl: 'http://localhost:1/token',
+      credentialsPath: credsPath,
+      clientId: 'fresh-client',
+    })
+
+    const openMock = (await import('open')).default as ReturnType<typeof vi.fn>
+    openMock.mockClear()
+
+    const result = getToken(config)
+    await vi.waitFor(() => {
+      expect(openMock).toHaveBeenCalled()
+    }, { timeout: 5_000 })
+
+    result.catch(() => {})
+  })
+
+  it('re-authorizes instead of reusing cached credentials missing a newly required scope', async () => {
+    const creds = {
+      accessToken: 'cached-access-token',
+      refreshToken: 'rt',
+      expiresAt: Date.now() + 3600_000,
+      clientId: 'cid',
+      scopes: ['offline_access'],
+    }
+    await writeFile(credsPath, JSON.stringify(creds))
+
+    const { getToken } = await import('../src/auth/nutrient-oauth.js')
+    const config = makeConfig({
+      tokenUrl: 'http://localhost:1/token',
+      credentialsPath: credsPath,
+      clientId: 'fresh-client',
+    })
+
+    const openMock = (await import('open')).default as ReturnType<typeof vi.fn>
+    openMock.mockClear()
+
+    const result = getToken(config)
+    await vi.waitFor(() => {
+      expect(openMock).toHaveBeenCalled()
+    }, { timeout: 5_000 })
+
+    result.catch(() => {})
+  })
+
   it('refreshes an expired token via the token endpoint', async () => {
     const creds = {
       accessToken: 'old-access-token',
       refreshToken: 'my-refresh-token',
       expiresAt: Date.now() - 60_000,
       clientId: 'test-client',
+      scopes: ['dws'],
     }
     await writeFile(credsPath, JSON.stringify(creds))
 
@@ -249,6 +326,108 @@ describe('getToken integration', () => {
     expect(saved.refreshToken).toBe('new-refresh-token')
     expect(saved.clientId).toBe('test-client')
     expect(saved.expiresAt).toBeGreaterThan(Date.now())
+    expect(saved.scopes).toEqual(['dws'])
+  })
+
+  it('persists scopes granted by a refresh response', async () => {
+    const creds = {
+      accessToken: 'old-access-token',
+      refreshToken: 'my-refresh-token',
+      expiresAt: Date.now() - 60_000,
+      clientId: 'test-client',
+      scopes: ['dws', 'product:all'],
+    }
+    await writeFile(credsPath, JSON.stringify(creds))
+
+    const srv = await startFakeTokenServer(() => ({
+      access_token: 'new-access-token',
+      refresh_token: 'new-refresh-token',
+      expires_in: 7200,
+      scope: 'dws',
+    }))
+    tokenServer = srv.server
+
+    const { getToken } = await import('../src/auth/nutrient-oauth.js')
+    const token = await getToken(makeConfig({
+      tokenUrl: `${srv.url}/token`,
+      credentialsPath: credsPath,
+      scopes: ['dws', 'product:all'],
+    }))
+
+    expect(token).toBe('new-access-token')
+    const saved = JSON.parse(await readFile(credsPath, 'utf-8'))
+    expect(saved.scopes).toEqual(['dws'])
+  })
+
+  it('persists scopes granted by a code exchange response', async () => {
+    const tokenHandler = vi.fn((params: URLSearchParams) => {
+      expect(params.get('grant_type')).toBe('authorization_code')
+      expect(params.get('code')).toBe('authorization-code')
+      return {
+        access_token: 'new-access-token',
+        refresh_token: 'new-refresh-token',
+        expires_in: 7200,
+        scope: 'dws',
+      }
+    })
+    const srv = await startFakeTokenServer(tokenHandler)
+    tokenServer = srv.server
+
+    const { getToken } = await import('../src/auth/nutrient-oauth.js')
+    const openMock = (await import('open')).default as ReturnType<typeof vi.fn>
+    openMock.mockClear()
+    const result = getToken(makeConfig({
+      tokenUrl: `${srv.url}/token`,
+      credentialsPath: credsPath,
+      clientId: 'test-client',
+      scopes: ['dws', 'product:all'],
+    }))
+
+    await vi.waitFor(() => {
+      expect(openMock).toHaveBeenCalledOnce()
+    })
+    await new Promise((resolve) => setImmediate(resolve))
+    const authorizeUrl = new URL(openMock.mock.calls[0][0] as string)
+    const redirectUri = new URL(authorizeUrl.searchParams.get('redirect_uri')!)
+    redirectUri.hostname = '127.0.0.1'
+    const state = authorizeUrl.searchParams.get('state')!
+    const callbackResponse = await fetch(`${redirectUri}?code=authorization-code&state=${state}`, {
+      signal: AbortSignal.timeout(1_000),
+    })
+
+    expect(callbackResponse.status).toBe(200)
+    expect(await result).toBe('new-access-token')
+    expect(tokenHandler).toHaveBeenCalledOnce()
+    const saved = JSON.parse(await readFile(credsPath, 'utf-8'))
+    expect(saved.scopes).toEqual(['dws'])
+  })
+
+  it('preserves cached scopes when a refresh response omits scope', async () => {
+    const creds = {
+      accessToken: 'old-access-token',
+      refreshToken: 'my-refresh-token',
+      expiresAt: Date.now() - 60_000,
+      clientId: 'test-client',
+      scopes: ['dws', 'product:all'],
+    }
+    await writeFile(credsPath, JSON.stringify(creds))
+
+    const srv = await startFakeTokenServer(() => ({
+      access_token: 'new-access-token',
+      refresh_token: 'new-refresh-token',
+      expires_in: 7200,
+    }))
+    tokenServer = srv.server
+
+    const { getToken } = await import('../src/auth/nutrient-oauth.js')
+    await getToken(makeConfig({
+      tokenUrl: `${srv.url}/token`,
+      credentialsPath: credsPath,
+      scopes: ['dws', 'product:all'],
+    }))
+
+    const saved = JSON.parse(await readFile(credsPath, 'utf-8'))
+    expect(saved.scopes).toEqual(['dws', 'product:all'])
   })
 
   it('falls back to browser flow when refresh fails', async () => {
@@ -257,6 +436,7 @@ describe('getToken integration', () => {
       refreshToken: 'bad-refresh',
       expiresAt: Date.now() - 60_000,
       clientId: 'test-client',
+      scopes: ['dws'],
     }
     await writeFile(credsPath, JSON.stringify(creds))
 
@@ -293,6 +473,7 @@ describe('getToken integration', () => {
       refreshToken: 'rt-concurrent',
       expiresAt: Date.now() - 60_000,
       clientId: 'concurrent-client',
+      scopes: ['dws'],
     }
     await writeFile(credsPath, JSON.stringify(creds))
 
