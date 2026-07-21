@@ -419,6 +419,20 @@ describe('performParseDocumentCall', () => {
       expect(output).not.toHaveProperty('formats')
     })
 
+    it('deduplicates formats before sending a single-format request', async () => {
+      const input = await writeInput()
+      const { client, post } = mockClient({ output: { markdown: '# Hello' } })
+
+      await performParseDocumentCall(
+        extractArgs({ filePath: input, mode: 'text', formats: ['markdown', 'markdown'] }),
+        client,
+      )
+
+      const output = parseFormInstructions(post.mock.calls[0][1]).output as Record<string, unknown>
+      expect(output.format).toBe('markdown')
+      expect(output).not.toHaveProperty('formats')
+    })
+
     it('omits includeWords when unset, and never sends it on a markdown-only request', async () => {
       const input = await writeInput()
       const spatial = mockClient(spatialFixture)

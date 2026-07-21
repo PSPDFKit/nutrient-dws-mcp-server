@@ -100,7 +100,7 @@ function resolveFormats(
   formats: ParseDocumentArgs['formats'],
 ): ExtractionFormat[] {
   if (formats) {
-    return formats
+    return Array.from(new Set(formats))
   }
   if (format) {
     return [format]
