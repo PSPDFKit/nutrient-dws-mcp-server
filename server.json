@@ -1,0 +1,35 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.PSPDFKit/nutrient-dws-mcp-server",
+  "title": "Nutrient DWS MCP Server",
+  "description": "MCP server for the Nutrient DWS Processor API: convert, merge, redact, sign, OCR, watermark, and extract data from PDFs and Office documents via natural language.",
+  "version": "0.1.0",
+  "repository": {
+    "url": "https://github.com/PSPDFKit/nutrient-dws-mcp-server",
+    "source": "github"
+  },
+  "packages": [
+    {
+      "registryType": "npm",
+      "identifier": "@nutrient-sdk/dws-mcp-server",
+      "version": "0.1.0",
+      "transport": { "type": "stdio" },
+      "environmentVariables": [
+        {
+          "name": "NUTRIENT_DWS_API_KEY",
+          "description": "Nutrient DWS API key. Optional for local desktop use (browser sign-in on first request); required for CI or headless environments.",
+          "isRequired": false,
+          "isSecret": true,
+          "format": "string"
+        },
+        {
+          "name": "SANDBOX_PATH",
+          "description": "Local directory the server is allowed to read and write documents in.",
+          "isRequired": false,
+          "isSecret": false,
+          "format": "string"
+        }
+      ]
+    }
+  ]
+}
