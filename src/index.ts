@@ -356,6 +356,7 @@ type RunServerResult = {
 type RunServerOptions = {
   sandboxDir?: string | null
   transport?: Transport
+  startupReady?: Promise<void>
 }
 
 const STDIO_PIPE_HINT =
@@ -374,7 +375,7 @@ export async function runServer(environment: Environment, options: RunServerOpti
   const sandboxDir = options.sandboxDir === undefined ? (await parseCommandLineArgs()).sandboxDir : options.sandboxDir
   // Start sandbox validation without keeping the MCP handshake behind potentially slow filesystem I/O.
   // Tool handlers share this promise, so no tool can observe a partially prepared sandbox.
-  const startupReady = prepareSandbox(sandboxDir)
+  const startupReady = options.startupReady ?? prepareSandbox(sandboxDir)
   void startupReady.catch(() => {})
 
   const sandboxEnabled = sandboxDir !== null
@@ -405,7 +406,16 @@ export async function runServer(environment: Environment, options: RunServerOpti
 
   logger.info('stdio transport connected')
 
-  await startupReady
+  try {
+    await startupReady
+  } catch (startupError) {
+    try {
+      await server.close()
+    } catch (closeError) {
+      logger.error('Failed to close server after startup error', { err: closeError })
+    }
+    throw startupError
+  }
 
   await server.server.sendLoggingMessage({
     level: 'info',

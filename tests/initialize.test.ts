@@ -106,6 +106,27 @@ describe('initialize startup boundary', () => {
       await runningServer?.close()
     }
   })
+
+  it('closes the connected transport when startup preparation fails', async () => {
+    const startupError = new Error('sandbox preparation failed')
+    const [, serverTransport] = InMemoryTransport.createLinkedPair()
+    const closeTransport = vi.spyOn(serverTransport, 'close')
+
+    const runPromise = runServer(
+      {
+        dwsApiBaseUrl: 'https://api.nutrient.io',
+        authServerUrl: 'https://api.nutrient.io',
+      },
+      {
+        sandboxDir: '/failing-sandbox',
+        transport: serverTransport,
+        startupReady: Promise.reject(startupError),
+      },
+    )
+
+    await expect(runPromise).rejects.toBe(startupError)
+    expect(closeTransport).toHaveBeenCalled()
+  })
 })
 
 describe('stdio transport startup hint', () => {
