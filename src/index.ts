@@ -10,6 +10,7 @@ import { fileURLToPath } from 'node:url'
 import { resolve } from 'node:path'
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
+import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js'
 import {
   AiRedactArgsSchema,
   BuildAPIArgsSchema,
@@ -53,8 +54,9 @@ function addToolsToServer(options: {
   server: McpServer
   sandboxEnabled: boolean
   apiClient: DwsApiClient
+  startupReady: Promise<void>
 }) {
-  const { server, sandboxEnabled, apiClient } = options
+  const { server, sandboxEnabled, apiClient, startupReady } = options
 
   server.tool(
     'document_processor',
@@ -80,6 +82,7 @@ For structured data extraction (typed JSON or Markdown with bounding boxes and c
       openWorldHint: true,
     },
     async ({ instructions, outputPath }) => {
+      await startupReady
       if (!apiClient.supports('processor')) {
         return createErrorResponse(PROCESSOR_CLIENT_MISSING_ERROR)
       }
@@ -117,6 +120,7 @@ Positioning:
       openWorldHint: true,
     },
     async ({ filePath, signatureOptions, watermarkImagePath, graphicImagePath, outputPath }) => {
+      await startupReady
       if (!apiClient.supports('processor')) {
         return createErrorResponse(PROCESSOR_CLIENT_MISSING_ERROR)
       }
@@ -157,6 +161,7 @@ By default (when neither stage nor apply is set), redactions are detected and im
       openWorldHint: true,
     },
     async ({ filePath, criteria, outputPath, stage, apply }) => {
+      await startupReady
       if (!apiClient.supports('processor')) {
         return createErrorResponse(PROCESSOR_CLIENT_MISSING_ERROR)
       }
@@ -184,6 +189,7 @@ Returns: subscription type, total credits, used credits, and remaining credits.`
       openWorldHint: true,
     },
     async () => {
+      await startupReady
       if (!apiClient.supports('processor')) {
         return createErrorResponse(PROCESSOR_CLIENT_MISSING_ERROR)
       }
@@ -216,6 +222,7 @@ Note: markdown output and any extracted content are returned into this conversat
       openWorldHint: true,
     },
     async (args) => {
+      await startupReady
       if (!apiClient.supports('extraction')) {
         return createErrorResponse(EXTRACT_CLIENT_MISSING_ERROR)
       }
@@ -247,6 +254,7 @@ output.data (the extracted values) is always returned inline. Per-field citation
       openWorldHint: true,
     },
     async (args) => {
+      await startupReady
       if (!apiClient.supports('extraction')) {
         return createErrorResponse(EXTRACT_CLIENT_MISSING_ERROR)
       }
@@ -270,7 +278,10 @@ output.data (the extracted values) is always returned inline. Per-field citation
         idempotentHint: true,
         openWorldHint: false,
       },
-      async () => performDirectoryTreeCall('.'),
+      async () => {
+        await startupReady
+        return performDirectoryTreeCall('.')
+      },
     )
   } else {
     server.tool(
@@ -284,12 +295,19 @@ output.data (the extracted values) is always returned inline. Per-field citation
         idempotentHint: true,
         openWorldHint: false,
       },
-      async ({ path }) => performDirectoryTreeCall(path),
+      async ({ path }) => {
+        await startupReady
+        return performDirectoryTreeCall(path)
+      },
     )
   }
 }
 
-export function createMcpServer(options: { sandboxEnabled: boolean; apiClient: DwsApiClient }) {
+export function createMcpServer(options: {
+  sandboxEnabled: boolean
+  apiClient: DwsApiClient
+  startupReady?: Promise<void>
+}) {
   const server = new McpServer(
     {
       name: 'nutrient-dws-mcp-server',
@@ -307,6 +325,7 @@ export function createMcpServer(options: { sandboxEnabled: boolean; apiClient: D
     server,
     sandboxEnabled: options.sandboxEnabled,
     apiClient: options.apiClient,
+    startupReady: options.startupReady ?? Promise.resolve(),
   })
 
   return server
@@ -334,13 +353,34 @@ type RunServerResult = {
   close: () => Promise<void>
 }
 
-export async function runServer(environment: Environment): Promise<RunServerResult> {
-  const { sandboxDir } = await parseCommandLineArgs()
+type RunServerOptions = {
+  sandboxDir?: string | null
+  transport?: Transport
+  startupReady?: Promise<void>
+}
 
-  await prepareSandbox(sandboxDir)
+const STDIO_PIPE_HINT =
+  'MCP stdio transport expects piped stdin/stdout; if a client reports no response under npx shims, run via node directly'
+
+export function warnIfStdioTransportIsInteractive(
+  stdinIsTTY: boolean | undefined = process.stdin.isTTY,
+  stdoutIsTTY: boolean | undefined = process.stdout.isTTY,
+) {
+  if (stdinIsTTY || stdoutIsTTY) {
+    console.error(STDIO_PIPE_HINT)
+  }
+}
+
+export async function runServer(environment: Environment, options: RunServerOptions = {}): Promise<RunServerResult> {
+  const sandboxDir = options.sandboxDir === undefined ? (await parseCommandLineArgs()).sandboxDir : options.sandboxDir
+  // Start sandbox validation without keeping the MCP handshake behind potentially slow filesystem I/O.
+  // Tool handlers share this promise, so no tool can observe a partially prepared sandbox.
+  const startupReady = options.startupReady ?? prepareSandbox(sandboxDir)
+  void startupReady.catch(() => {})
 
   const sandboxEnabled = sandboxDir !== null
 
+  // Keep construction side-effect free: OAuth cache reads, refresh, and browser auth belong to the first API tool call.
   const apiClient = createApiClient(environment)
 
   const staticKeyMode = Boolean(environment.nutrientApiKey || environment.nutrientExtractionApiKey)
@@ -358,12 +398,24 @@ export async function runServer(environment: Environment): Promise<RunServerResu
   const server = createMcpServer({
     sandboxEnabled,
     apiClient,
+    startupReady,
   })
 
-  const transport = new StdioServerTransport()
+  const transport = options.transport ?? new StdioServerTransport()
   await server.connect(transport)
 
   logger.info('stdio transport connected')
+
+  try {
+    await startupReady
+  } catch (startupError) {
+    try {
+      await server.close()
+    } catch (closeError) {
+      logger.error('Failed to close server after startup error', { err: closeError })
+    }
+    throw startupError
+  }
 
   await server.server.sendLoggingMessage({
     level: 'info',
@@ -388,6 +440,8 @@ function isMainModule() {
 
 if (isMainModule()) {
   let activeServer: RunServerResult | undefined
+
+  warnIfStdioTransportIsInteractive()
 
   let environment: Environment
   try {

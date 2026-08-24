@@ -10,7 +10,10 @@ import { DwsApiClient } from '../src/dws/client.js'
 
 dotenvConfig()
 
-describe('performBuildCall with build-api-examples', () => {
+// Keep the default test command credential-free; test:integration runs this suite when a key is supplied.
+const describeWithApiKey = process.env.NUTRIENT_DWS_API_KEY ? describe : describe.skip
+
+describeWithApiKey('performBuildCall with build-api-examples', () => {
   let outputDirectory: string
   let apiClient: DwsApiClient
   beforeAll(async () => {

@@ -12,7 +12,10 @@ startCommand:
     properties:
       nutrientDwsApiKey:
         type: string
-        description: Nutrient DWS API key from dashboard.nutrient.io
+        description: Required on Smithery — Nutrient DWS Processor API key from dashboard.nutrient.io. Extraction-only static-key mode remains available through npm or MCPB manifest installs.
+      nutrientDwsExtractionApiKey:
+        type: string
+        description: Optional Data Extraction API key (pdf_live_...) for parse_document and extract_fields
       sandboxPath:
         type: string
         description: Optional writable path for local temp/document I/O
@@ -22,6 +25,7 @@ startCommand:
       args: ['/app/dist/index.js'],
       env: {
         NUTRIENT_DWS_API_KEY: config.nutrientDwsApiKey,
+        NUTRIENT_DWS_EXTRACTION_API_KEY: config.nutrientDwsExtractionApiKey,
         SANDBOX_PATH: config.sandboxPath
       }
     })
