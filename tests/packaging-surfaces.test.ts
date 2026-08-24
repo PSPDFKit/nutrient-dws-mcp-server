@@ -33,10 +33,6 @@ const COMMON_INTENTIONAL_OMISSIONS = {
   CLIENT_ID: 'uses OAuth dynamic client registration',
   // The packaging surfaces in this repository are all fixed to stdio transport.
   MCP_TRANSPORT: 'surface is fixed to stdio transport',
-  // Operator diagnostic inherited from the launching environment, not user-facing package configuration.
-  MCP_LOG_FILE: 'inherits the operator logging destination',
-  // Operator diagnostic inherited from the launching environment, not user-facing package configuration.
-  LOG_LEVEL: 'inherits the operator logging level',
   // OS-level OAuth cache placement, inherited from the user's environment.
   XDG_CONFIG_HOME: 'inherits the operating-system config location',
 } as const
@@ -44,9 +40,17 @@ const COMMON_INTENTIONAL_OMISSIONS = {
 const INTENTIONALLY_OMITTED_BY_SURFACE: Record<PackagingSurface, Record<string, string>> = {
   'smithery.yaml': {
     ...COMMON_INTENTIONAL_OMISSIONS,
+    // Operator diagnostic inherited from the launching environment, not user-facing package configuration.
+    LOG_LEVEL: 'inherits the operator logging level',
+    // Operator diagnostic inherited from the launching environment, not user-facing package configuration.
+    MCP_LOG_FILE: 'inherits the operator logging destination',
   },
   'manifest.json': {
     ...COMMON_INTENTIONAL_OMISSIONS,
+    // Operator diagnostic inherited from the launching environment, not user-facing package configuration.
+    LOG_LEVEL: 'inherits the operator logging level',
+    // Operator diagnostic inherited from the launching environment, not user-facing package configuration.
+    MCP_LOG_FILE: 'inherits the operator logging destination',
     // The desktop extension deliberately uses browser OAuth instead of collecting a Processor static key.
     NUTRIENT_DWS_API_KEY: 'desktop extension authenticates with browser OAuth',
     // The same product:all OAuth token covers Data Extraction, so no second static key is collected.

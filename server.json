@@ -1,0 +1,56 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.PSPDFKit/nutrient-dws-mcp-server",
+  "title": "Nutrient DWS MCP Server",
+  "description": "Nutrient Processor + Data Extraction MCP: convert, OCR, sign, redact, and extract PDFs/Office docs.",
+  "version": "0.1.1",
+  "repository": {
+    "url": "https://github.com/PSPDFKit/nutrient-dws-mcp-server",
+    "source": "github"
+  },
+  "packages": [
+    {
+      "registryType": "npm",
+      "identifier": "@nutrient-sdk/dws-mcp-server",
+      "version": "0.1.1",
+      "transport": { "type": "stdio" },
+      "environmentVariables": [
+        {
+          "name": "NUTRIENT_DWS_API_KEY",
+          "description": "Nutrient DWS API key. Optional for local desktop use (browser sign-in on first request); required for CI or headless environments.",
+          "isRequired": false,
+          "isSecret": true,
+          "format": "string"
+        },
+        {
+          "name": "NUTRIENT_DWS_EXTRACTION_API_KEY",
+          "description": "Data Extraction API key (starts with pdf_live_), needed for parse_document and extract_fields in static-key mode. OAuth covers both products.",
+          "isRequired": false,
+          "isSecret": true,
+          "format": "string"
+        },
+        {
+          "name": "SANDBOX_PATH",
+          "description": "Local directory the server is allowed to read and write documents in.",
+          "isRequired": false,
+          "isSecret": false,
+          "format": "string"
+        },
+        {
+          "name": "LOG_LEVEL",
+          "description": "Minimum logging level; defaults to info.",
+          "isRequired": false,
+          "isSecret": false,
+          "format": "string"
+        },
+        {
+          "name": "MCP_LOG_FILE",
+          "description": "Log file path; defaults to a temporary file in stdio mode.",
+          "isRequired": false,
+          "isSecret": false,
+          "format": "string"
+        }
+      ]
+    }
+  ]
+}
