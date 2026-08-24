@@ -39,7 +39,9 @@ The npm publish must finish before the MCP Registry submission because the regis
 The namespace `io.github.PSPDFKit` requires GitHub authentication that can verify the `PSPDFKit` organization. The GitHub account used for login must have the organization Owner role; ordinary organization membership is insufficient.
 
 ```sh
-mcp-publisher login github
+# PSPDFKit enforces SAML SSO: the device flow (`mcp-publisher login github`) grants only your
+# personal namespace. Use a classic PAT with the read:org scope, SSO-authorized for PSPDFKit:
+mcp-publisher login github -token <PAT>
 mcp-publisher publish
 ```
 
