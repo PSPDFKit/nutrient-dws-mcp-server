@@ -3,7 +3,7 @@
   "name": "io.github.PSPDFKit/nutrient-dws-mcp-server",
   "title": "Nutrient DWS MCP Server",
   "description": "Nutrient Processor + Data Extraction MCP: convert, OCR, sign, redact, and extract PDFs/Office docs.",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "repository": {
     "url": "https://github.com/PSPDFKit/nutrient-dws-mcp-server",
     "source": "github"
@@ -12,8 +12,10 @@
     {
       "registryType": "npm",
       "identifier": "@nutrient-sdk/dws-mcp-server",
-      "version": "0.1.1",
-      "transport": { "type": "stdio" },
+      "version": "0.1.2",
+      "transport": {
+        "type": "stdio"
+      },
       "environmentVariables": [
         {
           "name": "NUTRIENT_DWS_API_KEY",
