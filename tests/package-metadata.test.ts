@@ -51,6 +51,8 @@ describe('package metadata', () => {
       { name: 'NUTRIENT_DWS_API_KEY', isRequired: false, isSecret: true },
       { name: 'NUTRIENT_DWS_EXTRACTION_API_KEY', isRequired: false, isSecret: true },
       { name: 'SANDBOX_PATH', isRequired: false, isSecret: false },
+      { name: 'LOG_LEVEL', isRequired: false, isSecret: false },
+      { name: 'MCP_LOG_FILE', isRequired: false, isSecret: false },
     ])
   })
 })

@@ -47,7 +47,7 @@
     "mcpb:validate": "pnpm run manifest:sync-version && npx -y @anthropic-ai/mcpb validate manifest.json",
     "mcpb:pack": "pnpm run manifest:sync-version && pnpm run build && node scripts/build-mcpb.mjs",
     "pretest": "tsc --project tsconfig.test.json --noEmit",
-    "test": "pnpm run test:ci",
+    "test": "vitest run",
     "test:ci": "vitest run --exclude tests/build-api-examples.test.ts --exclude tests/signing-api-examples.test.ts",
     "test:integration": "vitest run tests/build-api-examples.test.ts tests/signing-api-examples.test.ts",
     "test:watch": "vitest",
