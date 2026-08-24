@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.2] - 2026-08-24
+
+### Fixed
+
+- Excluded the `.mcpb` desktop-extension bundles from the npm tarball. The 0.1.1 tarball accidentally shipped two 4.4 MB bundles (8.1 MB package instead of ~150 KB); 0.1.2 is the slim package.
+
 ## [0.1.1] - 2026-08-24
 
 ### Added
@@ -27,5 +33,6 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 - Expanded the existing stdio browser OAuth flow—which already included PKCE, token caching, refresh, and Dynamic Client Registration (DCR) before 0.1.0—so one OAuth token covers the Processor and Data Extraction products.
 
+[0.1.2]: https://github.com/PSPDFKit/nutrient-dws-mcp-server/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/PSPDFKit/nutrient-dws-mcp-server/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/PSPDFKit/nutrient-dws-mcp-server/releases/tag/v0.1.0

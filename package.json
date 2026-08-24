@@ -1,6 +1,6 @@
 {
   "name": "@nutrient-sdk/dws-mcp-server",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "mcpName": "io.github.PSPDFKit/nutrient-dws-mcp-server",
   "description": "MCP server for Nutrient DWS Processor API",
   "license": "MIT",
@@ -35,6 +35,7 @@
   "type": "module",
   "files": [
     "dist",
+    "!dist/*.mcpb",
     "README.md",
     "LICENSE"
   ],
