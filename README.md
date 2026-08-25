@@ -8,7 +8,7 @@
 
 [![npm](https://img.shields.io/npm/v/%40nutrient-sdk/dws-mcp-server)](https://www.npmjs.com/package/@nutrient-sdk/dws-mcp-server) [![smithery badge](https://smithery.ai/badge/nutrient/dws-mcp-server)](https://smithery.ai/servers/nutrient/dws-mcp-server)
 
-**Give AI agents the power to process, sign, transform — and extract structured data from — documents.**
+**Give AI agents the power to generate, read, extract, process, and sign documents.**
 
 ## Description
 
@@ -19,7 +19,7 @@ A Model Context Protocol (MCP) server that connects AI assistants to the [Nutrie
 - Local stdio MCP server for Claude Desktop and other MCP-compatible clients
 - Browser-based OAuth on the first request that uses the Nutrient API, with optional API-key fallback for CI and headless environments
 - Document conversion, OCR, redaction, watermarking, annotation flattening, and digital signing (Processor API)
-- Data extraction (Data Extraction API): parse whole documents to Markdown or spatial JSON (four modes, from 1 credit/page) and pull named fields into a JSON schema you define, with per-field citations
+- Data extraction (Data Extraction API): parse whole documents to Markdown or spatial JSON, then pull named fields into a JSON schema you define, with per-field citations. Four parse modes: `text` (1 credit/page, no OCR), `structure` (1.5), `understand` (9, the default), `agentic` (18, VLM)
 - Sandbox-aware local file handling with explicit output paths
 - Read-only account lookup for DWS credits and usage
 
