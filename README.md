@@ -6,7 +6,7 @@
   <img width="380" height="200" src="https://glama.ai/mcp/servers/@PSPDFKit/nutrient-dws-mcp-server/badge" alt="Nutrient DWS MCP Server" />
 </a>
 
-[![npm](https://img.shields.io/npm/v/%40nutrient-sdk/dws-mcp-server)](https://www.npmjs.com/package/@nutrient-sdk/dws-mcp-server)
+[![npm](https://img.shields.io/npm/v/%40nutrient-sdk/dws-mcp-server)](https://www.npmjs.com/package/@nutrient-sdk/dws-mcp-server) [![smithery badge](https://smithery.ai/badge/nutrient/dws-mcp-server)](https://smithery.ai/servers/nutrient/dws-mcp-server)
 
 **Give AI agents the power to process, sign, transform — and extract structured data from — documents.**
 
