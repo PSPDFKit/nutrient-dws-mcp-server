@@ -8,17 +8,18 @@
 
 [![npm](https://img.shields.io/npm/v/%40nutrient-sdk/dws-mcp-server)](https://www.npmjs.com/package/@nutrient-sdk/dws-mcp-server)
 
-**Give AI agents the power to process, sign, and transform documents.**
+**Give AI agents the power to process, sign, transform — and extract structured data from — documents.**
 
 ## Description
 
-A Model Context Protocol (MCP) server that connects AI assistants to the [Nutrient Document Web Service (DWS) Processor API](https://www.nutrient.io/api) — enabling document creation, editing, conversion, digital signing, OCR, redaction, and more through natural language.
+A Model Context Protocol (MCP) server that connects AI assistants to the [Nutrient Document Web Service (DWS)](https://www.nutrient.io/api) Processor and Data Extraction APIs — enabling document creation, editing, conversion, digital signing, OCR, and redaction, plus structured data extraction (typed JSON with bounding boxes and confidence, or schema-guided field extraction with per-field citations) through natural language.
 
 ## Features
 
 - Local stdio MCP server for Claude Desktop and other MCP-compatible clients
 - Browser-based OAuth on the first request that uses the Nutrient API, with optional API-key fallback for CI and headless environments
-- Document conversion, OCR, extraction, redaction, watermarking, annotation flattening, and digital signing
+- Document conversion, OCR, redaction, watermarking, annotation flattening, and digital signing (Processor API)
+- Data extraction (Data Extraction API): parse whole documents to Markdown or spatial JSON (four modes, from 1 credit/page) and pull named fields into a JSON schema you define, with per-field citations
 - Sandbox-aware local file handling with explicit output paths
 - Read-only account lookup for DWS credits and usage
 
@@ -40,6 +41,9 @@ Once configured, you (or your AI agent) can process documents through natural la
 
 **You:** _"OCR this scanned document in German and extract the text"_
 **AI:** _"I've processed the scan with German OCR. Here's the extracted text..."_
+
+**You:** _"Pull the vendor, invoice number, total, and due date out of invoice-0341.pdf, with citations"_
+**AI:** _"Here are the four fields as JSON. Each value cites the page and bounding box it came from..."_
 
 ## Installation
 
@@ -265,6 +269,12 @@ These examples assume your files live inside the configured sandbox and that you
 **User prompt:** `Check my Nutrient credits, convert /path/to/sandbox/report.docx to PDF, save it as /path/to/sandbox/report.pdf, and then tell me where the output file was written.`
 
 **What happens:** The server first performs a read-only account lookup, then converts the DOCX file to PDF, saves the result in the sandbox, and tells the user exactly where the output file was written.
+
+### Example 4: Schema-guided field extraction with citations
+
+**User prompt:** `Extract vendor_name, invoice_number, total_amount and due_date from /path/to/sandbox/invoice-0341.pdf and save the citations next to it.`
+
+**What happens:** The agent calls `extract_fields` with a small JSON schema (`{ "type": "object", "properties": { "vendor_name": {"type": "string"}, "invoice_number": {"type": "string"}, "total_amount": {"type": "string"}, "due_date": {"type": "string"} } }`) and an `outputPath`. The server sends the PDF to the Data Extraction API, returns the four values inline as JSON with a citation match summary, and writes the full per-field citations (page, bounding box, confidence) to the output file for auditing.
 
 ## Use with AI Agent Frameworks
 
