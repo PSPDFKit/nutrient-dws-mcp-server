@@ -58,7 +58,7 @@ This checklist was added after the v0.0.6 `.mcpb` remained the only GitHub Relea
 
 - [ ] Confirm npm already serves `${VERSION}` and `server.json` names that same package version.
 - [ ] Install or update the official `mcp-publisher` CLI and review its current help output.
-- [ ] Authenticate a maintainer who can publish the `io.github.PSPDFKit/*` namespace: `mcp-publisher login github`.
+- [ ] Authenticate a maintainer who can publish the `io.github.PSPDFKit/*` namespace. The maintainer must be a PSPDFKit GitHub **org Owner**, and because PSPDFKit enforces SAML SSO the interactive device flow (`mcp-publisher login github`) only ever grants the personal `io.github.<user>/*` namespace — it cannot see the org. Use a token instead: create a **classic** PAT with only the `read:org` scope, click **Configure SSO → Authorize** for PSPDFKit on that token, then run `mcp-publisher login github -token <PAT>`. Revoke the PAT after publishing (it is only needed for this step). Verified 2026-08-24 for 0.1.2.
 - [ ] From the repository root, run `mcp-publisher publish`.
 - [ ] Verify the exact name and version in the Registry response: `curl -fsSL 'https://registry.modelcontextprotocol.io/v0.1/servers?search=io.github.PSPDFKit%2Fnutrient-dws-mcp-server'`.
 
