@@ -49,6 +49,8 @@ Once configured, you (or your AI agent) can process documents through natural la
 
 Install it from Claude Desktop Settings -> Extensions if you are using Claude Desktop. If you are developing locally, use the manual setup below.
 
+The Claude Desktop MCPB extension defaults its sandbox directory to `~/Documents/Nutrient`. You can change that directory in the extension settings. Clearing the field starts the server without sandbox restrictions, so file operations can use any path visible to your user account.
+
 ### 1. Create a Nutrient Account
 
 Sign up for free at [nutrient.io/api](https://dashboard.nutrient.io/sign_up/).

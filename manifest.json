@@ -35,11 +35,11 @@
     "mcp_config": {
       "command": "node",
       "args": [
-        "${__dirname}/dist/index.js",
-        "--sandbox",
-        "${user_config.sandbox_path}"
+        "${__dirname}/dist/index.js"
       ],
-      "env": {}
+      "env": {
+        "SANDBOX_PATH": "${user_config.sandbox_path}"
+      }
     }
   },
   "tools": [
@@ -83,7 +83,7 @@
       "type": "directory",
       "title": "Sandbox Directory",
       "description": "Directory the extension can read from and write to for document processing.",
-      "required": true
+      "default": "${HOME}/Documents/Nutrient"
     }
   },
   "prompts": [

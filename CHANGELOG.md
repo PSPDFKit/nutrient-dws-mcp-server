@@ -10,6 +10,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 - Added five reusable MCP workflow prompts and mirrored them in the MCPB manifest.
 
+### Changed
+
+- Defaulted the optional Claude Desktop MCPB sandbox to `~/Documents/Nutrient` and mapped it through `SANDBOX_PATH` so clearing the field starts safely without a CLI argument error.
+
 ## [0.1.2] - 2026-08-24
 
 ### Fixed

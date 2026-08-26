@@ -147,17 +147,6 @@ function manifestEnvironmentVariables(): Set<string> {
     exposed.add(environmentVariable)
   }
 
-  const args = manifest.server.mcp_config.args ?? []
-  const sandboxFlagIndex = args.indexOf('--sandbox')
-  if (sandboxFlagIndex >= 0) {
-    const configProperty = args[sandboxFlagIndex + 1]?.match(/^\$\{user_config\.([a-z][a-z0-9_]*)\}$/)?.[1]
-    expect(configProperty, 'manifest.json maps --sandbox from the wrong user_config property').toBe(
-      EXPECTED_MANIFEST_CONFIG_BY_ENVIRONMENT_VARIABLE.SANDBOX_PATH,
-    )
-    expect(manifest.user_config).toHaveProperty(configProperty as string)
-    exposed.add('SANDBOX_PATH')
-  }
-
   return exposed
 }
 
@@ -233,5 +222,18 @@ describe('MCPB workflow prompt parity', () => {
       expect(sync.status, `${sync.stdout}\n${sync.stderr}`).toBe(0)
       expect(readFileSync(manifestPath, 'utf8')).toBe(committedManifest)
     }
+  })
+})
+
+describe('MCPB sandbox configuration', () => {
+  it('maps an optional sandbox default through SANDBOX_PATH instead of a CLI flag', () => {
+    const manifest = JSON.parse(readFileSync(resolve(process.cwd(), 'manifest.json'), 'utf8')) as McpbManifest
+    const sandboxConfig = manifest.user_config?.sandbox_path as { default?: string; required?: boolean } | undefined
+    const args = manifest.server.mcp_config.args ?? []
+
+    expect(sandboxConfig?.default).toBe('${HOME}/Documents/Nutrient')
+    expect(sandboxConfig?.required ?? false).toBe(false)
+    expect(manifest.server.mcp_config.env?.SANDBOX_PATH).toBe('${user_config.sandbox_path}')
+    expect(args).not.toContain('--sandbox')
   })
 })
