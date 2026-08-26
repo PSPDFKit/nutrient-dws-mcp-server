@@ -100,7 +100,7 @@ export const WORKFLOW_PROMPTS: WorkflowPromptDefinition[] = [
     template: [
       'Parse ${arguments.input_path} into Markdown for RAG and write it to ${arguments.output_path}.',
       'Call parse_document with filePath = ${arguments.input_path}, format = "markdown", mode = "text", and outputPath = ${arguments.output_path}.',
-      'mode = "text" is the cheapest mode and does no OCR; use mode = "structure" for scans that need OCR, or omit mode to use the default "understand" for mixed or low-quality content.',
+      'mode = "text" costs 1 credit per page and does no OCR; use mode = "structure" (1.5 credits per page, OCR) for scans, or omit mode to use the default "understand" (9 credits per page) for mixed or low-quality content.',
       SANDBOX_PATH_SENTENCE,
     ].join('\n'),
   },
