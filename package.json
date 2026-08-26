@@ -51,8 +51,8 @@
     "mcpb:pack": "pnpm run build && pnpm run manifest:sync-version && pnpm run manifest:sync-prompts && node scripts/build-mcpb.mjs",
     "pretest": "tsc --project tsconfig.test.json --noEmit",
     "test": "vitest run",
-    "test:ci": "vitest run --exclude tests/build-api-examples.test.ts --exclude tests/signing-api-examples.test.ts",
-    "test:integration": "vitest run tests/build-api-examples.test.ts tests/signing-api-examples.test.ts",
+    "test:ci": "vitest run --exclude tests/build-api-examples.test.ts --exclude tests/signing-api-examples.test.ts --exclude tests/prompt-workflows.test.ts",
+    "test:integration": "vitest run tests/build-api-examples.test.ts tests/signing-api-examples.test.ts tests/prompt-workflows.test.ts",
     "test:watch": "vitest",
     "clean": "shx rm -rf dist",
     "prepublishOnly": "npm run build"
