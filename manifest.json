@@ -85,5 +85,55 @@
       "description": "Directory the extension can read from and write to for document processing.",
       "required": true
     }
-  }
+  },
+  "prompts": [
+    {
+      "name": "sign_and_watermark",
+      "description": "Add a text watermark to a document, then digitally sign the watermarked PDF.",
+      "arguments": [
+        "input_path",
+        "output_path",
+        "watermark_text"
+      ],
+      "text": "Watermark ${arguments.input_path} with \"${arguments.watermark_text}\", then digitally sign it and save the final PDF to ${arguments.output_path}.\nUse an intermediate path formed by appending \".watermarked.pdf\" to ${arguments.output_path}.\n1. Call document_processor with instructions = {\"parts\":[{\"file\":\"${arguments.input_path}\"}],\"actions\":[{\"type\":\"watermark\",\"watermarkType\":\"text\",\"text\":\"${arguments.watermark_text}\",\"width\":\"80%\",\"height\":\"20%\",\"opacity\":0.3}],\"output\":{\"type\":\"pdf\"}} and outputPath = the intermediate path.\n2. Call document_signer with filePath = the intermediate path and outputPath = ${arguments.output_path}.\nPaths resolve inside the sandbox directory when one is configured."
+    },
+    {
+      "name": "extract_document_fields",
+      "description": "Extract named fields from a document into a JSON object, optionally retaining citations in a file.",
+      "arguments": [
+        "input_path",
+        "fields",
+        "output_path"
+      ],
+      "text": "Extract these comma-separated fields from ${arguments.input_path}: ${arguments.fields}.\nCall extract_fields exactly once with filePath = ${arguments.input_path}, schema = a JSON object schema whose properties are the trimmed field names from \"${arguments.fields}\" and whose property values are {\"type\":\"string\"}, and mode = \"understand\".\nUse mode = \"structure\" instead only when the document is a clean scan and the cheaper option is preferred.\nIf ${arguments.output_path} is non-empty, also pass outputPath = ${arguments.output_path}; otherwise omit outputPath.\nPaths resolve inside the sandbox directory when one is configured."
+    },
+    {
+      "name": "redact_pii",
+      "description": "Detect and permanently redact personally identifiable information from a document.",
+      "arguments": [
+        "input_path",
+        "output_path",
+        "entity_types"
+      ],
+      "text": "Permanently redact personally identifiable information from ${arguments.input_path} and save it to ${arguments.output_path}.\nCall ai_redactor with filePath = ${arguments.input_path} and outputPath = ${arguments.output_path}.\nWhen entity_types is non-empty, pass criteria = \"${arguments.entity_types}\"; otherwise omit criteria to use the tool default entity set.\nPaths resolve inside the sandbox directory when one is configured."
+    },
+    {
+      "name": "parse_for_rag",
+      "description": "Parse a document as Markdown for retrieval-augmented generation and search indexing.",
+      "arguments": [
+        "input_path",
+        "output_path"
+      ],
+      "text": "Parse ${arguments.input_path} into Markdown for RAG and write it to ${arguments.output_path}.\nCall parse_document with filePath = ${arguments.input_path}, format = \"markdown\", and outputPath = ${arguments.output_path}.\nPaths resolve inside the sandbox directory when one is configured."
+    },
+    {
+      "name": "office_to_pdfa",
+      "description": "Convert an Office document to an archival PDF/A file.",
+      "arguments": [
+        "input_path",
+        "output_path"
+      ],
+      "text": "Convert the Office document ${arguments.input_path} to PDF/A and save it to ${arguments.output_path}.\nCall document_processor with instructions = {\"parts\":[{\"file\":\"${arguments.input_path}\"}],\"output\":{\"type\":\"pdfa\"}} and outputPath = ${arguments.output_path}.\nPaths resolve inside the sandbox directory when one is configured."
+    }
+  ]
 }

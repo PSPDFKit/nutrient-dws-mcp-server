@@ -193,6 +193,14 @@ Place documents in your sandbox directory and use explicit file names or paths i
 | `sandbox_file_tree`  | Read-only view of files inside the configured sandbox directory                                                                              |
 | `directory_tree`     | Read-only view of local files when sandbox mode is disabled. Sandbox mode is strongly recommended                                            |
 
+## Prompts
+
+- `sign_and_watermark` — Add a text watermark to a document, then digitally sign the watermarked PDF.
+- `extract_document_fields` — Extract named fields into a JSON object, optionally retaining citations in a file.
+- `redact_pii` — Detect and permanently redact personally identifiable information from a document.
+- `parse_for_rag` — Parse a document as Markdown for retrieval-augmented generation and search indexing.
+- `office_to_pdfa` — Convert an Office document to an archival PDF/A file.
+
 ### Document Processor Capabilities
 
 | Feature           | Description                                                                                                                               |

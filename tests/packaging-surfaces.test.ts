@@ -1,6 +1,8 @@
 import { existsSync, readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
+import { spawnSync } from 'node:child_process'
 import { describe, expect, it } from 'vitest'
+import { manifestPromptsFromTable, WORKFLOW_PROMPTS } from '../src/prompts.js'
 
 type PackagingSurface = 'smithery.yaml' | 'manifest.json' | 'server.json'
 
@@ -119,6 +121,12 @@ type McpbManifest = {
       env?: Record<string, string>
     }
   }
+  prompts?: Array<{
+    name: string
+    description?: string
+    arguments?: string[]
+    text: string
+  }>
   user_config?: Record<string, unknown>
 }
 
@@ -186,4 +194,44 @@ describe('packaging-surface environment parity', () => {
   } else {
     it.skip('server.json packaging-surface parity — server.json is absent in this repository', () => {})
   }
+})
+
+describe('MCPB workflow prompt parity', () => {
+  it('mirrors every canonical runtime prompt in manifest.json', () => {
+    const manifest = JSON.parse(readFileSync(resolve(process.cwd(), 'manifest.json'), 'utf8')) as McpbManifest
+    const generated = manifestPromptsFromTable()
+
+    expect(manifest.prompts).toHaveLength(WORKFLOW_PROMPTS.length)
+    expect(manifest.prompts).toEqual(generated)
+
+    for (const [index, prompt] of WORKFLOW_PROMPTS.entries()) {
+      expect(manifest.prompts?.[index]).toEqual({
+        name: prompt.name,
+        description: prompt.description,
+        arguments: prompt.arguments.map(({ name }) => name),
+        text: prompt.template,
+      })
+    }
+  })
+
+  it('keeps the committed manifest unchanged when the prompt sync script runs twice', () => {
+    const rootDir = process.cwd()
+    const manifestPath = resolve(rootDir, 'manifest.json')
+    const compiledPromptsPath = resolve(rootDir, 'dist/prompts.js')
+
+    if (!existsSync(compiledPromptsPath)) {
+      const build = spawnSync('pnpm', ['run', 'build'], { cwd: rootDir, encoding: 'utf8' })
+      expect(build.status, `${build.stdout}\n${build.stderr}`).toBe(0)
+    }
+
+    const committedManifest = readFileSync(manifestPath, 'utf8')
+    for (let run = 0; run < 2; run += 1) {
+      const sync = spawnSync(process.execPath, ['scripts/sync-manifest-prompts.mjs'], {
+        cwd: rootDir,
+        encoding: 'utf8',
+      })
+      expect(sync.status, `${sync.stdout}\n${sync.stderr}`).toBe(0)
+      expect(readFileSync(manifestPath, 'utf8')).toBe(committedManifest)
+    }
+  })
 })
