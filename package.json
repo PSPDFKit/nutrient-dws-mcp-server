@@ -41,6 +41,7 @@
   ],
   "scripts": {
     "start": "node dist/index.js",
+    "smithery:card": "node scripts/smithery-server-card.mjs",
     "build": "tsc && shx chmod +x dist/index.js",
     "format": "prettier --write .",
     "lint": "eslint .",

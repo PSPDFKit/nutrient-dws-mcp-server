@@ -9,6 +9,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 ### Added
 
 - Added five reusable MCP workflow prompts and mirrored them in the MCPB manifest.
+- Added a reproducible Smithery server-card generator and documented the registry HTTP API publication path.
 
 ### Changed
 
