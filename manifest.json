@@ -124,7 +124,7 @@
         "input_path",
         "output_path"
       ],
-      "text": "Parse ${arguments.input_path} into Markdown for RAG and write it to ${arguments.output_path}.\nCall parse_document with filePath = ${arguments.input_path}, format = \"markdown\", and outputPath = ${arguments.output_path}.\nPaths resolve inside the sandbox directory when one is configured."
+      "text": "Parse ${arguments.input_path} into Markdown for RAG and write it to ${arguments.output_path}.\nCall parse_document with filePath = ${arguments.input_path}, format = \"markdown\", mode = \"text\", and outputPath = ${arguments.output_path}.\nmode = \"text\" costs 1 credit per page and does no OCR; use mode = \"structure\" (1.5 credits per page, OCR) for scans, or omit mode to use the default \"understand\" (9 credits per page) for mixed or low-quality content.\nPaths resolve inside the sandbox directory when one is configured."
     },
     {
       "name": "office_to_pdfa",
