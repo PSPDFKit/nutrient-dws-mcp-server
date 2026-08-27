@@ -51,17 +51,17 @@ Confirm `icon.png` is PNG, JPEG, GIF, SVG, or WebP and no larger than 1 MB. Try 
 curl -fsS --path-as-is -X PUT \
   'https://registry.smithery.ai/servers/nutrient%2Fdws-mcp-server/icon' \
   -H "Authorization: Bearer ${SMITHERY_API_KEY}" \
-  -F 'file=@icon.png'
+  -F 'icon=@icon.png'
 
 curl -fsS --path-as-is -X PUT \
   'https://api.smithery.ai/servers/nutrient%2Fdws-mcp-server/icon' \
   -H "Authorization: Bearer ${SMITHERY_API_KEY}" \
-  -F 'file=@icon.png'
+  -F 'icon=@icon.png'
 
 curl -fsS -X PUT \
   'https://registry.smithery.ai/servers/nutrient/dws-mcp-server/icon' \
   -H "Authorization: Bearer ${SMITHERY_API_KEY}" \
-  -F 'file=@icon.png'
+  -F 'icon=@icon.png'
 ```
 
 ## Publish the stdio release
