@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.3] - 2026-08-25
+
+### Added
+
+- Added five reusable MCP workflow prompts and mirrored them in the MCPB manifest.
+- Added a reproducible Smithery server-card generator and documented the registry HTTP API publication path.
+- Added a live integration test that executes all five workflow prompts end to end.
+
+### Changed
+
+- Defaulted the optional Claude Desktop MCPB sandbox to `~/Documents/Nutrient` and mapped it through `SANDBOX_PATH` so clearing the field starts safely without a CLI argument error.
+
 ## [0.1.2] - 2026-08-24
 
 ### Fixed

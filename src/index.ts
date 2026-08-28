@@ -35,6 +35,7 @@ import { createApiClient } from './dws/api.js'
 import { DwsApiClient } from './dws/client.js'
 import { Environment, getEnvironment } from './utils/environment.js'
 import { logger } from './logger.js'
+import { addPromptsToServer } from './prompts.js'
 
 /** Returned by the `parse_document` tool when no Data Extraction credential is configured (fail fast, no API call). */
 const EXTRACT_CLIENT_MISSING_ERROR =
@@ -327,6 +328,7 @@ export function createMcpServer(options: {
     apiClient: options.apiClient,
     startupReady: options.startupReady ?? Promise.resolve(),
   })
+  addPromptsToServer(server)
 
   return server
 }

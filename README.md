@@ -49,6 +49,8 @@ Once configured, you (or your AI agent) can process documents through natural la
 
 Install it from Claude Desktop Settings -> Extensions if you are using Claude Desktop. If you are developing locally, use the manual setup below.
 
+The Claude Desktop MCPB extension defaults its sandbox directory to `~/Documents/Nutrient`. You can change that directory in the extension settings. Clearing the field starts the server without sandbox restrictions, so file operations can use any path visible to your user account.
+
 ### 1. Create a Nutrient Account
 
 Sign up for free at [nutrient.io/api](https://dashboard.nutrient.io/sign_up/).
@@ -192,6 +194,14 @@ Place documents in your sandbox directory and use explicit file names or paths i
 | `check_credits`      | Read-only account lookup for current DWS credits and usage. No document content is uploaded                                                  |
 | `sandbox_file_tree`  | Read-only view of files inside the configured sandbox directory                                                                              |
 | `directory_tree`     | Read-only view of local files when sandbox mode is disabled. Sandbox mode is strongly recommended                                            |
+
+## Prompts
+
+- `sign_and_watermark` — Add a text watermark to a document, then digitally sign the watermarked PDF.
+- `extract_document_fields` — Extract named fields into a JSON object, optionally retaining citations in a file.
+- `redact_pii` — Detect and permanently redact personally identifiable information from a document.
+- `parse_for_rag` — Parse a document as Markdown for retrieval-augmented generation and search indexing.
+- `office_to_pdfa` — Convert an Office document to an archival PDF/A file.
 
 ### Document Processor Capabilities
 

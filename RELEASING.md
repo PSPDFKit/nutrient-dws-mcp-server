@@ -66,6 +66,12 @@ This checklist was added after the v0.0.6 `.mcpb` remained the only GitHub Relea
 
 Only request downstream refreshes after npm, the GitHub Release, its `.mcpb`, and the official MCP Registry entry are all verified. These are manual maintainer communications; do not automate or send them from release CI.
 
+### Smithery
+
+- [ ] From a clean checkout of the tagged release, follow [the Smithery API publication procedure](docs/smithery-publish.md). The generated server card and `.mcpb` must come from that same tagged checkout.
+
+### Glama and PulseMCP
+
 - [ ] Ask Glama to re-ingest or refresh its listing through its claim/update flow.
 - [ ] Ask PulseMCP to refresh `https://www.pulsemcp.com/servers/nutrient-dws` and replace any temporary mirror identity with the official Registry identity.
 - [ ] Verify both catalogs show `${VERSION}`, the canonical repository and install command, the current environment-variable schema, and all seven tools.
