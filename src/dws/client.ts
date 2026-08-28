@@ -60,6 +60,14 @@ export class DwsApiClient {
     return this.provider.supports(product)
   }
 
+  /** Resolves and caches a credential without making a DWS API request. */
+  async authenticate(product: Product = 'processor'): Promise<void> {
+    if (!this.provider.supports(product)) {
+      throw new Error(`No credential configured for product "${product}"`)
+    }
+    await this.provider.token(product)
+  }
+
   /** `'extraction/parse'` and `/extraction/parse'` both target the extraction product; everything else is processor. */
   private productFor(endpoint: string): Product {
     const normalizedEndpoint = stripLeadingSlash(endpoint)

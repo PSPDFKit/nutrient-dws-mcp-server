@@ -2,13 +2,15 @@
   "name": "@nutrient-sdk/dws-mcp-server",
   "version": "0.1.3",
   "mcpName": "io.github.PSPDFKit/nutrient-dws-mcp-server",
-  "description": "MCP server for Nutrient DWS Processor API",
+  "description": "MCP server and CLI for Nutrient Document Web Services",
   "license": "MIT",
   "author": "Nutrient (https://www.nutrient.io)",
   "homepage": "https://www.nutrient.io/api",
   "bugs": "https://github.com/PSPDFKit/nutrient-dws-mcp-server/issues",
   "bin": {
-    "nutrient-dws-mcp-server": "dist/index.js"
+    "dws-mcp-server": "dist/index.js",
+    "nutrient-dws-mcp-server": "dist/index.js",
+    "nutrient-dws": "dist/cli.js"
   },
   "repository": {
     "type": "git",
@@ -41,8 +43,9 @@
   ],
   "scripts": {
     "start": "node dist/index.js",
+    "start:cli": "node dist/cli.js",
     "smithery:card": "node scripts/smithery-server-card.mjs",
-    "build": "tsc && shx chmod +x dist/index.js",
+    "build": "tsc && shx chmod +x dist/index.js dist/cli.js",
     "format": "prettier --write .",
     "lint": "eslint .",
     "manifest:sync-version": "node scripts/sync-manifest-version.mjs",

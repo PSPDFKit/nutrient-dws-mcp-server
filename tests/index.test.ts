@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { createMcpServer } from '../src/index.js'
+import { createMcpServer, isCliInvocation } from '../src/index.js'
 import { createApiClient } from '../src/dws/api.js'
 import type { Environment } from '../src/utils/environment.js'
 import type { DwsApiClient } from '../src/dws/client.js'
@@ -13,7 +13,9 @@ function baseEnvironment(overrides: Partial<Environment> = {}): Environment {
   }
 }
 
-function createMockApiClient(overrides: { supports?: (product: 'processor' | 'extraction') => boolean } = {}): DwsApiClient {
+function createMockApiClient(
+  overrides: { supports?: (product: 'processor' | 'extraction') => boolean } = {},
+): DwsApiClient {
   const post = vi.fn().mockRejectedValue(new Error('should not be called'))
   return { post, get: post, supports: overrides.supports ?? (() => true) } as unknown as DwsApiClient
 }
@@ -21,6 +23,19 @@ function createMockApiClient(overrides: { supports?: (product: 'processor' | 'ex
 function text(result: CallToolResult): string {
   return result.content.map((c) => (c.type === 'text' ? c.text : '')).join('\n')
 }
+
+describe('package entrypoint dispatch', () => {
+  it.each([['login'], ['credits'], ['parse', '--json', '{}'], ['cli', '--sandbox', './docs', 'files'], ['--help']])(
+    'routes %j to the standalone CLI',
+    (...args) => {
+      expect(isCliInvocation(args)).toBe(true)
+    },
+  )
+
+  it.each([[], ['--sandbox', './docs'], ['-s', './docs']])('keeps %j on the MCP server path', (...args) => {
+    expect(isCliInvocation(args)).toBe(false)
+  })
+})
 
 describe('createApiClient', () => {
   it('supports both products under OAuth (product:all covers both)', () => {

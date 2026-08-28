@@ -182,6 +182,57 @@ Restart the application to pick up the new MCP server configuration.
 
 Place documents in your sandbox directory and use explicit file names or paths in prompts. Explicit paths are safer and more reliable than vague file-browsing requests.
 
+## Standalone CLI
+
+You can run every DWS operation directly from a terminal without an MCP client or local install. Invoke the package with `npx`, or use the `nutrient-dws` executable after installing it. Both paths use the same schemas, authentication, sandbox, and operation handlers as the MCP server.
+
+Pass each command the same JSON object its corresponding MCP tool accepts. Use `--json` for a small request, `--input` for a JSON file, or pipe JSON over stdin:
+
+```bash
+# Sign in up front, or omit this and let the first API-backed command open OAuth.
+npx -y @nutrient-sdk/dws-mcp-server login
+
+# Show account credit usage.
+npx -y @nutrient-sdk/dws-mcp-server credits
+
+# Browse a sandbox without uploading anything.
+npx -y @nutrient-sdk/dws-mcp-server files \
+  --sandbox ./documents
+
+# Parse a local document to Markdown.
+npx -y @nutrient-sdk/dws-mcp-server parse \
+  --sandbox ./documents \
+  --json '{"filePath":"invoice.pdf","mode":"text","format":"markdown"}'
+
+# Complex Processor instructions are easiest to keep in a file.
+npx -y @nutrient-sdk/dws-mcp-server process \
+  --sandbox ./documents \
+  --input build-request.json
+
+# Machine-readable output preserves the complete tool result envelope.
+cat extract-request.json | \
+  npx -y @nutrient-sdk/dws-mcp-server extract --format json
+```
+
+Document commands map directly to the MCP tools:
+
+| CLI command | MCP tool                |
+| ----------- | ----------------------- |
+| `login`     | CLI-only OAuth setup    |
+| `process`   | `document_processor`    |
+| `sign`      | `document_signer`       |
+| `redact`    | `ai_redactor`           |
+| `parse`     | `parse_document`        |
+| `extract`   | `extract_fields`        |
+| `credits`   | `check_credits`         |
+| `files`     | Sandbox-aware file tree |
+
+The exact MCP names are also accepted as CLI aliases. Run `npx -y @nutrient-sdk/dws-mcp-server --help` for all options. Invoking the package without a CLI command still starts the MCP stdio server, preserving the existing MCP setup.
+
+Static-key authentication uses the same environment variables as MCP: `NUTRIENT_DWS_API_KEY` for Processor commands and `NUTRIENT_DWS_EXTRACTION_API_KEY` for `parse` and `extract`. Without a sandbox, file inputs and outputs must use absolute paths.
+
+`login` completes browser OAuth without uploading a document or consuming processing credits. The resulting credentials are shared with the MCP server through the same local credential cache. If static API keys are configured, `login` reports that browser authentication is unnecessary instead.
+
 ## Available Tools
 
 | Tool                 | Description                                                                                                                                  |
@@ -353,16 +404,16 @@ Setting only `NUTRIENT_DWS_EXTRACTION_API_KEY` (with no `NUTRIENT_DWS_API_KEY`) 
 
 ### Environment Variables
 
-| Variable                       | Required                | Description                                                                                                            |
-| ------------------------------ | ----------------------- | ---------------------------------------------------------------------------------------------------------------------- |
-| `NUTRIENT_DWS_API_KEY`         | No\*                    | Nutrient DWS API key ([get one free](https://dashboard.nutrient.io/sign_up/))                                          |
+| Variable                          | Required                | Description                                                                                                          |
+| --------------------------------- | ----------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| `NUTRIENT_DWS_API_KEY`            | No\*                    | Nutrient DWS API key ([get one free](https://dashboard.nutrient.io/sign_up/))                                        |
 | `NUTRIENT_DWS_EXTRACTION_API_KEY` | Only with a static key† | Data Extraction API key from the dashboard (starts with `pdf_live_`), needed for `parse_document` / `extract_fields` |
-| `SANDBOX_PATH`                 | Recommended             | Directory to restrict file operations to                                                                               |
-| `AUTH_SERVER_URL`              | No                      | OAuth server base URL (default: `https://api.nutrient.io`)                                                             |
-| `CLIENT_ID`                    | No                      | OAuth client ID. Skips DCR and enables refresh token reuse when set                                                    |
-| `DWS_API_BASE_URL`             | No                      | DWS API base URL (default: `https://api.nutrient.io`)                                                                  |
-| `LOG_LEVEL`                    | No                      | Winston logger level (`info` default). Logs are written to `MCP_LOG_FILE` in stdio mode                                |
-| `MCP_LOG_FILE`                 | No                      | Override log file path (default: system temp directory)                                                                |
+| `SANDBOX_PATH`                    | Recommended             | Directory to restrict file operations to                                                                             |
+| `AUTH_SERVER_URL`                 | No                      | OAuth server base URL (default: `https://api.nutrient.io`)                                                           |
+| `CLIENT_ID`                       | No                      | OAuth client ID. Skips DCR and enables refresh token reuse when set                                                  |
+| `DWS_API_BASE_URL`                | No                      | DWS API base URL (default: `https://api.nutrient.io`)                                                                |
+| `LOG_LEVEL`                       | No                      | Winston logger level (`info` default). Logs are written to `MCP_LOG_FILE` in stdio mode                              |
+| `MCP_LOG_FILE`                    | No                      | Override log file path (default: system temp directory)                                                              |
 
 \* If omitted, the server uses an OAuth browser flow to authenticate with the Nutrient API.
 † Only relevant when `NUTRIENT_DWS_API_KEY` is set — Data Extraction is a separate product/tenant, so the Processor key cannot also authenticate it. Not needed under OAuth, which covers both products with one token.
