@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest'
 const packageJson = JSON.parse(readFileSync(resolve(process.cwd(), 'package.json'), 'utf8')) as {
   version: string
   mcpName: string
+  bin: Record<string, string>
 }
 
 const manifestJson = JSON.parse(readFileSync(resolve(process.cwd(), 'manifest.json'), 'utf8')) as {
@@ -36,6 +37,14 @@ describe('package metadata', () => {
   it('keeps the published npm package name aligned with the registry server name', () => {
     expect(packageJson.mcpName).toBe('io.github.PSPDFKit/nutrient-dws-mcp-server')
     expect(serverJson.name).toBe(packageJson.mcpName)
+  })
+
+  it('publishes separate MCP server and standalone CLI executables', () => {
+    expect(packageJson.bin).toEqual({
+      'dws-mcp-server': 'dist/index.js',
+      'nutrient-dws-mcp-server': 'dist/index.js',
+      'nutrient-dws': 'dist/cli.js',
+    })
   })
 
   it('keeps the registry package on stdio with its supported install-time environment variables', () => {

@@ -63,6 +63,27 @@ describe('DwsApiClient.productFor', () => {
   })
 })
 
+describe('DwsApiClient.authenticate', () => {
+  it('resolves and caches a credential without making an HTTP request', async () => {
+    const provider = fakeProvider({ processor: ['oauth-token'] })
+    const client = new DwsApiClient({ provider })
+
+    await client.authenticate()
+
+    expect(provider.token).toHaveBeenCalledOnce()
+    expect(provider.token).toHaveBeenCalledWith('processor')
+  })
+
+  it('fails before resolving a credential when the product is unsupported', async () => {
+    const provider = fakeProvider({ processor: ['oauth-token'] })
+    provider.supports = () => false
+    const client = new DwsApiClient({ provider })
+
+    await expect(client.authenticate('extraction')).rejects.toThrow('No credential configured for product "extraction"')
+    expect(provider.token).not.toHaveBeenCalled()
+  })
+})
+
 /** Start a tiny HTTP server that calls `handler` for each request. */
 function startTestServer(handler: (reqCount: number) => { status: number; body: string }): Promise<{
   server: Server
@@ -115,9 +136,7 @@ describe('DwsApiClient token rotation (401 retry)', () => {
 
   it('awaits invalidate before re-resolving the token on a 401 retry', async () => {
     const srv = await startTestServer((reqCount) =>
-      reqCount === 1
-        ? { status: 401, body: '{"error":"unauthorized"}' }
-        : { status: 200, body: '{"ok":true}' },
+      reqCount === 1 ? { status: 401, body: '{"error":"unauthorized"}' } : { status: 200, body: '{"ok":true}' },
     )
     server = srv.server
 

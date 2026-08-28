@@ -20,15 +20,7 @@ import {
   ParseDocumentArgsSchema,
   SignAPIArgsSchema,
 } from './schemas.js'
-import { performBuildCall } from './dws/build.js'
-import { performParseDocumentCall } from './dws/parse.js'
-import { performExtractFieldsCall } from './dws/extract.js'
-import { performSignCall } from './dws/sign.js'
-import { performAiRedactCall } from './dws/ai-redact.js'
-import { performCheckCreditsCall } from './dws/credits.js'
-import { performDirectoryTreeCall } from './fs/directoryTree.js'
 import { setSandboxDirectory } from './fs/sandbox.js'
-import { createErrorResponse } from './responses.js'
 import { getVersion } from './version.js'
 import { parseSandboxPath } from './utils/sandbox.js'
 import { createApiClient } from './dws/api.js'
@@ -36,20 +28,8 @@ import { DwsApiClient } from './dws/client.js'
 import { Environment, getEnvironment } from './utils/environment.js'
 import { logger } from './logger.js'
 import { addPromptsToServer } from './prompts.js'
-
-/** Returned by the `parse_document` tool when no Data Extraction credential is configured (fail fast, no API call). */
-const EXTRACT_CLIENT_MISSING_ERROR =
-  'Error: Data Extraction is a separate product whose static API key is bound to its own tenant — the Processor key ' +
-  '(NUTRIENT_DWS_API_KEY) cannot be reused here. Set NUTRIENT_DWS_EXTRACTION_API_KEY to a Data Extraction API key from ' +
-  'the dashboard (starts with pdf_live_), or omit NUTRIENT_DWS_API_KEY entirely to authenticate via OAuth, which ' +
-  'covers both products with one token.'
-
-/** Returned by the Processor tools when the server was started with only a Data Extraction credential. */
-const PROCESSOR_CLIENT_MISSING_ERROR =
-  'Error: This server was started with only a Data Extraction API key configured, so the Processor tools ' +
-  '(document_processor, document_signer, ai_redactor, check_credits) are unavailable. Set NUTRIENT_DWS_API_KEY to ' +
-  'a Processor API key from the dashboard, or omit all API keys entirely to authenticate via OAuth, which covers ' +
-  'both products with one token.'
+import { executeTool } from './tool-runner.js'
+import { isCliCommand, runCli } from './cli.js'
 
 function addToolsToServer(options: {
   server: McpServer
@@ -82,17 +62,7 @@ For structured data extraction (typed JSON or Markdown with bounding boxes and c
       idempotentHint: false,
       openWorldHint: true,
     },
-    async ({ instructions, outputPath }) => {
-      await startupReady
-      if (!apiClient.supports('processor')) {
-        return createErrorResponse(PROCESSOR_CLIENT_MISSING_ERROR)
-      }
-      try {
-        return await performBuildCall(instructions, outputPath, apiClient)
-      } catch (error) {
-        return createErrorResponse(`Error: ${error instanceof Error ? error.message : String(error)}`)
-      }
-    },
+    async (args) => executeTool('document_processor', args, { apiClient, startupReady }),
   )
 
   server.tool(
@@ -120,24 +90,7 @@ Positioning:
       idempotentHint: false,
       openWorldHint: true,
     },
-    async ({ filePath, signatureOptions, watermarkImagePath, graphicImagePath, outputPath }) => {
-      await startupReady
-      if (!apiClient.supports('processor')) {
-        return createErrorResponse(PROCESSOR_CLIENT_MISSING_ERROR)
-      }
-      try {
-        return await performSignCall(
-          filePath,
-          outputPath,
-          apiClient,
-          signatureOptions,
-          watermarkImagePath,
-          graphicImagePath,
-        )
-      } catch (error) {
-        return createErrorResponse(`Error: ${error instanceof Error ? error.message : String(error)}`)
-      }
-    },
+    async (args) => executeTool('document_signer', args, { apiClient, startupReady }),
   )
 
   server.tool(
@@ -161,17 +114,7 @@ By default (when neither stage nor apply is set), redactions are detected and im
       idempotentHint: false,
       openWorldHint: true,
     },
-    async ({ filePath, criteria, outputPath, stage, apply }) => {
-      await startupReady
-      if (!apiClient.supports('processor')) {
-        return createErrorResponse(PROCESSOR_CLIENT_MISSING_ERROR)
-      }
-      try {
-        return await performAiRedactCall(filePath, criteria, outputPath, apiClient, stage, apply)
-      } catch (error) {
-        return createErrorResponse(`Error: ${error instanceof Error ? error.message : String(error)}`)
-      }
-    },
+    async (args) => executeTool('ai_redactor', args, { apiClient, startupReady }),
   )
 
   server.tool(
@@ -189,17 +132,7 @@ Returns: subscription type, total credits, used credits, and remaining credits.`
       idempotentHint: true,
       openWorldHint: true,
     },
-    async () => {
-      await startupReady
-      if (!apiClient.supports('processor')) {
-        return createErrorResponse(PROCESSOR_CLIENT_MISSING_ERROR)
-      }
-      try {
-        return await performCheckCreditsCall(apiClient)
-      } catch (error) {
-        return createErrorResponse(`Error: ${error instanceof Error ? error.message : String(error)}`)
-      }
-    },
+    async (args) => executeTool('check_credits', args, { apiClient, startupReady }),
   )
 
   server.tool(
@@ -222,17 +155,7 @@ Note: markdown output and any extracted content are returned into this conversat
       idempotentHint: false,
       openWorldHint: true,
     },
-    async (args) => {
-      await startupReady
-      if (!apiClient.supports('extraction')) {
-        return createErrorResponse(EXTRACT_CLIENT_MISSING_ERROR)
-      }
-      try {
-        return await performParseDocumentCall(args, apiClient)
-      } catch (error) {
-        return createErrorResponse(`Error: ${error instanceof Error ? error.message : String(error)}`)
-      }
-    },
+    async (args) => executeTool('parse_document', args, { apiClient, startupReady }),
   )
 
   server.tool(
@@ -254,17 +177,7 @@ output.data (the extracted values) is always returned inline. Per-field citation
       idempotentHint: false,
       openWorldHint: true,
     },
-    async (args) => {
-      await startupReady
-      if (!apiClient.supports('extraction')) {
-        return createErrorResponse(EXTRACT_CLIENT_MISSING_ERROR)
-      }
-      try {
-        return await performExtractFieldsCall(args, apiClient)
-      } catch (error) {
-        return createErrorResponse(`Error: ${error instanceof Error ? error.message : String(error)}`)
-      }
-    },
+    async (args) => executeTool('extract_fields', args, { apiClient, startupReady }),
   )
 
   if (sandboxEnabled) {
@@ -279,10 +192,7 @@ output.data (the extracted values) is always returned inline. Per-field citation
         idempotentHint: true,
         openWorldHint: false,
       },
-      async () => {
-        await startupReady
-        return performDirectoryTreeCall('.')
-      },
+      async (args) => executeTool('sandbox_file_tree', args, { apiClient, startupReady }),
     )
   } else {
     server.tool(
@@ -296,10 +206,7 @@ output.data (the extracted values) is always returned inline. Per-field citation
         idempotentHint: true,
         openWorldHint: false,
       },
-      async ({ path }) => {
-        await startupReady
-        return performDirectoryTreeCall(path)
-      },
+      async (args) => executeTool('directory_tree', args, { apiClient, startupReady }),
     )
   }
 }
@@ -440,47 +347,66 @@ function isMainModule() {
   return resolve(fileURLToPath(import.meta.url)) === resolve(entryFile)
 }
 
+export function isCliInvocation(args: string[]): boolean {
+  const first = args[0]
+  return first === 'cli' || first === '--help' || first === '-h' || first === '--version' || first === '-v' || isCliCommand(first)
+}
+
 if (isMainModule()) {
-  let activeServer: RunServerResult | undefined
+  const commandLineArgs = process.argv.slice(2)
 
-  warnIfStdioTransportIsInteractive()
+  if (isCliInvocation(commandLineArgs)) {
+    const cliArgs = commandLineArgs[0] === 'cli' ? commandLineArgs.slice(1) : commandLineArgs
+    runCli(cliArgs)
+      .then((exitCode) => {
+        process.exitCode = exitCode
+      })
+      .catch((error) => {
+        console.error(`Fatal CLI error: ${error instanceof Error ? error.message : error}`)
+        process.exitCode = 2
+      })
+  } else {
+    let activeServer: RunServerResult | undefined
 
-  let environment: Environment
-  try {
-    environment = getEnvironment()
-  } catch (e) {
-    console.error(`Invalid environment configuration: ${e instanceof Error ? e.message : e}`)
-    process.exit(1)
-  }
+    warnIfStdioTransportIsInteractive()
 
-  runServer(environment)
-    .then((result) => {
-      activeServer = result
-    })
-    .catch((error) => {
-      console.error('Fatal error running server:', error)
+    let environment: Environment
+    try {
+      environment = getEnvironment()
+    } catch (e) {
+      console.error(`Invalid environment configuration: ${e instanceof Error ? e.message : e}`)
       process.exit(1)
+    }
+
+    runServer(environment)
+      .then((result) => {
+        activeServer = result
+      })
+      .catch((error) => {
+        console.error('Fatal error running server:', error)
+        process.exit(1)
+      })
+
+    process.on('SIGINT', async () => {
+      if (activeServer) {
+        await activeServer.close().catch(() => {})
+      }
+
+      process.exit(0)
     })
 
-  process.on('SIGINT', async () => {
-    if (activeServer) {
-      await activeServer.close().catch(() => {})
-    }
+    process.on('SIGTERM', async () => {
+      if (activeServer) {
+        await activeServer.close().catch(() => {})
+      }
 
-    process.exit(0)
-  })
+      process.exit(0)
+    })
 
-  process.on('SIGTERM', async () => {
-    if (activeServer) {
-      await activeServer.close().catch(() => {})
-    }
-
-    process.exit(0)
-  })
-
-  process.stdin.on('close', async () => {
-    if (activeServer) {
-      await activeServer.close().catch(() => {})
-    }
-  })
+    process.stdin.on('close', async () => {
+      if (activeServer) {
+        await activeServer.close().catch(() => {})
+      }
+    })
+  }
 }
