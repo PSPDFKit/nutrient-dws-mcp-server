@@ -1,5 +1,21 @@
 # Nutrient DWS MCP Server
 
+> [!IMPORTANT]
+> **This local MCP server is no longer supported. Use [Nutrient MCP](https://www.nutrient.io/api/mcp-server-pdf-automation-llm/) instead.**
+>
+> Nutrient now hosts its MCP server at `https://mcp.nutrient.io/mcp`. Add that URL to your MCP client and sign in with your Nutrient account. There's nothing to install, no API key and no sandbox folder.
+>
+> ```bash
+> # Claude Code
+> claude mcp add --transport http --scope user nutrient https://mcp.nutrient.io/mcp
+> # then run /mcp, choose nutrient, and select Authenticate
+>
+> # Codex
+> codex mcp add nutrient --url https://mcp.nutrient.io/mcp && codex mcp login nutrient
+> ```
+>
+> In the Claude app, add `https://mcp.nutrient.io/mcp` as a custom connector. To switch, remove `@nutrient-sdk/dws-mcp-server` from your client config and add the URL. This repository stays up for reference only. It won't get new features or fixes.
+
 ![Document workflows using natural language](https://raw.githubusercontent.com/PSPDFKit/nutrient-dws-mcp-server/main/resources/readme-header.png)
 
 <a href="https://glama.ai/mcp/servers/@PSPDFKit/nutrient-dws-mcp-server">
